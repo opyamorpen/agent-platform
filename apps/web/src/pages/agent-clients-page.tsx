@@ -21,6 +21,13 @@ import {
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -38,13 +45,16 @@ import { toast } from 'sonner';
 type AgentClientsResponse = ApiSuccess<AgentClient[]> | ApiError;
 type AgentClientMutationResponse = ApiSuccess<AgentClient> | ApiError;
 type AgentClientCommandTarget = 'local' | 'docker' | 'env';
+type AgentClientDefaultAgent = 'codex' | 'claude' | 'hermes';
 
 const DEFAULT_AGENT_CLIENT_FORM = {
   serverBaseUrl: '',
   clientUUID: 'agent-client-01',
   clientName: 'Agent Client 01',
+  defaultAgent: 'codex' as AgentClientDefaultAgent,
   concurrency: '1',
-  workingRoot: '/data'
+  workingRoot: '/data',
+  hermesCommandTemplate: 'hermes --prompt-file {promptFile}'
 };
 
 function getDefaultServerBaseUrl() {
@@ -79,20 +89,47 @@ function createAgentClientCommands(form: typeof DEFAULT_AGENT_CLIENT_FORM) {
   const serverBaseUrl = form.serverBaseUrl.trim() || getDefaultServerBaseUrl();
   const clientUUID = form.clientUUID.trim() || DEFAULT_AGENT_CLIENT_FORM.clientUUID;
   const clientName = form.clientName.trim() || DEFAULT_AGENT_CLIENT_FORM.clientName;
+  const defaultAgent = form.defaultAgent || DEFAULT_AGENT_CLIENT_FORM.defaultAgent;
   const concurrency = form.concurrency.trim() || DEFAULT_AGENT_CLIENT_FORM.concurrency;
   const workingRoot = form.workingRoot.trim() || DEFAULT_AGENT_CLIENT_FORM.workingRoot;
+  const hermesCommandTemplate =
+    form.hermesCommandTemplate.trim() ||
+    DEFAULT_AGENT_CLIENT_FORM.hermesCommandTemplate;
 
-  const envEntries = [
+  const envEntries: Array<readonly [string, string]> = [
     ['AGENT_CLIENT_SERVER_BASE_URL', serverBaseUrl],
     ['AGENT_CLIENT_UUID', clientUUID],
     ['AGENT_CLIENT_NAME', clientName],
-    ['AGENT_CLIENT_DEFAULT_AGENT', 'codex'],
+    ['AGENT_CLIENT_DEFAULT_AGENT', defaultAgent],
     ['AGENT_CLIENT_CONCURRENCY', concurrency],
-    ['AGENT_CLIENT_WORKING_ROOT', workingRoot],
-    ['AGENT_CLIENT_CODEX_HOMES', '/codex'],
-    ['CODEX_HOME', '/codex'],
-    ['CLAUDE_CONFIG_DIR', '/claude']
-  ] as const;
+    ['AGENT_CLIENT_WORKING_ROOT', workingRoot]
+  ];
+
+  if (defaultAgent === 'codex') {
+    envEntries.push(['AGENT_CLIENT_CODEX_HOMES', '/codex']);
+    envEntries.push(['CODEX_HOME', '/codex']);
+  }
+
+  if (defaultAgent === 'claude') {
+    envEntries.push(['CLAUDE_CONFIG_DIR', '/claude']);
+  }
+
+  if (defaultAgent === 'hermes') {
+    envEntries.push(['AGENT_CLIENT_HERMES_COMMAND_TEMPLATE', hermesCommandTemplate]);
+  }
+
+  const dockerEnvironment = envEntries
+    .map(([name, value]) => `      ${name}: ${toYamlDoubleQuotedValue(value)}`)
+    .join('\n');
+  const dockerVolumes = [
+    `      - ./runtime/${clientUUID}/data:${workingRoot}`,
+    defaultAgent === 'codex' ? `      - ./runtime/${clientUUID}/codex:/codex` : null,
+    defaultAgent === 'claude'
+      ? `      - ./runtime/${clientUUID}/claude:/claude`
+      : null
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   return {
     local: `${envEntries.map(([name, value]) => toShellEnvLine(name, value)).join('\n')}\npnpm dev:agent-client`,
@@ -102,19 +139,9 @@ function createAgentClientCommands(form: typeof DEFAULT_AGENT_CLIENT_FORM) {
     restart: unless-stopped
     init: true
     environment:
-      AGENT_CLIENT_SERVER_BASE_URL: ${toYamlDoubleQuotedValue(serverBaseUrl)}
-      AGENT_CLIENT_UUID: ${toYamlDoubleQuotedValue(clientUUID)}
-      AGENT_CLIENT_NAME: ${toYamlDoubleQuotedValue(clientName)}
-      AGENT_CLIENT_DEFAULT_AGENT: codex
-      AGENT_CLIENT_CONCURRENCY: ${toYamlDoubleQuotedValue(concurrency)}
-      AGENT_CLIENT_WORKING_ROOT: ${toYamlDoubleQuotedValue(workingRoot)}
-      AGENT_CLIENT_CODEX_HOMES: /codex
-      CODEX_HOME: /codex
-      CLAUDE_CONFIG_DIR: /claude
+${dockerEnvironment}
     volumes:
-      - ./runtime/${clientUUID}/data:${workingRoot}
-      - ./runtime/${clientUUID}/codex:/codex
-      - ./runtime/${clientUUID}/claude:/claude`,
+${dockerVolumes}`,
     env: envEntries.map(([name, value]) => toDotenvLine(name, value)).join('\n')
   };
 }
@@ -227,7 +254,7 @@ export function AgentClientsPage() {
 
   function updateAgentClientForm(
     field: keyof typeof DEFAULT_AGENT_CLIENT_FORM,
-    value: string
+    value: string | AgentClientDefaultAgent
   ) {
     setAgentClientForm((currentForm) => ({
       ...currentForm,
@@ -509,6 +536,39 @@ export function AgentClientsPage() {
             </FormField>
 
             <FormField>
+              <FieldLabel htmlFor="agent-client-default-agent">
+                {t('pages.agentClients.addDialog.defaultAgentLabel')}
+              </FieldLabel>
+              <Select
+                value={agentClientForm.defaultAgent}
+                onValueChange={(value) =>
+                  updateAgentClientForm(
+                    'defaultAgent',
+                    value as AgentClientDefaultAgent
+                  )
+                }
+              >
+                <SelectTrigger
+                  id="agent-client-default-agent"
+                  className="w-full"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="codex">
+                    {t('pages.agentClients.addDialog.defaultAgentCodex')}
+                  </SelectItem>
+                  <SelectItem value="claude">
+                    {t('pages.agentClients.addDialog.defaultAgentClaude')}
+                  </SelectItem>
+                  <SelectItem value="hermes">
+                    {t('pages.agentClients.addDialog.defaultAgentHermes')}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            <FormField>
               <FieldLabel htmlFor="agent-client-concurrency">
                 {t('pages.agentClients.addDialog.concurrencyLabel')}
               </FieldLabel>
@@ -521,6 +581,31 @@ export function AgentClientsPage() {
                 }
               />
             </FormField>
+
+            {agentClientForm.defaultAgent === 'hermes' ? (
+              <FormField className="md:col-span-2">
+                <FieldContent>
+                  <FieldLabel htmlFor="agent-client-hermes-command-template">
+                    {t('pages.agentClients.addDialog.hermesCommandTemplateLabel')}
+                  </FieldLabel>
+                  <FieldDescription>
+                    {t(
+                      'pages.agentClients.addDialog.hermesCommandTemplateDescription'
+                    )}
+                  </FieldDescription>
+                </FieldContent>
+                <Input
+                  id="agent-client-hermes-command-template"
+                  value={agentClientForm.hermesCommandTemplate}
+                  onChange={(event) =>
+                    updateAgentClientForm(
+                      'hermesCommandTemplate',
+                      event.target.value
+                    )
+                  }
+                />
+              </FormField>
+            ) : null}
 
             <FormField className="md:col-span-2">
               <FieldLabel htmlFor="agent-client-working-root">

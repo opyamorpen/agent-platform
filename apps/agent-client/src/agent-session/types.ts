@@ -1,6 +1,6 @@
 import type { AgentTokenUsage } from '@ones-ai-workflow/shared';
 
-export type ExecuteAgentType = 'codex' | 'claude';
+export type ExecuteAgentType = 'codex' | 'claude' | 'hermes';
 export type ModelReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 export interface AgentSessionInput {
   workspaceRoot: string;
@@ -9,6 +9,7 @@ export interface AgentSessionInput {
   codexHomePath?: string;
   codexApiKey?: string;
   codexBaseUrl?: string;
+  hermesCommandTemplate?: string;
   model?: string;
   modelReasoningEffort?: ModelReasoningEffort;
   timeoutMs?: number;

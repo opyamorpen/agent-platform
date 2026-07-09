@@ -25,6 +25,7 @@ export type SchedulerOptions = {
   codexBaseUrl?: string;
   codexModel?: string;
   codexReasoningEffort?: ModelReasoningEffort;
+  hermesCommandTemplate?: string;
 };
 
 export class Scheduler {
@@ -39,6 +40,7 @@ export class Scheduler {
   codexBaseUrl?: string;
   codexModel?: string;
   codexReasoningEffort?: ModelReasoningEffort;
+  hermesCommandTemplate?: string;
   reloadPromise: Promise<void>;
   consecutiveErrors = 0;
   constructor(
@@ -62,6 +64,7 @@ export class Scheduler {
     this.codexBaseUrl = options.codexBaseUrl;
     this.codexModel = options.codexModel;
     this.codexReasoningEffort = options.codexReasoningEffort;
+    this.hermesCommandTemplate = options.hermesCommandTemplate;
     this.reloadPromise = this.taskStore.reload();
   }
   async run(): Promise<void> {
@@ -246,6 +249,7 @@ export class Scheduler {
       codexHomePath,
       codexApiKey: profileApiKey ?? this.codexApiKey,
       codexBaseUrl: taskModelProfile?.baseURL ?? this.codexBaseUrl,
+      hermesCommandTemplate: this.hermesCommandTemplate,
       model: taskModelProfile?.model ?? (isCodexTask ? this.codexModel : undefined),
       modelReasoningEffort: isCodexTask
         ? taskReasoningEffort ?? this.codexReasoningEffort

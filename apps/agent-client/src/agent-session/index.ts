@@ -5,6 +5,7 @@ import type {
 } from './types.js';
 import { ClaudeAgentSession } from './claude.js';
 import { CodexAgentSession } from './codex.js';
+import { HermesAgentSession } from './hermes.js';
 import { AgentSession as BaseAgentSession } from './types.js';
 
 export { AgentSession, AgentSessionExecutionError } from './types.js';
@@ -46,6 +47,10 @@ export function createAgentSession(
 
   if (executeAgentType === 'claude') {
     return new ClaudeAgentSession(input);
+  }
+
+  if (executeAgentType === 'hermes') {
+    return new HermesAgentSession(input);
   }
 
   return new EmptyAgentSession(input, executeAgentType);

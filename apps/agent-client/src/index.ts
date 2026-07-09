@@ -29,7 +29,8 @@ async function main() {
     codexUsesApiKey: env.codexUsesApiKey,
     codexBaseUrl: env.codexBaseUrl ?? null,
     codexModel: env.codexModel,
-    codexReasoningEffort: env.codexReasoningEffort
+    codexReasoningEffort: env.codexReasoningEffort,
+    hermesCommandTemplateConfigured: Boolean(env.hermesCommandTemplate)
   });
 
   const auth = new AuthService({
@@ -79,7 +80,8 @@ async function main() {
       codexApiKey: env.codexApiKey,
       codexBaseUrl: env.codexBaseUrl,
       codexModel: env.codexModel,
-      codexReasoningEffort: env.codexReasoningEffort
+      codexReasoningEffort: env.codexReasoningEffort,
+      hermesCommandTemplate: env.hermesCommandTemplate
     }
   );
 

@@ -1,0 +1,99 @@
+import { Navigate, createHashRouter } from 'react-router-dom';
+import { AdminRouteGuard } from '@/components/admin-route-guard';
+import { AppLayout } from '@/layouts/app-layout';
+import { AgentDetailPage } from '@/pages/agent-detail-page';
+import { AgentClientsPage } from '@/pages/agent-clients-page';
+import { AgentWorkspaceCredentialsPage } from '@/pages/agent-workspace-credentials-page';
+import { AgentWorkspaceRepositoriesPage } from '@/pages/agent-workspace-repositories-page';
+import { AgentWorkspacesPage } from '@/pages/agent-workspaces-page';
+import { AgentsPage } from '@/pages/agents-page';
+import { DashboardPage } from '@/pages/dashboard-page';
+import { IssueDetailPage } from '@/pages/issue-detail-page';
+import { IssuesPage } from '@/pages/issues-page';
+import { MembersPage } from '@/pages/members-page';
+import { ModelProfilesPage } from '@/pages/model-profiles-page';
+import { PermissionDeniedPage } from '@/pages/permission-denied-page';
+import { SkillsPage } from '@/pages/skills-page';
+import { WorkflowDetailPage } from '@/pages/workflow-detail-page';
+import { WorkflowsPage } from '@/pages/workflows-page';
+
+export const router = createHashRouter([
+  {
+    path: '/',
+    element: <Navigate to="/settings/workflows" replace />
+  },
+  {
+    path: '/forbidden',
+    element: <PermissionDeniedPage />
+  },
+  {
+    path: '/',
+    element: <AppLayout />,
+    children: [
+      {
+        path: 'dashboard',
+        element: <DashboardPage />
+      },
+      {
+        path: 'settings/issues',
+        element: <IssuesPage />
+      },
+      {
+        path: 'settings/issues/:uuid',
+        element: <IssueDetailPage />
+      },
+      {
+        path: 'settings/workflows',
+        element: <WorkflowsPage />
+      },
+      {
+        path: 'settings/workflows/:uuid',
+        element: <WorkflowDetailPage />
+      },
+      {
+        path: 'settings/agents',
+        element: <AgentsPage />
+      },
+      {
+        path: 'settings/model-profiles',
+        element: <ModelProfilesPage />
+      },
+      {
+        path: 'settings/skills',
+        element: <SkillsPage />
+      },
+      {
+        path: 'settings/agents/:uuid',
+        element: <AgentDetailPage />
+      },
+      {
+        path: 'settings/agent-clients',
+        element: (
+          <AdminRouteGuard>
+            <AgentClientsPage />
+          </AdminRouteGuard>
+        )
+      },
+      {
+        path: 'settings/members',
+        element: (
+          <AdminRouteGuard>
+            <MembersPage />
+          </AdminRouteGuard>
+        )
+      },
+      {
+        path: 'settings/agent-workspaces',
+        element: <AgentWorkspacesPage />
+      },
+      {
+        path: 'settings/agent-workspaces/:uuid/repositories',
+        element: <AgentWorkspaceRepositoriesPage />
+      },
+      {
+        path: 'settings/agent-workspaces/:uuid/credentials',
+        element: <AgentWorkspaceCredentialsPage />
+      }
+    ]
+  }
+]);

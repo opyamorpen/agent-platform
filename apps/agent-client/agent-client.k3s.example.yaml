@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: xl
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-client
+  namespace: xl
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: agent-client
+  template:
+    metadata:
+      labels:
+        app: agent-client
+    spec:
+      initContainers:
+        - name: init-permissions
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p /data /codex
+              chown -R 1000:1000 /data /codex
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: codex
+              mountPath: /codex
+      containers:
+        - name: agent-client
+          image: img.ones.pro/dev/xl/agent-client:v0.1.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: AGENT_CLIENT_UUID
+              value: "agent-client-01"
+            - name: AGENT_CLIENT_NAME
+              value: "Agent Client 01"
+            - name: AGENT_CLIENT_SERVER_BASE_URL
+              value: "https://our.ones.pro/platform/app/relay/dispatch/app_onesaiworkflow01"
+            - name: AGENT_CLIENT_DEFAULT_AGENT
+              value: "claude"
+            - name: AGENT_CLIENT_CONCURRENCY
+              value: "3"
+            - name: AGENT_CLIENT_WORKING_ROOT
+              value: "/data"
+            - name: CODEX_HOME
+              value: "/codex"
+            - name: ANTHROPIC_BASE_URL
+              value: "https://relay.ones.pro/anthropic"
+            - name: ANTHROPIC_MODEL
+              value: "glm-5.2"
+            - name: ANTHROPIC_REASONING_MODEL
+              value: "glm-5.2"
+            - name: ANTHROPIC_DEFAULT_HAIKU_MODEL
+              value: "glm-5.2"
+            - name: ANTHROPIC_DEFAULT_SONNET_MODEL
+              value: "glm-5.2"
+            - name: ANTHROPIC_DEFAULT_OPUS_MODEL
+              value: "glm-5.2"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: codex
+              mountPath: /codex
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "8"
+              memory: "16Gi"
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+      volumes:
+        - name: data
+          hostPath:
+            path: /var/lib/ones-ai-workflow/agent-client/data
+            type: DirectoryOrCreate
+        - name: codex
+          hostPath:
+            path: /var/lib/ones-ai-workflow/agent-client/codex
+            type: DirectoryOrCreate

@@ -1,0 +1,58 @@
+FROM node:22-bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    fd-find \
+    file \
+    git \
+    gpg \
+    jq \
+    less \
+    openssh-client \
+    procps \
+    python3 \
+    ripgrep \
+    rsync \
+    tar \
+    tini \
+    unzip \
+    zip \
+  && ln -s /usr/bin/fdfind /usr/local/bin/fd \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN install -d -m 0755 /etc/apt/keyrings \
+  && curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public \
+    | gpg --dearmor -o /etc/apt/keyrings/adoptium.gpg \
+  && echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb bookworm main" \
+    > /etc/apt/sources.list.d/adoptium.list \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends temurin-8-jdk \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+  mkdir -p /tmp/java-compile-check; \
+  printf 'public class CompileCheck { public static void main(String[] args) {} }\n' > /tmp/CompileCheck.java; \
+  javac -source 8 -target 8 -d /tmp/java-compile-check /tmp/CompileCheck.java; \
+  rm -rf /tmp/java-compile-check /tmp/CompileCheck.java
+
+RUN install -d -m 0755 /etc/apt/keyrings \
+  && curl -fsSL https://downloads.claude.ai/keys/claude-code.asc \
+    -o /etc/apt/keyrings/claude-code.asc \
+  && echo "deb [signed-by=/etc/apt/keyrings/claude-code.asc] https://downloads.claude.ai/claude-code/apt/stable stable main" \
+    > /etc/apt/sources.list.d/claude-code.list \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends claude-code \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN corepack enable \
+  && mkdir -p /data /codex /claude
+
+ENV NODE_ENV=production
+ENV HOME=/home/node
+ENV AGENT_CLIENT_WORKING_ROOT=/data
+ENV CODEX_HOME=/codex
+ENV CLAUDE_CONFIG_DIR=/claude
+ENV DISABLE_AUTOUPDATER=1
+ENV JAVA_HOME=/usr/lib/jvm/temurin-8-jdk-amd64
+ENV PATH="${JAVA_HOME}/bin:${PATH}"

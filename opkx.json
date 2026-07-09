@@ -1,0 +1,1227 @@
+{
+  "app": {
+    "id": "app_agentplatform001",
+    "name": "agent-platform",
+    "version": "v0.2.0",
+    "desc": "ONES hosted AI agent platform for model profiles, code workspaces, agent workflows, and external workers.",
+    "auth": {
+      "type": "jwt"
+    },
+    "oauth": {
+      "scope": [
+        "read:account:user",
+        "read:project:project",
+        "read:project:issueType",
+        "read:project:issueStatus",
+        "read:project:issueField",
+        "read:project:issue",
+        "write:project:issue",
+        "read:project:issue-comment",
+        "write:project:issue-comment",
+        "read:project:issue-attachment",
+        "write:project:issue-attachment"
+      ],
+      "type": [
+        "user",
+        "app"
+      ]
+    },
+    "lifecycle_callback": {
+      "install": "/install_cb",
+      "enabled": "/enabled_cb",
+      "disabled": "/disabled_cb",
+      "uninstalled": "/uninstalled_cb"
+    },
+    "extensions": {
+      "appSettingPages": [
+        {
+          "key": "workflowSettings",
+          "funcs": {
+            "customEntries": "/custom_page_entries"
+          }
+        }
+      ]
+    }
+  },
+  "ones": {
+    "storage": {
+      "object": true,
+      "entities": [
+        {
+          "name": "installation_secret",
+          "attributes": {
+            "installation_id": {
+              "type": "string",
+              "length": 128,
+              "required": true
+            },
+            "org_id": {
+              "type": "string",
+              "length": 128,
+              "required": true
+            },
+            "ones_base_url": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "shared_secret": {
+              "type": "string",
+              "length": 512,
+              "required": true
+            },
+            "status": {
+              "type": "string",
+              "length": 32,
+              "required": true
+            },
+            "app_version": {
+              "type": "string",
+              "length": 32,
+              "required": true
+            },
+            "updated_at": {
+              "type": "integer",
+              "required": true
+            }
+          }
+        },
+        {
+          "name": "app_secret",
+          "attributes": {
+            "key": {
+              "type": "string",
+              "length": 128,
+              "required": true
+            },
+            "secret": {
+              "type": "string",
+              "length": 512,
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            },
+            "updated_at": {
+              "type": "integer",
+              "required": true
+            }
+          }
+        },
+        {
+          "name": "field",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "ones_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "alias": {
+              "type": "string",
+              "length": 128,
+              "required": true
+            },
+            "name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "field_type": {
+              "type": "string",
+              "length": 64,
+              "required": true
+            },
+            "value_type": {
+              "type": "string",
+              "length": 64,
+              "required": true
+            },
+            "reference_object_type": {
+              "type": "string",
+              "length": 64,
+              "required": true
+            },
+            "readonly": {
+              "type": "boolean",
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            },
+            "updated_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            }
+          ]
+        },
+        {
+          "name": "model_profile",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "provider": {
+              "type": "string",
+              "length": 64,
+              "required": true
+            },
+            "model": {
+              "type": "string",
+              "length": 128,
+              "required": true
+            },
+            "base_url": {
+              "type": "string",
+              "length": 512,
+              "required": true
+            },
+            "api_key_secret_name": {
+              "type": "string",
+              "length": 128,
+              "required": true
+            },
+            "reasoning_effort": {
+              "type": "string",
+              "length": 64,
+              "required": true
+            },
+            "temperature": {
+              "type": "float",
+              "required": true
+            },
+            "is_default": {
+              "type": "boolean",
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            },
+            "updated_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            }
+          ]
+        },
+        {
+          "name": "agent",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "workspace_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "executor_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "executor_name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "current_version": {
+              "type": "integer",
+              "required": true
+            },
+            "draft_object_key": {
+              "type": "string",
+              "length": 512,
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            },
+            "updated_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            }
+          ]
+        },
+        {
+          "name": "agent_skill_binding",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "agent_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "skill_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            },
+            {
+              "name": "idx_agent_uuid",
+              "range_attribute": "agent_uuid"
+            },
+            {
+              "name": "idx_skill_uuid",
+              "range_attribute": "skill_uuid"
+            }
+          ]
+        },
+        {
+          "name": "agent_version",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "agent_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "version": {
+              "type": "integer",
+              "required": true
+            },
+            "config_object_key": {
+              "type": "string",
+              "length": 512,
+              "required": true
+            },
+            "created_by": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "note": {
+              "type": "string",
+              "length": 512,
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            }
+          ]
+        },
+        {
+          "name": "workflow",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "is_active": {
+              "type": "boolean",
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            },
+            "updated_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            }
+          ]
+        },
+        {
+          "name": "workflow_node",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "workflow_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "trigger_type": {
+              "type": "string",
+              "length": 32,
+              "required": true
+            },
+            "project_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "project_name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "issue_type_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "issue_type_name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "status_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "status_name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "agent_uuids_text": {
+              "type": "string",
+              "length": 1024,
+              "required": true
+            },
+            "condition_expression": {
+              "type": "text",
+              "required": true
+            },
+            "condition_description": {
+              "type": "text",
+              "required": true
+            },
+            "schedule_cron": {
+              "type": "string",
+              "length": 128,
+              "required": true
+            },
+            "schedule_timezone": {
+              "type": "string",
+              "length": 64,
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            },
+            "updated_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            }
+          ]
+        },
+        {
+          "name": "agent_client",
+          "attributes": {
+            "uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "status": {
+              "type": "string",
+              "length": 32,
+              "required": true
+            },
+            "hostname": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "version": {
+              "type": "string",
+              "length": 64,
+              "required": true
+            },
+            "connection_status": {
+              "type": "string",
+              "length": 32,
+              "required": true
+            },
+            "pending_request_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "pending_connect_code_hash": {
+              "type": "string",
+              "length": 64,
+              "required": true
+            },
+            "token_hash": {
+              "type": "string",
+              "length": 64,
+              "required": true
+            },
+            "requested_at": {
+              "type": "integer",
+              "required": true
+            },
+            "approved_at": {
+              "type": "integer",
+              "required": true
+            },
+            "revoked_at": {
+              "type": "integer",
+              "required": true
+            },
+            "last_used_at": {
+              "type": "integer",
+              "required": true
+            },
+            "last_exchange_at": {
+              "type": "integer",
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            },
+            "updated_at": {
+              "type": "integer",
+              "required": true
+            }
+          }
+        },
+        {
+          "name": "agent_workspace",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "auth_type": {
+              "type": "string",
+              "length": 16,
+              "required": true
+            },
+            "ssh_public_key": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "ssh_private_key": {
+              "type": "string",
+              "length": 1024,
+              "required": true
+            },
+            "https_username": {
+              "type": "string",
+              "length": 64,
+              "required": true
+            },
+            "https_secret_object_key": {
+              "type": "string",
+              "length": 64,
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            },
+            "updated_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            }
+          ]
+        },
+        {
+          "name": "agent_repo",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "agent_workspace_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "url": {
+              "type": "string",
+              "length": 1024,
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            },
+            "updated_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            },
+            {
+              "name": "idx_agent_workspace_uuid",
+              "range_attribute": "agent_workspace_uuid"
+            }
+          ]
+        },
+        {
+          "name": "app_member",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "user_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "email": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "staff_id": {
+              "type": "string",
+              "length": 128,
+              "required": true
+            },
+            "created_by": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            },
+            "updated_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            }
+          ]
+        },
+        {
+          "name": "workspace_credential",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "agent_workspace_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "env_name": {
+              "type": "string",
+              "length": 64,
+              "required": true
+            },
+            "description": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "secret_object_key": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "created_by": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            },
+            "updated_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            },
+            {
+              "name": "idx_agent_workspace_uuid",
+              "range_attribute": "agent_workspace_uuid"
+            }
+          ]
+        },
+        {
+          "name": "dispatched_issue",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "display_id": {
+              "type": "string",
+              "length": 128,
+              "required": true
+            },
+            "name": {
+              "type": "string",
+              "length": 512,
+              "required": true
+            },
+            "project_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "project_name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "issue_type_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "issue_type_name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "status_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "status_name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "assignee_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "assignee_name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "latest_execution_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "latest_execution_status": {
+              "type": "string",
+              "length": 32,
+              "required": true
+            },
+            "last_dispatched_at": {
+              "type": "integer",
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            },
+            "updated_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            }
+          ]
+        },
+        {
+          "name": "issue_execution",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "dispatched_issue_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "workflow_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "workflow_name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "workflow_node_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "workflow_node_name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "trigger_status_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "trigger_status_name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "trigger_assignee_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "trigger_assignee_name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "status": {
+              "type": "string",
+              "length": 32,
+              "required": true
+            },
+            "block_reason": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "current_agent_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            },
+            "started_at": {
+              "type": "integer",
+              "required": true
+            },
+            "finished_at": {
+              "type": "integer",
+              "required": true
+            },
+            "updated_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            },
+            {
+              "name": "idx_dispatched_issue_uuid",
+              "range_attribute": "dispatched_issue_uuid"
+            }
+          ]
+        },
+        {
+          "name": "issue_agent_execution",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "issue_execution_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "agent_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "agent_name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "agent_version": {
+              "type": "integer",
+              "required": true
+            },
+            "executor_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "executor_name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "prompt_object_key": {
+              "type": "string",
+              "length": 128,
+              "required": true
+            },
+            "execute_payload_object_key": {
+              "type": "string",
+              "length": 128,
+              "required": true
+            },
+            "execute_option_object_key": {
+              "type": "string",
+              "length": 128,
+              "required": true
+            },
+            "execute_result_object_key": {
+              "type": "string",
+              "length": 128,
+              "required": true
+            },
+            "logs_object_key": {
+              "type": "string",
+              "length": 128,
+              "required": true
+            },
+            "status": {
+              "type": "string",
+              "length": 32,
+              "required": true
+            },
+            "usage_input_tokens": {
+              "type": "integer",
+              "required": true
+            },
+            "usage_output_tokens": {
+              "type": "integer",
+              "required": true
+            },
+            "execute_client_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "execute_client_name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "queued_at": {
+              "type": "integer",
+              "required": true
+            },
+            "last_reported_at": {
+              "type": "integer",
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            },
+            "started_at": {
+              "type": "integer",
+              "required": true
+            },
+            "finished_at": {
+              "type": "integer",
+              "required": true
+            },
+            "updated_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            },
+            {
+              "name": "idx_issue_execution_uuid",
+              "range_attribute": "issue_execution_uuid"
+            }
+          ]
+        },
+        {
+          "name": "skill",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "description": {
+              "type": "string",
+              "length": 1024,
+              "required": true
+            },
+            "current_version": {
+              "type": "integer",
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            },
+            "updated_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            }
+          ]
+        },
+        {
+          "name": "skill_version",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "skill_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "version": {
+              "type": "integer",
+              "required": true
+            },
+            "storage_path": {
+              "type": "string",
+              "length": 512,
+              "required": true
+            },
+            "file_count": {
+              "type": "integer",
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            },
+            {
+              "name": "idx_skill_uuid",
+              "range_attribute": "skill_uuid"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "runtime": {
+    "type": "ones-node-22",
+    "healthcheck": {
+      "path": "/health_check"
+    },
+    "command": [
+      "node",
+      "apps/server/dist/index.cjs"
+    ]
+  }
+}

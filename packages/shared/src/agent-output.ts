@@ -1,0 +1,451 @@
+import type { AgentOutputField } from './types.js';
+
+const ISSUE_COMMENT_FIELD_UUID = 'field057';
+const ISSUE_ATTACHMENT_FIELD_UUID = 'field047';
+
+type ObjectSubFieldConfig = {
+  mode: AgentOutputField['mode'];
+  field: AgentOutputField['field'];
+  description: AgentOutputField['description'];
+  subFields: AgentOutputField['subFields'];
+};
+
+type ParsedFieldWriteMode = 'set' | 'append' | null;
+
+type XmlTagBounds = {
+  innerContent: string;
+  outerStart: number;
+  outerEnd: number;
+};
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function findXmlTagBounds(
+  source: string,
+  tagName: string,
+  fromIndex = 0
+): XmlTagBounds | null {
+  const escapedTagName = escapeRegExp(tagName);
+  const openTagPattern = new RegExp(
+    `<${escapedTagName}(?:\\s*\\/\\s*>|>)`,
+    'g'
+  );
+  openTagPattern.lastIndex = fromIndex;
+
+  const openTagMatch = openTagPattern.exec(source);
+
+  if (!openTagMatch) {
+    return null;
+  }
+
+  const openTag = openTagMatch[0];
+  const innerStart = openTagMatch.index + openTag.length;
+
+  if (/\/\s*>$/.test(openTag)) {
+    return {
+      innerContent: '',
+      outerStart: openTagMatch.index,
+      outerEnd: innerStart
+    };
+  }
+
+  const tagTokenPattern = new RegExp(
+    `<${escapedTagName}(?:\\s*\\/\\s*>|>)|</${escapedTagName}>`,
+    'g'
+  );
+  tagTokenPattern.lastIndex = innerStart;
+  let depth = 1;
+
+  while (true) {
+    const tagTokenMatch = tagTokenPattern.exec(source);
+
+    if (!tagTokenMatch) {
+      return null;
+    }
+
+    const tagToken = tagTokenMatch[0];
+
+    if (tagToken.startsWith('</')) {
+      depth -= 1;
+
+      if (depth === 0) {
+        return {
+          innerContent: source.slice(innerStart, tagTokenMatch.index).trim(),
+          outerStart: openTagMatch.index,
+          outerEnd: tagTokenMatch.index + tagToken.length
+        };
+      }
+
+      continue;
+    }
+
+    if (!/\/\s*>$/.test(tagToken)) {
+      depth += 1;
+    }
+  }
+}
+
+function collectXmlTagContents(source: string, tagName: string): string[] {
+  const blocks: string[] = [];
+  let cursor = 0;
+
+  while (true) {
+    const bounds = findXmlTagBounds(source, tagName, cursor);
+
+    if (!bounds) {
+      return blocks;
+    }
+
+    blocks.push(bounds.innerContent);
+    cursor = bounds.outerEnd;
+  }
+}
+
+function parseXmlTagContent(source: string, tagName: string): string | null {
+  return findXmlTagBounds(source, tagName)?.innerContent ?? null;
+}
+
+function unwrapCdataIfPresent(value: string): string {
+  const cdataMatch = value.match(/^<!\[CDATA\[([\s\S]*?)\]\]>$/);
+  return cdataMatch ? (cdataMatch[1] ?? '') : value;
+}
+
+function isReferenceValueType(valueType: string): boolean {
+  return (
+    valueType === 'single_reference_object' ||
+    valueType === 'multi_reference_object'
+  );
+}
+
+function isCommentObjectField(field: AgentOutputField['field']): boolean {
+  return field.uuid === ISSUE_COMMENT_FIELD_UUID || field.referenceObjectType === 'comment';
+}
+
+function isAttachmentObjectField(field: AgentOutputField['field']): boolean {
+  return (
+    field.uuid === ISSUE_ATTACHMENT_FIELD_UUID ||
+    field.referenceObjectType === 'attachment'
+  );
+}
+
+function supportsFieldWriteMode(field: AgentOutputField): boolean {
+  return (
+    field.field.valueType === 'multi_reference_object' &&
+    !isCommentObjectField(field.field) &&
+    !isAttachmentObjectField(field.field)
+  );
+}
+
+function usesObjectOutput(field: AgentOutputField): boolean {
+  return (
+    (isReferenceValueType(field.field.valueType) ||
+      isCommentObjectField(field.field) ||
+      isAttachmentObjectField(field.field))
+  );
+}
+
+function getAllowedSubFields(field: AgentOutputField): Map<string, ObjectSubFieldConfig> {
+  if (isCommentObjectField(field.field)) {
+    return new Map([
+      [
+        'content',
+        {
+          mode: 'set_value',
+          field: {
+            uuid: 'content',
+            name: '内容',
+            valueType: 'richtext',
+            referenceObjectType: null
+          },
+          description: '评论正文。',
+          subFields: []
+        }
+      ]
+    ]);
+  }
+
+  if (isAttachmentObjectField(field.field)) {
+    return new Map([
+      [
+        'local_path',
+        {
+          mode: 'set_value',
+          field: {
+            uuid: 'local_path',
+            name: '本地路径',
+            valueType: 'text',
+            referenceObjectType: null
+          },
+          description: '工作区相对路径，用于上传该附件。',
+          subFields: []
+        }
+      ]
+    ]);
+  }
+
+  return new Map(
+    field.subFields.map((subField) => [subField.field.uuid.trim(), subField] as const)
+  );
+}
+
+function parseObjectType(
+  source: string,
+  fallbackObjectType: string | null
+): string {
+  const objectType = parseXmlTagContent(source, 'object-type') ?? fallbackObjectType;
+
+  if (!objectType) {
+    throw new Error('Missing <object-type> in <object> block');
+  }
+
+  return objectType;
+}
+
+function parseOutputFieldEntryValue(
+  fieldBlock: string,
+  fieldConfig: ObjectSubFieldConfig
+): ParsedAgentObjectFieldValue {
+  if (usesObjectOutput(fieldConfig)) {
+    return parseObjectCollection(
+      fieldBlock,
+      fieldConfig,
+      `field "${fieldConfig.field.uuid}"`
+    );
+  }
+
+  const childFieldValue = parseXmlTagContent(fieldBlock, 'set-value');
+
+  if (childFieldValue === null) {
+    throw new Error(
+      `Missing <set-value> for child field "${fieldConfig.field.uuid}"`
+    );
+  }
+
+  return unwrapCdataIfPresent(childFieldValue);
+}
+
+function parseObjectFields(
+  fieldValuesContent: string,
+  fieldConfig: AgentOutputField
+): Record<string, ParsedAgentObjectFieldValue> {
+  const allowedSubFields = getAllowedSubFields(fieldConfig);
+  const fieldValues: Record<string, ParsedAgentObjectFieldValue> = {};
+  const fieldBlocks = collectXmlTagContents(fieldValuesContent, 'field');
+
+  for (const fieldBlock of fieldBlocks) {
+    const childFieldUUID = parseXmlTagContent(fieldBlock, 'field-uuid');
+
+    if (!childFieldUUID) {
+      throw new Error(
+        `Missing <field-uuid> in <fields> for output field "${fieldConfig.field.uuid}"`
+      );
+    }
+
+    const allowedSubField = allowedSubFields.get(childFieldUUID);
+
+    if (!allowedSubField) {
+      throw new Error(
+        `Unknown child field "${childFieldUUID}" for output field "${fieldConfig.field.uuid}"`
+      );
+    }
+
+    if (childFieldUUID in fieldValues) {
+      throw new Error(
+        `Duplicated child field "${childFieldUUID}" for output field "${fieldConfig.field.uuid}"`
+      );
+    }
+
+    fieldValues[childFieldUUID] = parseOutputFieldEntryValue(
+      fieldBlock,
+      allowedSubField
+    );
+  }
+
+  return fieldValues;
+}
+
+function parseObjectCollection(
+  source: string,
+  fieldConfig: AgentOutputField,
+  contextLabel: string
+): ParsedAgentOutputObject[] {
+  const objectsContent = parseXmlTagContent(source, 'objects');
+
+  if (objectsContent === null) {
+    throw new Error(`Missing <objects> for ${contextLabel}`);
+  }
+
+  const objects = collectXmlTagContents(objectsContent, 'object').map((objectBlock) => {
+    const fieldsBounds = findXmlTagBounds(objectBlock, 'fields');
+    const objectHeaderContent =
+      fieldsBounds === null
+        ? objectBlock
+        : objectBlock.slice(0, fieldsBounds.outerStart).trim();
+    const objectType = parseObjectType(
+      objectHeaderContent,
+      fieldConfig.field.referenceObjectType ?? null
+    );
+    const rawObjectWriteMode = parseXmlTagContent(
+      objectHeaderContent,
+      'object-write-mode'
+    );
+    const objectWriteMode: 'create' | 'update' | null =
+      rawObjectWriteMode === 'create' || rawObjectWriteMode === 'update'
+        ? rawObjectWriteMode
+        : null;
+    const objectUUID = parseXmlTagContent(objectHeaderContent, 'object-uuid');
+    const objectName = parseXmlTagContent(objectHeaderContent, 'object-name');
+    const fieldsContent = fieldsBounds?.innerContent ?? null;
+    const requiresFields = getAllowedSubFields(fieldConfig).size > 0;
+    const isAttachmentObject = isAttachmentObjectField(fieldConfig.field);
+
+    if (
+      requiresFields &&
+      fieldsContent === null &&
+      (!isAttachmentObject || (!objectUUID && !objectName))
+    ) {
+      throw new Error(`Missing <fields> in <object> for ${contextLabel}`);
+    }
+
+    return {
+      objectType,
+      objectWriteMode,
+      objectUUID: objectUUID || null,
+      objectName: objectName || null,
+      fields:
+        fieldsContent === null
+          ? {}
+          : parseObjectFields(fieldsContent, fieldConfig)
+    };
+  });
+
+  if (
+    fieldConfig.field.valueType === 'single_reference_object' &&
+    objects.length > 1
+  ) {
+    throw new Error(`Field "${fieldConfig.field.uuid}" expects at most one <object>`);
+  }
+
+  return objects;
+}
+
+export function parseAgentOutputString(
+  outputText: string,
+  fields: AgentOutputField[]
+): ParsedAgentOutput[] {
+  const outputsContent = parseXmlTagContent(outputText, 'outputs');
+
+  if (outputsContent === null) {
+    if (fields.length === 0) {
+      return [];
+    }
+
+    throw new Error('Missing <outputs> block');
+  }
+
+  const allowedFields = new Map(
+    fields.map((field) => [field.field.uuid, field] as const)
+  );
+  const result: ParsedAgentOutput[] = [];
+  const seenFieldUUIDPaths = new Set<string>();
+  const outputBlocks = collectXmlTagContents(outputsContent, 'output');
+
+  for (const outputBlock of outputBlocks) {
+    const fieldUUIDPath = parseXmlTagContent(outputBlock, 'field-uuid');
+
+    if (!fieldUUIDPath) {
+      throw new Error('Missing <field-uuid> in <output> block');
+    }
+
+    const field = allowedFields.get(fieldUUIDPath);
+
+    if (!field) {
+      throw new Error(`Unknown output field "${fieldUUIDPath}"`);
+    }
+
+    if (seenFieldUUIDPaths.has(fieldUUIDPath)) {
+      throw new Error(`Duplicated output field "${fieldUUIDPath}"`);
+    }
+
+    seenFieldUUIDPaths.add(fieldUUIDPath);
+
+    if (usesObjectOutput(field)) {
+      const rawFieldWriteMode = parseXmlTagContent(outputBlock, 'field-write-mode');
+      const fieldWriteMode: ParsedFieldWriteMode =
+        rawFieldWriteMode === 'set' || rawFieldWriteMode === 'append'
+          ? rawFieldWriteMode
+          : null;
+
+      if (rawFieldWriteMode !== null && fieldWriteMode === null) {
+        throw new Error(
+          `Output field "${fieldUUIDPath}" has invalid <field-write-mode> "${rawFieldWriteMode}"`
+        );
+      }
+
+      if (fieldWriteMode !== null && !supportsFieldWriteMode(field)) {
+        throw new Error(
+          `Output field "${fieldUUIDPath}" does not support <field-write-mode>`
+        );
+      }
+
+      result.push({
+        mode: 'object_values',
+        fieldUUIDPath,
+        fieldWriteMode,
+        objects: parseObjectCollection(outputBlock, field, `output "${fieldUUIDPath}"`)
+      });
+      continue;
+    }
+
+    const content = parseXmlTagContent(outputBlock, 'set-value');
+
+    if (content === null) {
+      throw new Error(`Missing <set-value> for output field "${fieldUUIDPath}"`);
+    }
+
+    result.push({
+      mode: 'set_value',
+      fieldUUIDPath,
+      value: unwrapCdataIfPresent(content)
+    });
+  }
+
+  if (outputBlocks.length === 0) {
+    if (fields.length === 0) {
+      return [];
+    }
+
+    throw new Error('Missing <output> items in <outputs> block');
+  }
+
+  return result;
+}
+
+export interface ParsedAgentSetValueOutput {
+  mode: 'set_value';
+  fieldUUIDPath: string;
+  value: string;
+}
+
+export interface ParsedAgentOutputObject {
+  objectType: string;
+  objectWriteMode: 'create' | 'update' | null;
+  objectUUID: string | null;
+  objectName: string | null;
+  fields: Record<string, ParsedAgentObjectFieldValue>;
+}
+
+export type ParsedAgentObjectFieldValue = string | ParsedAgentOutputObject[];
+
+export interface ParsedAgentObjectValuesOutput {
+  mode: 'object_values';
+  fieldUUIDPath: string;
+  fieldWriteMode: 'set' | 'append' | null;
+  objects: ParsedAgentOutputObject[];
+}
+
+export type ParsedAgentOutput =
+  | ParsedAgentSetValueOutput
+  | ParsedAgentObjectValuesOutput;

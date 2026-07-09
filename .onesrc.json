@@ -1,0 +1,10 @@
+{
+  "build": {
+    "compress": {
+      "files": [
+        "apps/server/dist/**/*",
+        "apps/web/dist/**/*"
+      ]
+    }
+  }
+}

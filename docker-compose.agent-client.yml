@@ -1,0 +1,25 @@
+services:
+  agent-client:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent-client
+    image: ones-ai-workflow/agent-client:local
+    restart: unless-stopped
+    init: true
+    environment:
+      AGENT_CLIENT_UUID: agent-client-01
+      AGENT_CLIENT_NAME: Agent Client 01
+      AGENT_CLIENT_SERVER_BASE_URL: http://host.docker.internal:3001
+      AGENT_CLIENT_DEFAULT_AGENT: codex
+      AGENT_CLIENT_CONCURRENCY: "1"
+      AGENT_CLIENT_LOG_LEVEL: info
+      AGENT_CLIENT_WORKING_ROOT: /data
+      AGENT_CLIENT_CODEX_HOMES: /codex
+      CODEX_HOME: /codex
+      CLAUDE_CONFIG_DIR: /claude
+    volumes:
+      - ./runtime/agent-client-01/data:/data
+      - ./runtime/agent-client-01/codex:/codex
+      - ./runtime/agent-client-01/claude:/claude
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

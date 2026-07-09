@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ONES AI Workflow</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f7fb;
+        --panel: rgba(255, 255, 255, 0.94);
+        --text: #172033;
+        --muted: #5f6b85;
+        --line: rgba(23, 32, 51, 0.1);
+        --primary: #1c5cff;
+        --primary-hover: #184ed9;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        font-family:
+          "SF Pro Display",
+          "PingFang SC",
+          "Helvetica Neue",
+          sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top, rgba(28, 92, 255, 0.14), transparent 42%),
+          linear-gradient(180deg, #fbfcff 0%, var(--bg) 100%);
+      }
+
+      main {
+        width: min(100%, 560px);
+        padding: 32px;
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: var(--panel);
+        box-shadow: 0 24px 70px -40px rgba(20, 32, 61, 0.35);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 28px;
+        line-height: 1.15;
+      }
+
+      p {
+        margin: 14px 0 0;
+        font-size: 15px;
+        line-height: 1.7;
+        color: var(--muted);
+      }
+
+      .actions {
+        margin-top: 28px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 44px;
+        padding: 0 18px;
+        border-radius: 999px;
+        background: var(--primary);
+        color: #fff;
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 600;
+        transition:
+          background-color 160ms ease,
+          transform 160ms ease,
+          box-shadow 160ms ease;
+        box-shadow: 0 14px 30px -18px rgba(28, 92, 255, 0.9);
+      }
+
+      .button:hover {
+        background: var(--primary-hover);
+        transform: translateY(-1px);
+      }
+
+      @media (max-width: 640px) {
+        body {
+          padding: 16px;
+        }
+
+        main {
+          padding: 24px;
+          border-radius: 20px;
+        }
+
+        h1 {
+          font-size: 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>ONES AI Workflow</h1>
+      <p>
+        ONES AI Workflow 能够把 AI 能力接入到 ONES 的工作流中，让 AI 像员工一样参与协作，并稳定交付结果。
+      </p>
+      <div class="actions">
+        <a
+          id="open-app"
+          class="button"
+          target="_blank"
+          rel="noreferrer"
+        >
+          开始使用
+        </a>
+      </div>
+    </main>
+    <script>
+      (() => {
+        const openAppLink = document.getElementById('open-app');
+
+        if (!openAppLink) {
+          return;
+        }
+
+        const targetUrl = new URL(window.location.href);
+        targetUrl.pathname = targetUrl.pathname.replace(
+          /(?:\/app-settings)+\/index(?:\.[A-Za-z-]+)?\.html$/,
+          '/index.html'
+        );
+        targetUrl.hash = '';
+        openAppLink.href = targetUrl.toString();
+      })();
+    </script>
+  </body>
+</html>

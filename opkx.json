@@ -2,7 +2,7 @@
   "app": {
     "id": "app_agentplatform001",
     "name": "agent-platform",
-    "version": "v0.2.1",
+    "version": "v0.2.2",
     "desc": "ONES hosted AI agent platform for model profiles, code workspaces, agent workflows, and external workers.",
     "auth": {
       "type": "jwt"

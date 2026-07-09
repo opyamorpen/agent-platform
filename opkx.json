@@ -2,7 +2,7 @@
   "app": {
     "id": "app_agentplatform001",
     "name": "agent-platform",
-    "version": "v0.2.0",
+    "version": "v0.2.1",
     "desc": "ONES hosted AI agent platform for model profiles, code workspaces, agent workflows, and external workers.",
     "auth": {
       "type": "jwt"
@@ -457,7 +457,7 @@
             },
             "project_name": {
               "type": "string",
-              "length": 256,
+              "length": 128,
               "required": true
             },
             "issue_type_uuid": {
@@ -467,7 +467,7 @@
             },
             "issue_type_name": {
               "type": "string",
-              "length": 256,
+              "length": 128,
               "required": true
             },
             "status_uuid": {
@@ -477,12 +477,12 @@
             },
             "status_name": {
               "type": "string",
-              "length": 256,
+              "length": 128,
               "required": true
             },
             "agent_uuids_text": {
               "type": "string",
-              "length": 1024,
+              "length": 512,
               "required": true
             },
             "condition_expression": {
@@ -495,7 +495,7 @@
             },
             "schedule_cron": {
               "type": "string",
-              "length": 128,
+              "length": 64,
               "required": true
             },
             "schedule_timezone": {

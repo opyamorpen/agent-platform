@@ -9,6 +9,7 @@ export const zhCN = {
     actions: {
       refresh: '刷新',
       cancel: '取消',
+      done: '完成',
       confirmDelete: '确认删除',
       retry: '刷新后重试'
     },
@@ -189,8 +190,35 @@ export const zhCN = {
         actions: '操作'
       },
       actions: {
+        add: '添加 Agent Client',
         approve: '批准',
-        revoke: '撤销'
+        revoke: '撤销',
+        copy: '复制',
+        copied: '已复制',
+        reset: '重置'
+      },
+      addDialog: {
+        title: '添加 Agent Client',
+        description:
+          '生成 Agent Client 的启动配置。客户端启动后会自动发起连接申请，管理员批准后才会开始领取任务。',
+        serverBaseUrlLabel: '服务地址',
+        serverBaseUrlDescription:
+          'Agent Client 可访问的插件后端地址；部署到其他机器时请确认网络可达。',
+        clientUUIDLabel: 'Client UUID',
+        clientNameLabel: 'Client 名称',
+        concurrencyLabel: '并发任务数',
+        workingRootLabel: '工作目录',
+        localTab: '本地',
+        dockerTab: 'Docker',
+        envTab: '.env',
+        localCommandLabel: '本地启动命令',
+        dockerComposeLabel: 'Docker Compose 片段',
+        envFileLabel: '.env 配置',
+        copySuccess: '启动配置已复制',
+        copyFailed: '复制启动配置失败',
+        afterStartTitle: '启动后的审批流程',
+        afterStartDescription:
+          '运行配置后，Agent Client 会出现在当前列表中并显示为“待审批”。点击批准后，客户端会收到访问令牌并开始执行任务。'
       },
       connectionStatus: {
         pending_approval: '待审批',

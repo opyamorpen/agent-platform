@@ -9,6 +9,7 @@ export const jaJP = {
     actions: {
       refresh: "リフレッシュ",
       cancel: "キャンセル",
+      done: "完了",
       confirmDelete: "削除の確認",
       retry: "更新後に再試行してください"
     },
@@ -188,8 +189,32 @@ export const jaJP = {
         actions: "アクション"
       },
       actions: {
+        add: "エージェントクライアントを追加",
         approve: "承認する",
-        revoke: "取り消す"
+        revoke: "取り消す",
+        copy: "コピー",
+        copied: "コピー済み",
+        reset: "リセット"
+      },
+      addDialog: {
+        title: "エージェントクライアントを追加",
+        description: "エージェントクライアントの起動設定を生成します。起動後、クライアントは接続を申請し、管理者が承認した後にタスクを取得します。",
+        serverBaseUrlLabel: "サーバー URL",
+        serverBaseUrlDescription: "エージェントクライアントから到達できるプラグインバックエンド URL です。別のマシンで実行する場合はネットワーク到達性を確認してください。",
+        clientUUIDLabel: "Client UUID",
+        clientNameLabel: "Client 名称",
+        concurrencyLabel: "タスク同時実行数",
+        workingRootLabel: "作業ディレクトリ",
+        localTab: "ローカル",
+        dockerTab: "Docker",
+        envTab: ".env",
+        localCommandLabel: "ローカル起動コマンド",
+        dockerComposeLabel: "Docker Compose スニペット",
+        envFileLabel: ".env 設定",
+        copySuccess: "起動設定をコピーしました",
+        copyFailed: "起動設定のコピーに失敗しました",
+        afterStartTitle: "起動後の承認フロー",
+        afterStartDescription: "設定を実行すると、エージェントクライアントはこの一覧に承認待ちとして表示されます。承認するとアクセストークンが発行され、タスクの実行を開始します。"
       },
       connectionStatus: {
         pending_approval: "承認待ち",

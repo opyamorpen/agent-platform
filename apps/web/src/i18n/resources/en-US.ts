@@ -9,6 +9,7 @@ export const enUS = {
     actions: {
       refresh: 'Refresh',
       cancel: 'Cancel',
+      done: 'Done',
       confirmDelete: 'Confirm delete',
       retry: 'Retry after refresh'
     },
@@ -220,8 +221,35 @@ export const enUS = {
         actions: 'Actions'
       },
       actions: {
+        add: 'Add Agent Client',
         approve: 'Approve',
-        revoke: 'Revoke'
+        revoke: 'Revoke',
+        copy: 'Copy',
+        copied: 'Copied',
+        reset: 'Reset'
+      },
+      addDialog: {
+        title: 'Add Agent Client',
+        description:
+          'Generate startup configuration for an agent client. After startup, the client requests access and only starts taking tasks after an administrator approves it.',
+        serverBaseUrlLabel: 'Server URL',
+        serverBaseUrlDescription:
+          'The plugin backend URL reachable by the agent client. Check network access when running it on another machine.',
+        clientUUIDLabel: 'Client UUID',
+        clientNameLabel: 'Client name',
+        concurrencyLabel: 'Task concurrency',
+        workingRootLabel: 'Working directory',
+        localTab: 'Local',
+        dockerTab: 'Docker',
+        envTab: '.env',
+        localCommandLabel: 'Local startup command',
+        dockerComposeLabel: 'Docker Compose snippet',
+        envFileLabel: '.env configuration',
+        copySuccess: 'Startup configuration copied',
+        copyFailed: 'Failed to copy startup configuration',
+        afterStartTitle: 'Approval after startup',
+        afterStartDescription:
+          'After running the configuration, the agent client appears in this list as pending approval. Approve it to issue an access token and let it start executing tasks.'
       },
       connectionStatus: {
         pending_approval: 'Pending approval',

@@ -61,7 +61,8 @@ export const zhCN = {
       'workflows.node_uuid_required': '缺少执行节点标识。',
       'workflows.invalid_node_payload': '执行节点请求参数无效。',
       'workflows.node_not_found': '未找到对应的执行节点。',
-      'workflows.node_executor_invalid': '工作流节点绑定的执行 Agent 配置无效。',
+      'workflows.node_executor_invalid':
+        '当前工作流只支持可由 Agent Client 执行的 Agent。请确认 Agent 不是“仅模型”模式，并已配置执行身份。',
       'workflows.deletion_blocked': '工作流下仍有执行节点，请先删除执行节点后再删除工作流。',
       'agents.invalid_payload': 'Agent 请求参数无效。',
       'agents.invalid_prompt_preview_payload': '提示词预览请求参数无效。',
@@ -440,6 +441,15 @@ export const zhCN = {
       basic: {
         nameLabel: '名称',
         namePlaceholder: '请输入 Agent 名称',
+        executionModeLabel: '执行模式',
+        executionModeModelOnly: '仅模型',
+        executionModeModelOnlyDescription: '只用模型处理 ONES 数据、总结、判断和生成内容',
+        executionModeModelOnlyNotice:
+          '仅模型模式用于不访问代码仓的研发管理任务；当前版本暂不进入工作流自动执行。',
+        executionModeAgentClient: 'Agent Client',
+        executionModeAgentClientDescription: '通过外部执行节点访问代码仓、运行命令和回写结果',
+        executionModeAgentClientNotice:
+          'Agent Client 模式适合代码仓分析、改代码、跑测试等需要外部运行环境的任务。',
         executorLabel: '执行身份',
         executorPlaceholder: '搜索 ONES 用户',
         executorSearchLoading: '搜索中...',

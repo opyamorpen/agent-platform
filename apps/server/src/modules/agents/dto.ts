@@ -143,6 +143,7 @@ function validateOutputSetValueFieldNode(
 export const agentConfigSchema = z
   .object({
     description: z.string(),
+    executionMode: z.enum(['model_only', 'agent_client']).default('agent_client'),
     soul: z.string().default(''),
     prompt: z.string(),
     modelProfileUUID: z.string().trim().min(1).nullable().default(null),

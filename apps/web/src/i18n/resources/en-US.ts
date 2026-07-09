@@ -75,7 +75,7 @@ export const enUS = {
       'workflows.invalid_node_payload': 'The workflow node payload is invalid.',
       'workflows.node_not_found': 'The requested workflow node was not found.',
       'workflows.node_executor_invalid':
-        'The agent binding on the workflow node is invalid.',
+        'This workflow only supports agents that can be dispatched to Agent Client. Check that the agent is not in model-only mode and has an execution identity.',
       'workflows.deletion_blocked':
         'This workflow still contains execution nodes. Delete those nodes before deleting the workflow.',
       'agents.invalid_payload': 'The agent request payload is invalid.',
@@ -477,6 +477,17 @@ export const enUS = {
       basic: {
         nameLabel: 'Name',
         namePlaceholder: 'Enter an agent name',
+        executionModeLabel: 'Execution mode',
+        executionModeModelOnly: 'Model only',
+        executionModeModelOnlyDescription:
+          'Use the model for ONES data processing, summaries, decisions, and generation',
+        executionModeModelOnlyNotice:
+          'Model-only mode is for R&D management tasks that do not access repositories. It is not dispatched by workflow automation yet.',
+        executionModeAgentClient: 'Agent Client',
+        executionModeAgentClientDescription:
+          'Use an external worker to access repositories, run commands, and write results back',
+        executionModeAgentClientNotice:
+          'Agent Client mode is for repository analysis, code changes, tests, and other tasks that need an external runtime.',
         executorLabel: 'Executor',
         executorPlaceholder: 'Search ONES users',
         executorSearchLoading: 'Searching...',

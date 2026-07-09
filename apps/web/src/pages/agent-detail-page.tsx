@@ -48,6 +48,7 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Input } from '@/components/ui/input';
 import { MdEditor } from 'md-editor-rt';
 import 'md-editor-rt/lib/style.css';
@@ -116,6 +117,7 @@ type SearchFieldOption = {
 
 const DEFAULT_CONFIG: AgentConfig = {
   description: '',
+  executionMode: 'agent_client',
   soul: '',
   prompt: '',
   modelProfileUUID: null,
@@ -1317,6 +1319,8 @@ export function AgentDetailPage() {
   const [skillUUIDs, setSkillUUIDs] = useState<string[]>([]);
   const [executorUUID, setExecutorUUID] = useState('');
   const [executorName, setExecutorName] = useState('');
+  const [executionMode, setExecutionMode] =
+    useState<AgentConfig['executionMode']>(DEFAULT_CONFIG.executionMode);
   const [modelProfileUUID, setModelProfileUUID] = useState('');
   const [soul, setSoul] = useState(DEFAULT_CONFIG.soul);
   const [knowledgeBaseText, setKnowledgeBaseText] = useState('');
@@ -1354,6 +1358,7 @@ export function AgentDetailPage() {
     setInputs(nextConfig.inputs ?? []);
     setOutputs(nextConfig.outputs ?? []);
     setPrompt(nextConfig.prompt ?? '');
+    setExecutionMode(nextConfig.executionMode ?? DEFAULT_CONFIG.executionMode);
     setModelProfileUUID(nextConfig.modelProfileUUID ?? '');
     setSoul(nextConfig.soul ?? '');
     setKnowledgeBaseText((nextConfig.knowledgeBaseUUIDs ?? []).join('\n'));
@@ -1382,6 +1387,7 @@ export function AgentDetailPage() {
   const buildAgentConfig = useCallback(
     (): AgentConfig => ({
       description: '',
+      executionMode,
       soul,
       prompt,
       modelProfileUUID: modelProfileUUID || null,
@@ -1411,6 +1417,7 @@ export function AgentDetailPage() {
       cronEnabled,
       cronExpression,
       cronTimezone,
+      executionMode,
       inputs,
       knowledgeBaseText,
       memoryEnabled,
@@ -2219,6 +2226,57 @@ export function AgentDetailPage() {
                       disabled={isBusy}
                     />
                     <FieldError>{basicConfigError}</FieldError>
+                  </FieldContent>
+                </FormField>
+
+                <FormField
+                  orientation="vertical"
+                  className="gap-3 md:flex-row md:items-start md:gap-6"
+                >
+                  <FieldLabel className="md:w-24 md:shrink-0 md:justify-end md:pt-2 md:whitespace-nowrap">
+                    {t('pages.agentDetail.basic.executionModeLabel')}
+                  </FieldLabel>
+                  <FieldContent className="gap-2 md:w-[640px] md:flex-none">
+                    <ToggleGroup
+                      type="single"
+                      value={executionMode}
+                      onValueChange={(value) => {
+                        if (value === 'model_only' || value === 'agent_client') {
+                          setExecutionMode(value);
+                        }
+                      }}
+                      variant="outline"
+                      className="grid w-full grid-cols-1 md:grid-cols-2"
+                      disabled={isBusy}
+                    >
+                      <ToggleGroupItem
+                        value="model_only"
+                        className="h-auto min-w-0 justify-start whitespace-normal py-2"
+                      >
+                        <span className="flex min-w-0 flex-col items-start gap-1 text-left">
+                          <span>{t('pages.agentDetail.basic.executionModeModelOnly')}</span>
+                          <span className="text-xs font-normal text-muted-foreground">
+                            {t('pages.agentDetail.basic.executionModeModelOnlyDescription')}
+                          </span>
+                        </span>
+                      </ToggleGroupItem>
+                      <ToggleGroupItem
+                        value="agent_client"
+                        className="h-auto min-w-0 justify-start whitespace-normal py-2"
+                      >
+                        <span className="flex min-w-0 flex-col items-start gap-1 text-left">
+                          <span>{t('pages.agentDetail.basic.executionModeAgentClient')}</span>
+                          <span className="text-xs font-normal text-muted-foreground">
+                            {t('pages.agentDetail.basic.executionModeAgentClientDescription')}
+                          </span>
+                        </span>
+                      </ToggleGroupItem>
+                    </ToggleGroup>
+                    <p className="text-sm text-muted-foreground">
+                      {executionMode === 'model_only'
+                        ? t('pages.agentDetail.basic.executionModeModelOnlyNotice')
+                        : t('pages.agentDetail.basic.executionModeAgentClientNotice')}
+                    </p>
                   </FieldContent>
                 </FormField>
 

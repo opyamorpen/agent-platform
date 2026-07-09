@@ -146,6 +146,7 @@ export interface AgentVersion {
 
 export interface AgentConfig {
   description: string;
+  executionMode: 'model_only' | 'agent_client';
   soul: string;
   prompt: string;
   modelProfileUUID: string | null;
@@ -358,6 +359,7 @@ export interface AgentClientTaskModelProfile {
 }
 
 export interface AgentClientTaskAgentConfigContext {
+  executionMode: AgentConfig['executionMode'];
   soul: string;
   knowledgeBaseUUIDs: string[];
   memory: AgentMemoryConfig;

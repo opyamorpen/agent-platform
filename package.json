@@ -11,7 +11,6 @@
     "dev:agent-client": "pnpm --filter @ones-ai-workflow/agent-client dev",
     "build": "pnpm --filter @ones-ai-workflow/shared build && pnpm --filter @ones-ai-workflow/server build && pnpm --filter @ones-ai-workflow/web build && pnpm --filter @ones-ai-workflow/agent-client build",
     "build:opkx": "ones build --output ./ones-ai-workflow.opkx --command \"pnpm build\"",
-    "deploy:opkx": "node scripts/ones-opkx-deploy.mjs",
     "typecheck": "pnpm --filter @ones-ai-workflow/shared typecheck && pnpm --filter @ones-ai-workflow/server typecheck && pnpm --filter @ones-ai-workflow/web typecheck && pnpm --filter @ones-ai-workflow/agent-client typecheck",
     "lint": "eslint . --ext .ts,.tsx",
     "build:hosted": "pnpm build",

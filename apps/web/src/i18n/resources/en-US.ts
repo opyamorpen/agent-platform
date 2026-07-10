@@ -9,7 +9,6 @@ export const enUS = {
     actions: {
       refresh: 'Refresh',
       cancel: 'Cancel',
-      done: 'Done',
       confirmDelete: 'Confirm delete',
       retry: 'Retry after refresh'
     },
@@ -75,7 +74,7 @@ export const enUS = {
       'workflows.invalid_node_payload': 'The workflow node payload is invalid.',
       'workflows.node_not_found': 'The requested workflow node was not found.',
       'workflows.node_executor_invalid':
-        'This workflow only supports agents that can be dispatched to Agent Client. Check that the agent is not in model-only mode and has an execution identity.',
+        'The agent binding on the workflow node is invalid.',
       'workflows.deletion_blocked':
         'This workflow still contains execution nodes. Delete those nodes before deleting the workflow.',
       'agents.invalid_payload': 'The agent request payload is invalid.',
@@ -221,42 +220,8 @@ export const enUS = {
         actions: 'Actions'
       },
       actions: {
-        add: 'Add Agent Client',
         approve: 'Approve',
-        revoke: 'Revoke',
-        copy: 'Copy',
-        copied: 'Copied',
-        reset: 'Reset'
-      },
-      addDialog: {
-        title: 'Add Agent Client',
-        description:
-          'Generate startup configuration for an agent client. After startup, the client requests access and only starts taking tasks after an administrator approves it.',
-        serverBaseUrlLabel: 'Server URL',
-        serverBaseUrlDescription:
-          'The plugin backend URL reachable by the agent client. Check network access when running it on another machine.',
-        clientUUIDLabel: 'Client UUID',
-        clientNameLabel: 'Client name',
-        defaultAgentLabel: 'Default executor',
-        defaultAgentCodex: 'Codex',
-        defaultAgentClaude: 'Claude Code',
-        defaultAgentHermes: 'Hermes',
-        concurrencyLabel: 'Task concurrency',
-        workingRootLabel: 'Working directory',
-        hermesCommandTemplateLabel: 'Hermes command template',
-        hermesCommandTemplateDescription:
-          'Runs in the working directory. Supports {promptFile}, {prompt}, {workspaceRoot}, and {model}. If no prompt placeholder is used, the task prompt is passed through stdin.',
-        localTab: 'Local',
-        dockerTab: 'Docker',
-        envTab: '.env',
-        localCommandLabel: 'Local startup command',
-        dockerComposeLabel: 'Docker Compose snippet',
-        envFileLabel: '.env configuration',
-        copySuccess: 'Startup configuration copied',
-        copyFailed: 'Failed to copy startup configuration',
-        afterStartTitle: 'Approval after startup',
-        afterStartDescription:
-          'After running the configuration, the agent client appears in this list as pending approval. Approve it to issue an access token and let it start executing tasks.'
+        revoke: 'Revoke'
       },
       connectionStatus: {
         pending_approval: 'Pending approval',
@@ -484,17 +449,6 @@ export const enUS = {
       basic: {
         nameLabel: 'Name',
         namePlaceholder: 'Enter an agent name',
-        executionModeLabel: 'Execution mode',
-        executionModeModelOnly: 'Model only',
-        executionModeModelOnlyDescription:
-          'Use the model for ONES data processing, summaries, decisions, and generation',
-        executionModeModelOnlyNotice:
-          'Model-only mode is for R&D management tasks that do not access repositories. It is not dispatched by workflow automation yet.',
-        executionModeAgentClient: 'Agent Client',
-        executionModeAgentClientDescription:
-          'Use an external worker to access repositories, run commands, and write results back',
-        executionModeAgentClientNotice:
-          'Agent Client mode is for repository analysis, code changes, tests, and other tasks that need an external runtime.',
         executorLabel: 'Executor',
         executorPlaceholder: 'Search ONES users',
         executorSearchLoading: 'Searching...',

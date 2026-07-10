@@ -3744,7 +3744,6 @@ async function toAgentClientTask(
     },
     modelProfile: await resolveTaskModelProfile(agentConfig, teamUUID),
     agentConfig: {
-      executionMode: agentConfig.executionMode ?? 'agent_client',
       soul: agentConfig.soul ?? '',
       knowledgeBaseUUIDs: agentConfig.knowledgeBaseUUIDs ?? [],
       memory: agentConfig.memory ?? {
@@ -3819,19 +3818,6 @@ async function dispatchTasks(
     if (!agentConfig) {
       logger.error(
         '[agent-client-exchange] skip task dispatch because agent config is missing',
-        {
-          issueExecutionUUID: issueExecution.uuid,
-          taskUUID: nextTask.uuid,
-          agentUUID: nextTask.agentUUID,
-          agentVersion: nextTask.agentVersion
-        }
-      );
-      continue;
-    }
-
-    if (agentConfig.executionMode === 'model_only') {
-      logger.warn(
-        '[agent-client-exchange] skip task dispatch because agent uses model-only execution mode',
         {
           issueExecutionUUID: issueExecution.uuid,
           taskUUID: nextTask.uuid,

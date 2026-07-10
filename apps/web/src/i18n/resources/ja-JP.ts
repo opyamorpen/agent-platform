@@ -9,7 +9,6 @@ export const jaJP = {
     actions: {
       refresh: "リフレッシュ",
       cancel: "キャンセル",
-      done: "完了",
       confirmDelete: "削除の確認",
       retry: "更新後に再試行してください"
     },
@@ -60,7 +59,7 @@ export const jaJP = {
       "workflows.node_uuid_required": "ワークフロー ノード識別子がありません。",
       "workflows.invalid_node_payload": "ワークフロー ノードのペイロードが無効です。",
       "workflows.node_not_found": "要求されたワークフロー ノードが見つかりませんでした。",
-      "workflows.node_executor_invalid": "このワークフローは Agent Client に投入できるエージェントのみ対応しています。エージェントがモデルのみモードではなく、実行者が設定されていることを確認してください。",
+      "workflows.node_executor_invalid": "ワークフロー ノード上のエージェント バインドが無効です。",
       "workflows.deletion_blocked": "このワークフローにはまだ実行ノードが含まれています。ワークフローを削除する前に、これらのノードを削除してください。",
       "agents.invalid_payload": "エージェント要求ペイロードが無効です。",
       "agents.invalid_prompt_preview_payload": "プロンプト プレビュー ペイロードが無効です。",
@@ -189,32 +188,8 @@ export const jaJP = {
         actions: "アクション"
       },
       actions: {
-        add: "エージェントクライアントを追加",
         approve: "承認する",
-        revoke: "取り消す",
-        copy: "コピー",
-        copied: "コピー済み",
-        reset: "リセット"
-      },
-      addDialog: {
-        title: "エージェントクライアントを追加",
-        description: "エージェントクライアントの起動設定を生成します。起動後、クライアントは接続を申請し、管理者が承認した後にタスクを取得します。",
-        serverBaseUrlLabel: "サーバー URL",
-        serverBaseUrlDescription: "エージェントクライアントから到達できるプラグインバックエンド URL です。別のマシンで実行する場合はネットワーク到達性を確認してください。",
-        clientUUIDLabel: "Client UUID",
-        clientNameLabel: "Client 名称",
-        concurrencyLabel: "タスク同時実行数",
-        workingRootLabel: "作業ディレクトリ",
-        localTab: "ローカル",
-        dockerTab: "Docker",
-        envTab: ".env",
-        localCommandLabel: "ローカル起動コマンド",
-        dockerComposeLabel: "Docker Compose スニペット",
-        envFileLabel: ".env 設定",
-        copySuccess: "起動設定をコピーしました",
-        copyFailed: "起動設定のコピーに失敗しました",
-        afterStartTitle: "起動後の承認フロー",
-        afterStartDescription: "設定を実行すると、エージェントクライアントはこの一覧に承認待ちとして表示されます。承認するとアクセストークンが発行され、タスクの実行を開始します。"
+        revoke: "取り消す"
       },
       connectionStatus: {
         pending_approval: "承認待ち",
@@ -434,13 +409,6 @@ export const jaJP = {
       basic: {
         nameLabel: "名前",
         namePlaceholder: "エージェント名を入力してください",
-        executionModeLabel: "実行モード",
-        executionModeModelOnly: "モデルのみ",
-        executionModeModelOnlyDescription: "モデルで ONES データ処理、要約、判断、生成を行います",
-        executionModeModelOnlyNotice: "モデルのみモードは、リポジトリにアクセスしない開発管理タスク向けです。現在のバージョンではワークフロー自動実行にはまだ投入されません。",
-        executionModeAgentClient: "Agent Client",
-        executionModeAgentClientDescription: "外部ワーカーでリポジトリにアクセスし、コマンドを実行して結果を書き戻します",
-        executionModeAgentClientNotice: "Agent Client モードは、リポジトリ分析、コード変更、テストなど外部実行環境が必要なタスク向けです。",
         executorLabel: "実行者",
         executorPlaceholder: "ONESユーザーを検索",
         executorSearchLoading: "検索中...",

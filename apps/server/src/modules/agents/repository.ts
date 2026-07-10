@@ -41,7 +41,6 @@ export type DispatchAgentRecord = {
   uuid: string;
   name: string;
   currentVersion: number | null;
-  executionMode: AgentConfig['executionMode'];
   executor: { uuid: string; name: string } | null;
 };
 
@@ -766,30 +765,16 @@ export async function findDispatchAgentsByUUIDs(
     uuids.map((uuid) => getStoredAgentByUUID(uuid, teamUUID))
   );
 
-  const dispatchAgents = await Promise.all(
-    records.flatMap((record) => {
-      if (!record) {
-        return [];
-      }
-
-      return [
-        (async (): Promise<DispatchAgentRecord> => {
-          const currentVersion = normalizeCurrentVersion(record.current_version);
-          const config = currentVersion
-            ? (await findAgentVersion(record.uuid, currentVersion, teamUUID))?.config ?? null
-            : null;
-
-          return {
+  return records.flatMap((record) =>
+    record
+      ? [
+          {
             uuid: record.uuid,
             name: record.name,
-            currentVersion,
-            executionMode: config?.executionMode ?? 'agent_client',
+            currentVersion: normalizeCurrentVersion(record.current_version),
             executor: normalizeExecutor(record.executor_uuid, record.executor_name)
-          };
-        })()
-      ];
-    })
+          }
+        ]
+      : []
   );
-
-  return dispatchAgents;
 }

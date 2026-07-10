@@ -25,19 +25,7 @@ type CodexAuthFile = {
     access_token?: string;
     account_id?: string;
   };
-  auth_mode?: string;
-  OPENAI_API_KEY?: string;
 };
-
-type CodexHomeAuth =
-  | {
-      kind: 'chatgpt';
-      accessToken: string;
-      accountId: string;
-    }
-  | {
-      kind: 'api-key';
-    };
 
 export type CodexHomeStatus = {
   homePath: string;
@@ -148,18 +136,6 @@ export class CodexHomeService {
 
     try {
       const auth = await this.readAuthTokens(homePath);
-
-      if (auth.kind === 'api-key') {
-        return {
-          homePath,
-          account: 'api-key',
-          available: true,
-          remaining5hPercent: 100,
-          remaining7dPercent: 100,
-          reason: null
-        };
-      }
-
       account = auth.accountId;
       const usage = await this.fetchUsage(auth.accessToken, auth.accountId);
       account = usage.email?.trim() || usage.account_id?.trim() || auth.accountId;
@@ -198,26 +174,21 @@ export class CodexHomeService {
     }
   }
 
-  private async readAuthTokens(homePath: string): Promise<CodexHomeAuth> {
+  private async readAuthTokens(homePath: string): Promise<{
+    accessToken: string;
+    accountId: string;
+  }> {
     const authFilePath = `${homePath}/auth.json`;
     const content = await this.dependencies.readFile(authFilePath, 'utf8');
     const parsed = JSON.parse(content) as CodexAuthFile;
     const accessToken = parsed.tokens?.access_token?.trim();
     const accountId = parsed.tokens?.account_id?.trim();
-    const apiKey = parsed.OPENAI_API_KEY?.trim();
-
-    if (apiKey) {
-      return {
-        kind: 'api-key'
-      };
-    }
 
     if (!accessToken || !accountId) {
       throw new Error(`Invalid auth file: ${authFilePath}`);
     }
 
     return {
-      kind: 'chatgpt',
       accessToken,
       accountId
     };

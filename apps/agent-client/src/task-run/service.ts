@@ -129,7 +129,6 @@ export class TaskRun {
         codexHomePath: this.input.codexHomePath,
         codexApiKey: this.input.codexApiKey,
         codexBaseUrl: this.input.codexBaseUrl,
-        hermesCommandTemplate: this.input.hermesCommandTemplate,
         model: this.input.model,
         modelReasoningEffort: this.input.modelReasoningEffort
       }, this.input.executeAgentType) as AgentSession;

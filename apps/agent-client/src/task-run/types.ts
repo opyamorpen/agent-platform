@@ -18,7 +18,6 @@ export interface TaskRunInput {
   codexHomePath?: string;
   codexApiKey?: string;
   codexBaseUrl?: string;
-  hermesCommandTemplate?: string;
   model?: string;
   modelReasoningEffort?: ModelReasoningEffort;
   executeOption?: Record<string, unknown>;
@@ -42,7 +41,6 @@ export interface TaskRunDependencies {
       codexHomePath?: string;
       codexApiKey?: string;
       codexBaseUrl?: string;
-      hermesCommandTemplate?: string;
       model?: string;
       modelReasoningEffort?: ModelReasoningEffort;
     },

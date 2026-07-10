@@ -9,7 +9,6 @@ export const zhCN = {
     actions: {
       refresh: '刷新',
       cancel: '取消',
-      done: '完成',
       confirmDelete: '确认删除',
       retry: '刷新后重试'
     },
@@ -61,8 +60,7 @@ export const zhCN = {
       'workflows.node_uuid_required': '缺少执行节点标识。',
       'workflows.invalid_node_payload': '执行节点请求参数无效。',
       'workflows.node_not_found': '未找到对应的执行节点。',
-      'workflows.node_executor_invalid':
-        '当前工作流只支持可由 Agent Client 执行的 Agent。请确认 Agent 不是“仅模型”模式，并已配置执行身份。',
+      'workflows.node_executor_invalid': '工作流节点绑定的执行 Agent 配置无效。',
       'workflows.deletion_blocked': '工作流下仍有执行节点，请先删除执行节点后再删除工作流。',
       'agents.invalid_payload': 'Agent 请求参数无效。',
       'agents.invalid_prompt_preview_payload': '提示词预览请求参数无效。',
@@ -191,42 +189,8 @@ export const zhCN = {
         actions: '操作'
       },
       actions: {
-        add: '添加 Agent Client',
         approve: '批准',
-        revoke: '撤销',
-        copy: '复制',
-        copied: '已复制',
-        reset: '重置'
-      },
-      addDialog: {
-        title: '添加 Agent Client',
-        description:
-          '生成 Agent Client 的启动配置。客户端启动后会自动发起连接申请，管理员批准后才会开始领取任务。',
-        serverBaseUrlLabel: '服务地址',
-        serverBaseUrlDescription:
-          'Agent Client 可访问的插件后端地址；部署到其他机器时请确认网络可达。',
-        clientUUIDLabel: 'Client UUID',
-        clientNameLabel: 'Client 名称',
-        defaultAgentLabel: '默认执行器',
-        defaultAgentCodex: 'Codex',
-        defaultAgentClaude: 'Claude Code',
-        defaultAgentHermes: 'Hermes',
-        concurrencyLabel: '并发任务数',
-        workingRootLabel: '工作目录',
-        hermesCommandTemplateLabel: 'Hermes 命令模板',
-        hermesCommandTemplateDescription:
-          '在工作目录中执行。支持 {promptFile}、{prompt}、{workspaceRoot}、{model} 占位符；如果不使用 prompt 占位符，系统会通过 stdin 传入任务提示词。',
-        localTab: '本地',
-        dockerTab: 'Docker',
-        envTab: '.env',
-        localCommandLabel: '本地启动命令',
-        dockerComposeLabel: 'Docker Compose 片段',
-        envFileLabel: '.env 配置',
-        copySuccess: '启动配置已复制',
-        copyFailed: '复制启动配置失败',
-        afterStartTitle: '启动后的审批流程',
-        afterStartDescription:
-          '运行配置后，Agent Client 会出现在当前列表中并显示为“待审批”。点击批准后，客户端会收到访问令牌并开始执行任务。'
+        revoke: '撤销'
       },
       connectionStatus: {
         pending_approval: '待审批',
@@ -448,15 +412,6 @@ export const zhCN = {
       basic: {
         nameLabel: '名称',
         namePlaceholder: '请输入 Agent 名称',
-        executionModeLabel: '执行模式',
-        executionModeModelOnly: '仅模型',
-        executionModeModelOnlyDescription: '只用模型处理 ONES 数据、总结、判断和生成内容',
-        executionModeModelOnlyNotice:
-          '仅模型模式用于不访问代码仓的研发管理任务；当前版本暂不进入工作流自动执行。',
-        executionModeAgentClient: 'Agent Client',
-        executionModeAgentClientDescription: '通过外部执行节点访问代码仓、运行命令和回写结果',
-        executionModeAgentClientNotice:
-          'Agent Client 模式适合代码仓分析、改代码、跑测试等需要外部运行环境的任务。',
         executorLabel: '执行身份',
         executorPlaceholder: '搜索 ONES 用户',
         executorSearchLoading: '搜索中...',

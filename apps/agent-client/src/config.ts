@@ -39,7 +39,7 @@ const envSchema = z.object({
     .enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'off'])
     .default('info'),
   AGENT_CLIENT_DEFAULT_AGENT: z
-    .enum(['codex', 'claude', 'hermes'])
+    .enum(['codex', 'claude'])
     .default('codex'),
   AGENT_CLIENT_CODEX_HOMES: z.string().optional(),
   AGENT_CLIENT_CODEX_API_KEY: z.string().trim().optional(),
@@ -51,8 +51,7 @@ const envSchema = z.object({
     .default(defaultCodexModel),
   AGENT_CLIENT_CODEX_REASONING_EFFORT: z
     .enum(['minimal', 'low', 'medium', 'high', 'xhigh'])
-    .default(defaultCodexReasoningEffort),
-  AGENT_CLIENT_HERMES_COMMAND_TEMPLATE: z.string().trim().optional()
+    .default(defaultCodexReasoningEffort)
 });
 
 const parsedEnv = envSchema.parse(process.env);
@@ -62,15 +61,6 @@ const hasCodexBaseUrl = Boolean(parsedEnv.AGENT_CLIENT_CODEX_BASE_URL);
 if (hasCodexApiKey !== hasCodexBaseUrl) {
   throw new Error(
     'AGENT_CLIENT_CODEX_API_KEY and AGENT_CLIENT_CODEX_BASE_URL must be configured together'
-  );
-}
-
-if (
-  parsedEnv.AGENT_CLIENT_DEFAULT_AGENT === 'hermes' &&
-  !parsedEnv.AGENT_CLIENT_HERMES_COMMAND_TEMPLATE
-) {
-  throw new Error(
-    'AGENT_CLIENT_HERMES_COMMAND_TEMPLATE must be configured when AGENT_CLIENT_DEFAULT_AGENT is hermes'
   );
 }
 
@@ -100,8 +90,7 @@ export const env = {
   codexUsesApiKey: hasCodexApiKey,
   codexModel: parsedEnv.AGENT_CLIENT_CODEX_MODEL,
   codexReasoningEffort:
-    parsedEnv.AGENT_CLIENT_CODEX_REASONING_EFFORT as ModelReasoningEffort,
-  hermesCommandTemplate: parsedEnv.AGENT_CLIENT_HERMES_COMMAND_TEMPLATE
+    parsedEnv.AGENT_CLIENT_CODEX_REASONING_EFFORT as ModelReasoningEffort
 } as const;
 
 function parseCodexHomes(

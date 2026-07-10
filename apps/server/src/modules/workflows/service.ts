@@ -57,25 +57,14 @@ export function validateWorkflowNodeExecutorBindings(
   agents: Array<{
     uuid: string;
     name: string;
-    executionMode?: 'model_only' | 'agent_client';
     executor: { uuid: string; name: string } | null;
   }>
 ): void {
-  const modelOnlyAgents = agents.filter((agent) => agent.executionMode === 'model_only');
-
-  if (modelOnlyAgents.length > 0) {
-    throw new WorkflowNodeExecutorInvalidError(
-      `Workflow node agents use model-only mode and cannot be dispatched to Agent Client yet: ${modelOnlyAgents
-        .map((agent) => agent.name)
-        .join(', ')}`
-    );
-  }
-
   const agentsWithoutExecutor = agents.filter((agent) => !agent.executor);
 
   if (agentsWithoutExecutor.length > 0) {
     throw new WorkflowNodeExecutorInvalidError(
-      `Workflow node agents must bind an execution identity: ${agentsWithoutExecutor
+      `Workflow node agents must have executor: ${agentsWithoutExecutor
         .map((agent) => agent.name)
         .join(', ')}`
     );

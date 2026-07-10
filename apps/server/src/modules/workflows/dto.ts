@@ -24,47 +24,12 @@ export const updateWorkflowSchema = z.object({
   }
 );
 
-export const createWorkflowNodeSchema = z
-  .object({
-    triggerType: z.enum(['issue_status', 'manual', 'cron']).default('issue_status'),
-    project: refObjectSchema,
-    issueType: refObjectSchema,
-    status: refObjectSchema.nullable().optional(),
-    agentUUID: z.string().min(1),
-    condition: z
-      .object({
-        expression: z.string().default(''),
-        description: z.string().default('')
-      })
-      .default({
-        expression: '',
-        description: ''
-      }),
-    schedule: z
-      .object({
-        cron: z.string().default(''),
-        timezone: z.string().default('Asia/Shanghai')
-      })
-      .nullable()
-      .default(null)
-  })
-  .superRefine((value, ctx) => {
-    if (value.triggerType === 'issue_status' && !value.status) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['status'],
-        message: 'Status is required for issue status trigger'
-      });
-    }
-
-    if (value.triggerType === 'cron' && !value.schedule?.cron.trim()) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['schedule', 'cron'],
-        message: 'Cron expression is required for cron trigger'
-      });
-    }
-  });
+export const createWorkflowNodeSchema = z.object({
+  project: refObjectSchema,
+  issueType: refObjectSchema,
+  status: refObjectSchema,
+  agentUUID: z.string().min(1)
+});
 
 export const updateWorkflowNodeSchema = createWorkflowNodeSchema;
 

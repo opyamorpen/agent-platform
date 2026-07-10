@@ -17,7 +17,6 @@ import type {
   RefObject
 } from '@ones-ai-workflow/shared';
 import { findAgentByUUID, findAgentVersion } from '../agents/repository.js';
-import { findModelProfileByUUID } from '../model-profiles/repository.js';
 import {
   findAgentWorkspaceByUUID,
   listRepositoriesByAgentWorkspaceUUID
@@ -3702,57 +3701,15 @@ async function resolveAgentTaskBindings(
   return bindings;
 }
 
-async function resolveTaskModelProfile(
-  agentConfig: AgentConfig,
-  teamUUID: string
-): Promise<AgentClientTask['modelProfile']> {
-  const modelProfileUUID = agentConfig.modelProfileUUID?.trim() ?? '';
-
-  if (!modelProfileUUID) {
-    return null;
-  }
-
-  const modelProfile = await findModelProfileByUUID(modelProfileUUID, teamUUID);
-
-  if (!modelProfile) {
-    return null;
-  }
-
-  return {
-    uuid: modelProfile.uuid,
-    name: modelProfile.name,
-    provider: modelProfile.provider,
-    model: modelProfile.model,
-    baseURL: modelProfile.baseURL,
-    apiKeySecretName: modelProfile.apiKeySecretName,
-    reasoningEffort: modelProfile.reasoningEffort,
-    temperature: modelProfile.temperature
-  };
-}
-
-async function toAgentClientTask(
+function toAgentClientTask(
   task: IssueAgentExecutionHistoryRecord | IssueAgentExecutionHistoryWithExecutionRecord,
-  bindings: AgentTaskBindings,
-  agentConfig: AgentConfig,
-  teamUUID: string
-): Promise<AgentClientTask> {
+  bindings: AgentTaskBindings
+): AgentClientTask {
   return {
     taskUUID: task.uuid,
     agent: {
       uuid: task.agentUUID,
       name: task.agentName
-    },
-    modelProfile: await resolveTaskModelProfile(agentConfig, teamUUID),
-    agentConfig: {
-      soul: agentConfig.soul ?? '',
-      knowledgeBaseUUIDs: agentConfig.knowledgeBaseUUIDs ?? [],
-      memory: agentConfig.memory ?? {
-        enabled: false,
-        scope: 'none',
-        retentionDays: null,
-        summaryPrompt: ''
-      },
-      cron: agentConfig.cron ?? null
     },
     sourceWorkspace: bindings.sourceWorkspace,
     skillUUIDs: bindings.skillUUIDs,
@@ -3922,7 +3879,7 @@ async function dispatchTasks(
       null,
       teamUUID
     );
-    tasks.push(await toAgentClientTask(queuedTask, bindings, agentConfig, teamUUID));
+    tasks.push(toAgentClientTask(queuedTask, bindings));
   }
 
   return tasks;

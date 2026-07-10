@@ -29,25 +29,10 @@ export interface WorkflowSummary {
 
 export interface WorkflowNode {
   uuid: string;
-  triggerType: WorkflowTriggerType;
   project: RefObject;
   issueType: RefObject;
-  status: RefObject | null;
+  status: RefObject;
   agent: Agent;
-  condition: WorkflowCondition;
-  schedule: WorkflowSchedule | null;
-}
-
-export type WorkflowTriggerType = 'issue_status' | 'manual' | 'cron';
-
-export interface WorkflowCondition {
-  expression: string;
-  description: string;
-}
-
-export interface WorkflowSchedule {
-  cron: string;
-  timezone: string;
 }
 
 export interface Agent {
@@ -62,21 +47,6 @@ export interface AgentSummary {
   workspace: RefObject | null;
   skills: RefObject[];
   executor: RefObject | null;
-  modelProfile: RefObject | null;
-}
-
-export interface ModelProfile {
-  uuid: string;
-  name: string;
-  provider: string;
-  model: string;
-  baseURL: string | null;
-  apiKeySecretName: string | null;
-  reasoningEffort: string | null;
-  temperature: number | null;
-  isDefault: boolean;
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface SkillSummary {
@@ -146,27 +116,9 @@ export interface AgentVersion {
 
 export interface AgentConfig {
   description: string;
-  soul: string;
   prompt: string;
-  modelProfileUUID: string | null;
-  knowledgeBaseUUIDs: string[];
-  memory: AgentMemoryConfig;
-  cron: AgentCronConfig | null;
   inputs: AgentInputField[];
   outputs: AgentOutputField[];
-}
-
-export interface AgentMemoryConfig {
-  enabled: boolean;
-  scope: 'none' | 'agent' | 'workspace' | 'issue';
-  retentionDays: number | null;
-  summaryPrompt: string;
-}
-
-export interface AgentCronConfig {
-  enabled: boolean;
-  expression: string;
-  timezone: string;
 }
 
 export interface AgentFieldMeta {
@@ -204,7 +156,6 @@ export interface AgentDraft {
   workspaceUUID: string | null;
   skillUUIDs: string[];
   executor: RefObject | null;
-  modelProfile: RefObject | null;
   source: 'draft' | 'published' | 'empty';
   config: AgentConfig | null;
   publishedConfig: AgentConfig | null;
@@ -320,7 +271,6 @@ export interface IssueExecutionHistory {
   status: IssueExecutionStatus;
   workflow: RefObject;
   workflowNode: RefObject;
-  triggerType: WorkflowTriggerType;
   createdAt: string;
   currentAgentUUID: string;
   startedAt: string | null;
@@ -344,24 +294,6 @@ export interface AgentClientTaskReport {
   usage: AgentTokenUsage | null;
   startedAt: string | null;
   finishedAt: string | null;
-}
-
-export interface AgentClientTaskModelProfile {
-  uuid: string;
-  name: string;
-  provider: string;
-  model: string;
-  baseURL: string | null;
-  apiKeySecretName: string | null;
-  reasoningEffort: string | null;
-  temperature: number | null;
-}
-
-export interface AgentClientTaskAgentConfigContext {
-  soul: string;
-  knowledgeBaseUUIDs: string[];
-  memory: AgentMemoryConfig;
-  cron: AgentCronConfig | null;
 }
 
 export interface AgentClientTaskAttachmentUpload {
@@ -455,8 +387,6 @@ export interface AgentClientTaskSourceWorkspace {
 export interface AgentClientTask {
   taskUUID: string;
   agent: RefObject;
-  modelProfile: AgentClientTaskModelProfile | null;
-  agentConfig: AgentClientTaskAgentConfigContext;
   sourceWorkspace: AgentClientTaskSourceWorkspace | null;
   skillUUIDs: string[];
   executeOption: Record<string, unknown>;

@@ -18,8 +18,7 @@ export const zhCN = {
     },
     fallback: {
       currentUser: '当前用户',
-      emptyValue: '-',
-      error: '操作失败，请稍后重试'
+      emptyValue: '-'
     }
   },
   apiErrors: {
@@ -113,7 +112,6 @@ export const zhCN = {
       workflowExecution: '工作流执行',
       workflowDesign: '工作流设计',
       agentConfig: 'Agent 配置',
-      modelProfiles: '模型配置',
       agentSkills: 'Agent 技能',
       agentWorkspaces: 'Agent 工作区',
       agentClients: 'Agent Client',
@@ -126,7 +124,6 @@ export const zhCN = {
       workflowExecution: '工作流执行',
       workflowDesign: '工作流设计',
       agentConfig: 'Agent 配置',
-      modelProfiles: '模型配置',
       agentClients: 'Agent Client',
       agentWorkspaces: 'Agent 工作区',
       agentSkills: 'Agent 技能'
@@ -135,7 +132,6 @@ export const zhCN = {
       workflowExecution: '用于查看工作流触发的执行记录，并跟踪每次运行的最新状态。',
       workflowDesign: '用于将 ONES 的工作流与 Agent 打通，让 Agent 参与业务流转。',
       agentConfig: '用于定义 Agent 的基础配置，包括提示词、执行身份、工作区和技能绑定。',
-      modelProfiles: '用于维护可复用的 AI 模型档案，供不同 Agent 独立选择。',
       agentWorkspaces: '用于为 Agent 提供执行任务所需的工作区、代码仓和运行环境。',
       agentSkills: '用于为 Agent 提供可复用的能力、知识和执行规则。'
     }

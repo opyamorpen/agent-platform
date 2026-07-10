@@ -121,10 +121,6 @@ async function loadExecutableWorkflowNodes(
     const workflow = workflowMap.get(node.workflowUUID);
     const referencedWorkflow = allWorkflowMap.get(node.workflowUUID);
 
-    if (node.triggerType !== 'issue_status' || !node.statusUUID || !node.statusName) {
-      return [];
-    }
-
     if (!workflow) {
       if (!referencedWorkflow) {
         logger.error('[workflow-execution] skip node because workflow is missing', {
@@ -342,7 +338,6 @@ function toIssueExecutionHistorySummary(
       uuid: record.workflowNodeUUID,
       name: record.workflowNodeName
     },
-    triggerType: 'issue_status',
     createdAt: record.createdAt.toISOString(),
     currentAgentUUID: record.currentAgentUUID,
     startedAt: record.startedAt?.toISOString() ?? null,

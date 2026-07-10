@@ -26,18 +26,13 @@ export type WorkflowRecord = {
 export type WorkflowNodeRecord = {
   uuid: string;
   workflowUUID: string;
-  triggerType: 'issue_status' | 'manual' | 'cron';
   projectUUID: string;
   projectName: string;
   issueTypeUUID: string;
   issueTypeName: string;
-  statusUUID: string | null;
-  statusName: string | null;
+  statusUUID: string;
+  statusName: string;
   agentUUID: string;
-  conditionExpression: string;
-  conditionDescription: string;
-  scheduleCron: string | null;
-  scheduleTimezone: string | null;
 };
 
 interface StoredWorkflowEntity {
@@ -53,7 +48,6 @@ interface StoredWorkflowNodeEntity {
   team_uuid: string;
   uuid: string;
   workflow_uuid: string;
-  trigger_type: string;
   project_uuid: string;
   project_name: string;
   issue_type_uuid: string;
@@ -61,10 +55,6 @@ interface StoredWorkflowNodeEntity {
   status_uuid: string;
   status_name: string;
   agent_uuids_text: string;
-  condition_expression: string;
-  condition_description: string;
-  schedule_cron: string;
-  schedule_timezone: string;
   created_at: number;
   updated_at: number;
 }
@@ -146,25 +136,16 @@ function toWorkflowRecord(entry: StoredWorkflowEntity): WorkflowRecord {
 }
 
 function toWorkflowNodeRecord(entry: StoredWorkflowNodeEntity): WorkflowNodeRecord {
-  const triggerType = ['manual', 'cron', 'issue_status'].includes(entry.trigger_type)
-    ? (entry.trigger_type as 'issue_status' | 'manual' | 'cron')
-    : 'issue_status';
-
   return {
     uuid: entry.uuid,
     workflowUUID: entry.workflow_uuid,
-    triggerType,
     projectUUID: entry.project_uuid,
     projectName: entry.project_name,
     issueTypeUUID: entry.issue_type_uuid,
     issueTypeName: entry.issue_type_name,
-    statusUUID: entry.status_uuid || null,
-    statusName: entry.status_name || null,
-    agentUUID: parseAgentUUIDText(entry.agent_uuids_text),
-    conditionExpression: entry.condition_expression ?? '',
-    conditionDescription: entry.condition_description ?? '',
-    scheduleCron: entry.schedule_cron || null,
-    scheduleTimezone: entry.schedule_timezone || null
+    statusUUID: entry.status_uuid,
+    statusName: entry.status_name,
+    agentUUID: parseAgentUUIDText(entry.agent_uuids_text)
   };
 }
 
@@ -358,18 +339,13 @@ export async function createWorkflowNode(
     team_uuid: teamUUID,
     uuid,
     workflow_uuid: workflowUUID,
-    trigger_type: node.triggerType,
     project_uuid: node.project.uuid,
     project_name: node.project.name,
     issue_type_uuid: node.issueType.uuid,
     issue_type_name: node.issueType.name,
-    status_uuid: node.status?.uuid ?? '',
-    status_name: node.status?.name ?? '',
+    status_uuid: node.status.uuid,
+    status_name: node.status.name,
     agent_uuids_text: serializeAgentUUID(node.agentUUID),
-    condition_expression: node.condition.expression,
-    condition_description: node.condition.description,
-    schedule_cron: node.schedule?.cron ?? '',
-    schedule_timezone: node.schedule?.timezone ?? '',
     created_at: now,
     updated_at: now
   };
@@ -396,14 +372,9 @@ export async function updateWorkflowNode(
     project_name: node.project.name,
     issue_type_uuid: node.issueType.uuid,
     issue_type_name: node.issueType.name,
-    trigger_type: node.triggerType,
-    status_uuid: node.status?.uuid ?? '',
-    status_name: node.status?.name ?? '',
+    status_uuid: node.status.uuid,
+    status_name: node.status.name,
     agent_uuids_text: serializeAgentUUID(node.agentUUID),
-    condition_expression: node.condition.expression,
-    condition_description: node.condition.description,
-    schedule_cron: node.schedule?.cron ?? '',
-    schedule_timezone: node.schedule?.timezone ?? '',
     updated_at: Date.now()
   };
 

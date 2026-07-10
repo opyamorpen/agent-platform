@@ -13,7 +13,6 @@ import {
   AgentConflictError,
   AgentDraftNotFoundError,
   AgentInUseError,
-  AgentModelProfileBindingNotFoundError,
   AgentNotFoundError,
   AgentSkillBindingNotFoundError,
   AgentWorkspaceBindingNotFoundError,
@@ -182,13 +181,6 @@ export async function getAgentDraftHandler(c: Context) {
   } catch (error) {
     if (error instanceof AgentNotFoundError) {
       return c.json(failure(error.message, 'agents.not_found'), 404);
-    }
-
-    if (error instanceof AgentModelProfileBindingNotFoundError) {
-      return c.json(
-        failure(error.message, 'agents.model_profile_binding_not_found'),
-        404
-      );
     }
 
     throw error;

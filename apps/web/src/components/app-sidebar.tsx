@@ -10,7 +10,7 @@ import {
   SidebarFooter,
   SidebarHeader,
 } from "@/components/ui/sidebar"
-import { Settings2Icon, BotIcon, WorkflowIcon, TicketIcon, PackageIcon, FolderIcon, UsersIcon, CpuIcon } from "lucide-react"
+import { Settings2Icon, BotIcon, WorkflowIcon, TicketIcon, PackageIcon, FolderIcon, UsersIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -34,11 +34,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         name: t("navigation.items.agentConfig"),
         url: "/settings/agents",
         icon: <BotIcon />,
-      },
-      {
-        name: t("navigation.items.modelProfiles"),
-        url: "/settings/model-profiles",
-        icon: <CpuIcon />,
       },
       {
         name: t("navigation.items.agentSkills"),

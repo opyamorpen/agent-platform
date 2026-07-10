@@ -11,7 +11,6 @@ import { DashboardPage } from '@/pages/dashboard-page';
 import { IssueDetailPage } from '@/pages/issue-detail-page';
 import { IssuesPage } from '@/pages/issues-page';
 import { MembersPage } from '@/pages/members-page';
-import { ModelProfilesPage } from '@/pages/model-profiles-page';
 import { PermissionDeniedPage } from '@/pages/permission-denied-page';
 import { SkillsPage } from '@/pages/skills-page';
 import { WorkflowDetailPage } from '@/pages/workflow-detail-page';
@@ -53,10 +52,6 @@ export const router = createHashRouter([
       {
         path: 'settings/agents',
         element: <AgentsPage />
-      },
-      {
-        path: 'settings/model-profiles',
-        element: <ModelProfilesPage />
       },
       {
         path: 'settings/skills',

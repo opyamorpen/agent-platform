@@ -9,13 +9,11 @@ import type {
   AgentWorkspace,
   ApiError,
   ApiSuccess,
-  ModelProfile,
   OnesUserSummary,
   SkillSummary
 } from '@ones-ai-workflow/shared';
 import { getApiErrorMessage, getErrorMessage } from '@/lib/api-error';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { MultiSearchSelect } from '@/components/ui/multi-search-select';
 import {
   Dialog,
@@ -77,7 +75,6 @@ import { toast } from 'sonner';
 type AgentDraftResponse = ApiSuccess<AgentDraft> | ApiError;
 type AgentMutationResponse = ApiSuccess<AgentSummary> | ApiError;
 type AgentResourcesResponse<T> = ApiSuccess<T> | ApiError;
-type ModelProfilesResponse = ApiSuccess<ModelProfile[]> | ApiError;
 type OnesUsersResponse = ApiSuccess<OnesUserSummary[]> | ApiError;
 type SaveAgentDraftResponse =
   | ApiSuccess<{ uuid: string; draftConfig: AgentConfig }>
@@ -116,17 +113,7 @@ type SearchFieldOption = {
 
 const DEFAULT_CONFIG: AgentConfig = {
   description: '',
-  soul: '',
   prompt: '',
-  modelProfileUUID: null,
-  knowledgeBaseUUIDs: [],
-  memory: {
-    enabled: false,
-    scope: 'none',
-    retentionDays: null,
-    summaryPrompt: ''
-  },
-  cron: null,
   inputs: [],
   outputs: []
 };
@@ -1300,7 +1287,6 @@ export function AgentDetailPage() {
   >(null);
   const [workspaces, setWorkspaces] = useState<AgentWorkspace[]>([]);
   const [skills, setSkills] = useState<SkillSummary[]>([]);
-  const [modelProfiles, setModelProfiles] = useState<ModelProfile[]>([]);
   const [isLoadingResources, setIsLoadingResources] = useState(true);
   const [resourceErrorMessage, setResourceErrorMessage] = useState<
     string | null
@@ -1317,16 +1303,6 @@ export function AgentDetailPage() {
   const [skillUUIDs, setSkillUUIDs] = useState<string[]>([]);
   const [executorUUID, setExecutorUUID] = useState('');
   const [executorName, setExecutorName] = useState('');
-  const [modelProfileUUID, setModelProfileUUID] = useState('');
-  const [soul, setSoul] = useState(DEFAULT_CONFIG.soul);
-  const [knowledgeBaseText, setKnowledgeBaseText] = useState('');
-  const [memoryEnabled, setMemoryEnabled] = useState(false);
-  const [memoryScope, setMemoryScope] = useState<AgentConfig['memory']['scope']>('none');
-  const [memoryRetentionDays, setMemoryRetentionDays] = useState('');
-  const [memorySummaryPrompt, setMemorySummaryPrompt] = useState('');
-  const [cronEnabled, setCronEnabled] = useState(false);
-  const [cronExpression, setCronExpression] = useState('');
-  const [cronTimezone, setCronTimezone] = useState('Asia/Shanghai');
   const [basicConfigError, setBasicConfigError] = useState<string | null>(null);
   const [inputs, setInputs] = useState<SelectedAgentInputField[]>([]);
   const [outputs, setOutputs] = useState<SelectedAgentOutputField[]>([]);
@@ -1353,21 +1329,7 @@ export function AgentDetailPage() {
     const nextConfig = config ?? DEFAULT_CONFIG;
     setInputs(nextConfig.inputs ?? []);
     setOutputs(nextConfig.outputs ?? []);
-    setPrompt(nextConfig.prompt ?? '');
-    setModelProfileUUID(nextConfig.modelProfileUUID ?? '');
-    setSoul(nextConfig.soul ?? '');
-    setKnowledgeBaseText((nextConfig.knowledgeBaseUUIDs ?? []).join('\n'));
-    setMemoryEnabled(Boolean(nextConfig.memory?.enabled));
-    setMemoryScope(nextConfig.memory?.scope ?? 'none');
-    setMemoryRetentionDays(
-      typeof nextConfig.memory?.retentionDays === 'number'
-        ? String(nextConfig.memory.retentionDays)
-        : ''
-    );
-    setMemorySummaryPrompt(nextConfig.memory?.summaryPrompt ?? '');
-    setCronEnabled(Boolean(nextConfig.cron?.enabled));
-    setCronExpression(nextConfig.cron?.expression ?? '');
-    setCronTimezone(nextConfig.cron?.timezone ?? 'Asia/Shanghai');
+    setPrompt(nextConfig.prompt);
   }
 
   function applyDraft(draft: AgentDraft) {
@@ -1382,46 +1344,11 @@ export function AgentDetailPage() {
   const buildAgentConfig = useCallback(
     (): AgentConfig => ({
       description: '',
-      soul,
       prompt,
-      modelProfileUUID: modelProfileUUID || null,
-      knowledgeBaseUUIDs: knowledgeBaseText
-        .split(/[\n,]/)
-        .map((item) => item.trim())
-        .filter(Boolean),
-      memory: {
-        enabled: memoryEnabled,
-        scope: memoryEnabled ? memoryScope : 'none',
-        retentionDays: memoryRetentionDays.trim()
-          ? Number(memoryRetentionDays.trim())
-          : null,
-        summaryPrompt: memorySummaryPrompt
-      },
-      cron: cronEnabled
-        ? {
-            enabled: true,
-            expression: cronExpression,
-            timezone: cronTimezone || 'Asia/Shanghai'
-          }
-        : null,
       inputs,
       outputs
     }),
-    [
-      cronEnabled,
-      cronExpression,
-      cronTimezone,
-      inputs,
-      knowledgeBaseText,
-      memoryEnabled,
-      memoryRetentionDays,
-      memoryScope,
-      memorySummaryPrompt,
-      modelProfileUUID,
-      outputs,
-      prompt,
-      soul
-    ]
+    [inputs, outputs, prompt]
   );
 
   useEffect(() => {
@@ -1567,10 +1494,9 @@ export function AgentDetailPage() {
       setResourceErrorMessage(null);
 
       try {
-        const [workspacesResponse, skillsResponse, modelProfilesResponse] = await Promise.all([
+        const [workspacesResponse, skillsResponse] = await Promise.all([
           fetch('/api/agent-workspaces'),
-          fetch('/api/skills'),
-          fetch('/api/model-profiles')
+          fetch('/api/skills')
         ]);
         const workspacesPayload =
           (await workspacesResponse.json()) as AgentResourcesResponse<
@@ -1580,8 +1506,6 @@ export function AgentDetailPage() {
           (await skillsResponse.json()) as AgentResourcesResponse<
             SkillSummary[]
           >;
-        const modelProfilesPayload =
-          (await modelProfilesResponse.json()) as ModelProfilesResponse;
 
         if (!workspacesResponse.ok || !workspacesPayload.success) {
           throw new Error(
@@ -1607,25 +1531,11 @@ export function AgentDetailPage() {
           );
         }
 
-        if (!modelProfilesResponse.ok || !modelProfilesPayload.success) {
-          throw new Error(
-            modelProfilesPayload.success
-              ? t('pages.agentDetail.resourcesLoadFailed')
-              : getApiErrorMessage(
-                  modelProfilesPayload,
-                  t,
-                  'pages.agentDetail.resourcesLoadFailed'
-                )
-          );
-        }
-
         setWorkspaces(workspacesPayload.data);
         setSkills(skillsPayload.data);
-        setModelProfiles(modelProfilesPayload.data);
       } catch (error) {
         setWorkspaces([]);
-        setSkills([]);
-        setModelProfiles([]);
+       setSkills([]);
         setResourceErrorMessage(
           getErrorMessage(error, t, 'pages.agentDetail.resourcesLoadFailed')
         );
@@ -1752,25 +1662,6 @@ export function AgentDetailPage() {
   function validateBasicConfig(): string | null {
     if (!agentName.trim()) {
       return t('pages.agentDetail.validation.nameRequired');
-    }
-
-    if (
-      memoryEnabled &&
-      !['none', 'agent', 'workspace', 'issue'].includes(memoryScope)
-    ) {
-      return '记忆范围只能是 none、agent、workspace 或 issue';
-    }
-
-    if (memoryEnabled && memoryRetentionDays.trim()) {
-      const retentionDays = Number(memoryRetentionDays.trim());
-
-      if (!Number.isInteger(retentionDays) || retentionDays <= 0) {
-        return '记忆保留天数必须是正整数';
-      }
-    }
-
-    if (cronEnabled && !cronExpression.trim()) {
-      return '启用 Cron 时必须填写表达式';
     }
 
     return null;
@@ -2320,153 +2211,6 @@ export function AgentDetailPage() {
                       disabled={isBusy}
                       portalContainer={basicConfigContentElement}
                     />
-                  </FieldContent>
-                </FormField>
-
-                <FormField
-                  orientation="vertical"
-                  className="gap-3 md:flex-row md:items-start md:gap-6"
-                >
-                  <FieldLabel className="md:w-24 md:shrink-0 md:justify-end md:pt-2 md:whitespace-nowrap">
-                    模型
-                  </FieldLabel>
-                  <FieldContent className="md:w-[420px] md:flex-none">
-                    <SearchSelect
-                      options={modelProfiles.map((profile) => ({
-                        value: profile.uuid,
-                        label: profile.name,
-                        keywords: [
-                          profile.provider,
-                          profile.model,
-                          profile.apiKeySecretName ?? ''
-                        ].filter(Boolean)
-                      }))}
-                      value={modelProfileUUID || undefined}
-                      onValueChange={(value) => setModelProfileUUID(value ?? '')}
-                      placeholder="选择 Agent 使用的模型配置"
-                      emptyText="暂无模型配置"
-                      disabled={isBusy || isLoadingResources}
-                      clearable
-                      className="w-full md:shrink-0"
-                      portalContainer={basicConfigContentElement}
-                    />
-                  </FieldContent>
-                </FormField>
-
-                <FormField
-                  orientation="vertical"
-                  className="gap-3 md:flex-row md:items-start md:gap-6"
-                >
-                  <FieldLabel className="md:w-24 md:shrink-0 md:justify-end md:pt-2 md:whitespace-nowrap">
-                    Soul
-                  </FieldLabel>
-                  <FieldContent className="md:w-[640px] md:flex-none">
-                    <Textarea
-                      value={soul}
-                      onChange={(event) => setSoul(event.target.value)}
-                      placeholder="定义 Agent 的身份、边界、工作风格和研发管理偏好"
-                      disabled={isBusy}
-                      rows={4}
-                    />
-                  </FieldContent>
-                </FormField>
-
-                <FormField
-                  orientation="vertical"
-                  className="gap-3 md:flex-row md:items-start md:gap-6"
-                >
-                  <FieldLabel className="md:w-24 md:shrink-0 md:justify-end md:pt-2 md:whitespace-nowrap">
-                    知识库
-                  </FieldLabel>
-                  <FieldContent className="md:w-[640px] md:flex-none">
-                    <Textarea
-                      value={knowledgeBaseText}
-                      onChange={(event) => setKnowledgeBaseText(event.target.value)}
-                      placeholder="每行一个知识库 UUID 或外部知识源标识"
-                      disabled={isBusy}
-                      rows={3}
-                    />
-                  </FieldContent>
-                </FormField>
-
-                <FormField
-                  orientation="vertical"
-                  className="gap-3 md:flex-row md:items-start md:gap-6"
-                >
-                  <FieldLabel className="md:w-24 md:shrink-0 md:justify-end md:pt-2 md:whitespace-nowrap">
-                    记忆
-                  </FieldLabel>
-                  <FieldContent className="space-y-3 md:w-[640px] md:flex-none">
-                    <label className="flex items-center gap-2 text-sm">
-                      <Checkbox
-                        checked={memoryEnabled}
-                        onCheckedChange={(checked) =>
-                          setMemoryEnabled(Boolean(checked))
-                        }
-                        disabled={isBusy}
-                      />
-                      启用 Agent 记忆
-                    </label>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <Input
-                        value={memoryScope}
-                        onChange={(event) =>
-                          setMemoryScope(
-                            event.target.value as AgentConfig['memory']['scope']
-                          )
-                        }
-                        placeholder="none / agent / workspace / issue"
-                        disabled={isBusy || !memoryEnabled}
-                      />
-                      <Input
-                        value={memoryRetentionDays}
-                        onChange={(event) =>
-                          setMemoryRetentionDays(event.target.value)
-                        }
-                        placeholder="保留天数，留空为不限"
-                        disabled={isBusy || !memoryEnabled}
-                      />
-                    </div>
-                    <Textarea
-                      value={memorySummaryPrompt}
-                      onChange={(event) => setMemorySummaryPrompt(event.target.value)}
-                      placeholder="记忆摘要策略"
-                      disabled={isBusy || !memoryEnabled}
-                      rows={3}
-                    />
-                  </FieldContent>
-                </FormField>
-
-                <FormField
-                  orientation="vertical"
-                  className="gap-3 md:flex-row md:items-start md:gap-6"
-                >
-                  <FieldLabel className="md:w-24 md:shrink-0 md:justify-end md:pt-2 md:whitespace-nowrap">
-                    Cron
-                  </FieldLabel>
-                  <FieldContent className="space-y-3 md:w-[640px] md:flex-none">
-                    <label className="flex items-center gap-2 text-sm">
-                      <Checkbox
-                        checked={cronEnabled}
-                        onCheckedChange={(checked) => setCronEnabled(Boolean(checked))}
-                        disabled={isBusy}
-                      />
-                      启用 Agent 定时配置
-                    </label>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <Input
-                        value={cronExpression}
-                        onChange={(event) => setCronExpression(event.target.value)}
-                        placeholder="0 9 * * 1-5"
-                        disabled={isBusy || !cronEnabled}
-                      />
-                      <Input
-                        value={cronTimezone}
-                        onChange={(event) => setCronTimezone(event.target.value)}
-                        placeholder="Asia/Shanghai"
-                        disabled={isBusy || !cronEnabled}
-                      />
-                    </div>
                   </FieldContent>
                 </FormField>
               </div>

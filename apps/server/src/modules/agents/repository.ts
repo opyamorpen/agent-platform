@@ -9,7 +9,6 @@ import {
   uploadObjectJson
 } from '../../lib/hosted-storage.js';
 import { listAgentWorkspaces } from '../agent-workspaces/repository.js';
-import { listModelProfiles } from '../model-profiles/repository.js';
 import { listSkills } from '../skills/repository.js';
 
 const AGENT_ENTITY_NAME = 'agent';
@@ -274,10 +273,9 @@ async function buildAgentSummaryRecords(
     return [];
   }
 
-  const [workspaces, skills, modelProfiles, bindingEntries] = await Promise.all([
+  const [workspaces, skills, bindingEntries] = await Promise.all([
     listAgentWorkspaces(teamUUID),
     listSkills(teamUUID),
-    listModelProfiles(teamUUID),
     listTeamAgentSkillBindingEntries(teamUUID)
   ]);
   const workspaceNameByUUID = new Map(
@@ -289,20 +287,10 @@ async function buildAgentSummaryRecords(
   const skillUUIDsByAgentUUID = mapSkillUUIDsByAgentUUID(
     bindingEntries.map((entry) => entry.value)
   );
-  const modelProfileByUUID = new Map(
-    modelProfiles.map((profile) => [profile.uuid, profile] as const)
-  );
-  const draftConfigs = await Promise.all(
-    records.map((record) => loadAgentConfig(normalizeObjectKey(record.draft_object_key)))
-  );
 
-  return records.map((record, index) => {
+  return records.map((record) => {
     const workspaceUUID = normalizeWorkspaceUUID(record.workspace_uuid);
     const skillUUIDs = skillUUIDsByAgentUUID.get(record.uuid) ?? [];
-    const modelProfileUUID = draftConfigs[index]?.modelProfileUUID ?? null;
-    const modelProfile = modelProfileUUID
-      ? modelProfileByUUID.get(modelProfileUUID) ?? null
-      : null;
 
     return {
       uuid: record.uuid,
@@ -317,13 +305,7 @@ async function buildAgentSummaryRecords(
         uuid: skillUUID,
         name: skillNameByUUID.get(skillUUID) ?? skillUUID
       })),
-      executor: normalizeExecutor(record.executor_uuid, record.executor_name),
-      modelProfile: modelProfile
-        ? {
-            uuid: modelProfile.uuid,
-            name: modelProfile.name
-          }
-        : null
+      executor: normalizeExecutor(record.executor_uuid, record.executor_name)
     };
   });
 }

@@ -450,17 +450,7 @@ function buildReadableEnvPolicyBlock(readableEnvKeys: string[]): string {
 }
 
 export function buildAgentPrompt(
-  config: Pick<
-    AgentConfig,
-    | 'description'
-    | 'soul'
-    | 'knowledgeBaseUUIDs'
-    | 'memory'
-    | 'cron'
-    | 'inputs'
-    | 'outputs'
-    | 'prompt'
-  >,
+  config: Pick<AgentConfig, 'description' | 'inputs' | 'outputs' | 'prompt'>,
   options: {
     inputContextXml?: string;
     readableEnvKeys?: string[];
@@ -482,44 +472,5 @@ export function buildAgentPrompt(
       OUTPUT_TEMPLATE_XML_PLACEHOLDER,
       buildAgentOutputTemplateXml(config.outputs)
     )
-    .replace(TASK_PROMPT_PLACEHOLDER, buildTaskPromptBlock(config));
-}
-
-function buildTaskPromptBlock(
-  config: Pick<
-    AgentConfig,
-    'soul' | 'knowledgeBaseUUIDs' | 'memory' | 'cron' | 'prompt'
-  >
-): string {
-  const blocks = [
-    config.soul?.trim()
-      ? `# Agent Soul\n${config.soul.trim()}`
-      : '',
-    config.knowledgeBaseUUIDs?.length
-      ? `# Knowledge Base References\n${config.knowledgeBaseUUIDs.map((uuid) => `- ${uuid}`).join('\n')}`
-      : '',
-    config.memory?.enabled
-      ? [
-          '# Memory Policy',
-          `scope: ${config.memory.scope}`,
-          `retentionDays: ${config.memory.retentionDays ?? 'unlimited'}`,
-          config.memory.summaryPrompt.trim()
-            ? `summaryPrompt: ${config.memory.summaryPrompt.trim()}`
-            : ''
-        ]
-          .filter(Boolean)
-          .join('\n')
-      : '',
-    config.cron?.enabled
-      ? [
-          '# Cron Context',
-          `expression: ${config.cron.expression}`,
-          `timezone: ${config.cron.timezone}`
-        ].join('\n')
-      : '',
-    '# Task Prompt',
-    config.prompt.trim() || 'No prompt provided'
-  ].filter(Boolean);
-
-  return blocks.join('\n\n');
+    .replace(TASK_PROMPT_PLACEHOLDER, config.prompt.trim() || 'No prompt provided');
 }

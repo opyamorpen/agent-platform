@@ -143,31 +143,7 @@ function validateOutputSetValueFieldNode(
 export const agentConfigSchema = z
   .object({
     description: z.string(),
-    soul: z.string().default(''),
     prompt: z.string(),
-    modelProfileUUID: z.string().trim().min(1).nullable().default(null),
-    knowledgeBaseUUIDs: z.array(z.string().trim().min(1)).default([]),
-    memory: z
-      .object({
-        enabled: z.boolean().default(false),
-        scope: z.enum(['none', 'agent', 'workspace', 'issue']).default('none'),
-        retentionDays: z.number().int().positive().nullable().default(null),
-        summaryPrompt: z.string().default('')
-      })
-      .default({
-        enabled: false,
-        scope: 'none',
-        retentionDays: null,
-        summaryPrompt: ''
-      }),
-    cron: z
-      .object({
-        enabled: z.boolean().default(false),
-        expression: z.string().default(''),
-        timezone: z.string().default('Asia/Shanghai')
-      })
-      .nullable()
-      .default(null),
     inputs: z.array(agentInputFieldSchema),
     outputs: z.array(agentOutputFieldSchema)
   })

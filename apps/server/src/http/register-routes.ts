@@ -12,7 +12,6 @@ import { agentClientsRoutes } from '../modules/agent-clients/routes.js';
 import { agentWorkspacesRoutes } from '../modules/agent-workspaces/routes.js';
 import { executionsRoutes } from '../modules/executions/routes.js';
 import { membersRoutes } from '../modules/members/routes.js';
-import { modelProfilesRoutes } from '../modules/model-profiles/routes.js';
 import { onesRoutes } from '../modules/ones/routes.js';
 import { skillsRoutes } from '../modules/skills/routes.js';
 import { workflowsRoutes } from '../modules/workflows/routes.js';
@@ -50,7 +49,6 @@ export function registerRoutes(app: Hono): void {
   app.route('/api/skills', skillsRoutes);
   app.route('/api/agent-clients', agentClientsRoutes);
   app.route('/api/agent-workspaces', agentWorkspacesRoutes);
-  app.route('/api/model-profiles', modelProfilesRoutes);
   app.route('/api/executions', executionsRoutes);
   app.route('/api/ones', onesRoutes);
   app.route('/api/members', membersRoutes);

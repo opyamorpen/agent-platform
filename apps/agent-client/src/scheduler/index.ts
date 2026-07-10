@@ -225,18 +225,6 @@ export class Scheduler {
     startLog: string
   ): void {
     const isCodexTask = this.defaultAgentType === 'codex';
-    const taskModelProfile = task.modelProfile;
-    const profileApiKey =
-      taskModelProfile?.apiKeySecretName
-        ? process.env[taskModelProfile.apiKeySecretName]
-        : undefined;
-    const taskReasoningEffort =
-      taskModelProfile?.reasoningEffort &&
-      ['minimal', 'low', 'medium', 'high', 'xhigh'].includes(
-        taskModelProfile.reasoningEffort
-      )
-        ? (taskModelProfile.reasoningEffort as ModelReasoningEffort)
-        : undefined;
     const taskRun = new TaskRun({
       taskUUID: task.taskUUID,
       sourceWorkspaceUUID: task.sourceWorkspace?.uuid ?? null,
@@ -244,11 +232,11 @@ export class Scheduler {
       prompt: task.prompt,
       executeAgentType: this.defaultAgentType,
       codexHomePath,
-      codexApiKey: profileApiKey ?? this.codexApiKey,
-      codexBaseUrl: taskModelProfile?.baseURL ?? this.codexBaseUrl,
-      model: taskModelProfile?.model ?? (isCodexTask ? this.codexModel : undefined),
+      codexApiKey: this.codexApiKey,
+      codexBaseUrl: this.codexBaseUrl,
+      model: isCodexTask ? this.codexModel : undefined,
       modelReasoningEffort: isCodexTask
-        ? taskReasoningEffort ?? this.codexReasoningEffort
+        ? this.codexReasoningEffort
         : undefined,
       executeOption: task.executeOption
     }, this.workspace, this.skill, {

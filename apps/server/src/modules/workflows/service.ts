@@ -258,7 +258,6 @@ function toWorkflowNode(
 
   return {
     uuid: node.uuid,
-    triggerType: node.triggerType,
     project: {
       uuid: node.projectUUID,
       name: node.projectName
@@ -267,24 +266,10 @@ function toWorkflowNode(
       uuid: node.issueTypeUUID,
       name: node.issueTypeName
     },
-    status:
-      node.statusUUID && node.statusName
-        ? {
-            uuid: node.statusUUID,
-            name: node.statusName
-          }
-        : null,
-    condition: {
-      expression: node.conditionExpression,
-      description: node.conditionDescription
+    status: {
+      uuid: node.statusUUID,
+      name: node.statusName
     },
-    schedule:
-      node.scheduleCron && node.scheduleTimezone
-        ? {
-            cron: node.scheduleCron,
-            timezone: node.scheduleTimezone
-          }
-        : null,
     agent
   };
 }

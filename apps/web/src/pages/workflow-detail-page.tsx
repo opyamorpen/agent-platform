@@ -190,7 +190,7 @@ export function WorkflowDetailPage() {
     setFormData({
       projectUUID: node.project.uuid,
       issueTypeUUID: node.issueType.uuid,
-      statusUUID: node.status?.uuid ?? '',
+      statusUUID: node.status.uuid,
       agentUUID: node.agent.uuid
     });
     setFormErrors({});
@@ -536,7 +536,7 @@ export function WorkflowDetailPage() {
                     <TableCell className="px-4 font-medium">{index + 1}</TableCell>
                     <TableCell>{node.project.name}</TableCell>
                     <TableCell>{node.issueType.name}</TableCell>
-                    <TableCell>{node.status?.name ?? '-'}</TableCell>
+                    <TableCell>{node.status.name}</TableCell>
                     <TableCell className="pr-4">
                       {node.agent.name}
                     </TableCell>

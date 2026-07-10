@@ -1,9 +1,9 @@
 {
   "app": {
-    "id": "app_agentplatform001",
-    "name": "agent-platform",
-    "version": "v0.2.6",
-    "desc": "ONES hosted AI agent platform for model profiles, code workspaces, agent workflows, and external workers.",
+    "id": "app_onesaiworkflow01",
+    "name": "ones-ai-workflow",
+    "version": "v0.1.16",
+    "desc": "ONES hosted AI workflow management app with external agent workers.",
     "auth": {
       "type": "jwt"
     },
@@ -153,73 +153,6 @@
               "required": true
             },
             "readonly": {
-              "type": "boolean",
-              "required": true
-            },
-            "created_at": {
-              "type": "integer",
-              "required": true
-            },
-            "updated_at": {
-              "type": "integer",
-              "required": true
-            }
-          },
-          "indexes": [
-            {
-              "name": "idx_team_uuid",
-              "range_attribute": "team_uuid"
-            }
-          ]
-        },
-        {
-          "name": "model_profile",
-          "attributes": {
-            "team_uuid": {
-              "type": "string",
-              "length": 36,
-              "required": true
-            },
-            "uuid": {
-              "type": "string",
-              "length": 36,
-              "required": true
-            },
-            "name": {
-              "type": "string",
-              "length": 256,
-              "required": true
-            },
-            "provider": {
-              "type": "string",
-              "length": 64,
-              "required": true
-            },
-            "model": {
-              "type": "string",
-              "length": 128,
-              "required": true
-            },
-            "base_url": {
-              "type": "string",
-              "length": 512,
-              "required": true
-            },
-            "api_key_secret_name": {
-              "type": "string",
-              "length": 128,
-              "required": true
-            },
-            "reasoning_effort": {
-              "type": "string",
-              "length": 64,
-              "required": true
-            },
-            "temperature": {
-              "type": "float",
-              "required": true
-            },
-            "is_default": {
               "type": "boolean",
               "required": true
             },
@@ -445,11 +378,6 @@
               "length": 36,
               "required": true
             },
-            "trigger_type": {
-              "type": "string",
-              "length": 32,
-              "required": true
-            },
             "project_uuid": {
               "type": "string",
               "length": 36,
@@ -457,7 +385,7 @@
             },
             "project_name": {
               "type": "string",
-              "length": 128,
+              "length": 256,
               "required": true
             },
             "issue_type_uuid": {
@@ -467,7 +395,7 @@
             },
             "issue_type_name": {
               "type": "string",
-              "length": 128,
+              "length": 256,
               "required": true
             },
             "status_uuid": {
@@ -477,30 +405,12 @@
             },
             "status_name": {
               "type": "string",
-              "length": 128,
+              "length": 256,
               "required": true
             },
             "agent_uuids_text": {
               "type": "string",
-              "length": 512,
-              "required": true
-            },
-            "condition_expression": {
-              "type": "text",
-              "required": true
-            },
-            "condition_description": {
-              "type": "text",
-              "required": true
-            },
-            "schedule_cron": {
-              "type": "string",
-              "length": 64,
-              "required": true
-            },
-            "schedule_timezone": {
-              "type": "string",
-              "length": 64,
+              "length": 1024,
               "required": true
             },
             "created_at": {

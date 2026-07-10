@@ -18,8 +18,7 @@ export const jaJP = {
     },
     fallback: {
       currentUser: "現在のユーザー",
-      emptyValue: "-",
-      error: "操作に失敗しました。しばらくしてからもう一度お試しください。"
+      emptyValue: "-"
     }
   },
   apiErrors: {
@@ -112,7 +111,6 @@ export const jaJP = {
       workflowExecution: "ワークフローの実行",
       workflowDesign: "ワークフローの設計",
       agentConfig: "エージェント構成",
-      modelProfiles: "モデル構成",
       agentSkills: "エージェントのスキル",
       agentWorkspaces: "エージェントワークスペース",
       agentClients: "エージェントクライアント",
@@ -125,7 +123,6 @@ export const jaJP = {
       workflowExecution: "ワークフローの実行",
       workflowDesign: "ワークフローの設計",
       agentConfig: "エージェント構成",
-      modelProfiles: "モデル構成",
       agentClients: "エージェントクライアント",
       agentWorkspaces: "エージェントワークスペース",
       agentSkills: "エージェントのスキル"
@@ -134,7 +131,6 @@ export const jaJP = {
       workflowExecution: "ワークフローによってトリガーされた実行レコードを表示し、各実行の最新ステータスを追跡します。",
       workflowDesign: "ONES ワークフローをエージェントに接続して、エージェントがビジネス フローの実行に参加できるようにします。",
       agentConfig: "プロンプト、実行 ID、ワークスペース、バインドされたスキルなどの基本エージェント設定を定義します。",
-      modelProfiles: "各エージェントが個別に選択できる再利用可能な AI モデル構成を管理します。",
       agentWorkspaces: "タスクを実行するために必要なワークスペース、リポジトリ、およびランタイム環境をエージェントに提供します。",
       agentSkills: "エージェントに再利用可能な機能、知識、および実行ルールを提供します。"
     }

@@ -18,8 +18,7 @@ export const enUS = {
     },
     fallback: {
       currentUser: 'Current user',
-      emptyValue: '-',
-      error: 'Operation failed. Please try again later.'
+      emptyValue: '-'
     }
   },
   apiErrors: {
@@ -130,7 +129,6 @@ export const enUS = {
       workflowExecution: 'Workflow Runs',
       workflowDesign: 'Workflow Design',
       agentConfig: 'Agent Config',
-      modelProfiles: 'Model Profiles',
       agentSkills: 'Agent Skills',
       agentWorkspaces: 'Agent Workspaces',
       agentClients: 'Agent Clients',
@@ -143,7 +141,6 @@ export const enUS = {
       workflowExecution: 'Workflow Runs',
       workflowDesign: 'Workflow Design',
       agentConfig: 'Agent Config',
-      modelProfiles: 'Model Profiles',
       agentClients: 'Agent Clients',
       agentWorkspaces: 'Agent Workspaces',
       agentSkills: 'Agent Skills'
@@ -155,8 +152,6 @@ export const enUS = {
         'Connect ONES workflows with agents so they can participate in business flow execution.',
       agentConfig:
         'Define base agent settings such as prompts, execution identity, workspace, and bound skills.',
-      modelProfiles:
-        'Maintain reusable AI model profiles that each agent can select independently.',
       agentWorkspaces:
         'Provide agents with the workspaces, repositories, and runtime environment they need to execute tasks.',
       agentSkills:

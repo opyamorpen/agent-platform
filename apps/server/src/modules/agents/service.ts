@@ -26,7 +26,6 @@ import {
 import { listAllWorkflowNodes, listWorkflows } from '../workflows/repository.js';
 import { findAgentWorkspaceByUUID } from '../agent-workspaces/repository.js';
 import { listWorkspaceCredentialsByWorkspaceUUID } from '../agent-workspaces/credentials-repository.js';
-import { findModelProfileByUUID } from '../model-profiles/repository.js';
 import { findSkillsByUUIDs } from '../skills/repository.js';
 import type { RefObject } from '@ones-ai-workflow/shared';
 import { buildAgentPrompt } from './prompt-render.js';
@@ -73,13 +72,6 @@ export class AgentSkillBindingNotFoundError extends Error {
   }
 }
 
-export class AgentModelProfileBindingNotFoundError extends Error {
-  constructor(uuid: string) {
-    super(`Model profile not found: ${uuid}`);
-    this.name = 'AgentModelProfileBindingNotFoundError';
-  }
-}
-
 function normalizeExecutorBinding(
   executorUUID: string | null | undefined,
   executorName: string | null | undefined
@@ -95,28 +87,6 @@ function normalizeExecutorBinding(
     uuid: normalizedUUID,
     name: normalizedName
   };
-}
-
-async function resolveAgentModelProfileRef(
-  config: AgentConfig | null,
-  teamUUID: string
-): Promise<RefObject | null> {
-  const modelProfileUUID = config?.modelProfileUUID?.trim() ?? '';
-
-  if (!modelProfileUUID) {
-    return null;
-  }
-
-  const modelProfile = await findModelProfileByUUID(modelProfileUUID, teamUUID);
-  return modelProfile
-    ? {
-        uuid: modelProfile.uuid,
-        name: modelProfile.name
-      }
-    : {
-        uuid: modelProfileUUID,
-        name: modelProfileUUID
-      };
 }
 
 export async function getAgentSummaries(teamUUID: string): Promise<AgentSummary[]> {
@@ -239,7 +209,6 @@ export async function getAgentDraft(
       workspaceUUID: agent.workspaceUUID,
       skillUUIDs: agent.skillUUIDs,
       executor: agent.executor,
-      modelProfile: await resolveAgentModelProfileRef(draftConfig, teamUUID),
       source: 'draft',
       config: draftConfig,
       publishedConfig,
@@ -254,7 +223,6 @@ export async function getAgentDraft(
       workspaceUUID: agent.workspaceUUID,
       skillUUIDs: agent.skillUUIDs,
       executor: agent.executor,
-      modelProfile: await resolveAgentModelProfileRef(publishedConfig, teamUUID),
       source: 'published',
       config: publishedConfig,
       publishedConfig,
@@ -268,7 +236,6 @@ export async function getAgentDraft(
     workspaceUUID: agent.workspaceUUID,
     skillUUIDs: agent.skillUUIDs,
     executor: agent.executor,
-    modelProfile: null,
     source: 'empty',
     config: null,
     publishedConfig: null,
@@ -286,8 +253,6 @@ export async function saveAgentDraft(
   if (!agent) {
     throw new AgentNotFoundError(uuid);
   }
-
-  await assertAgentConfigBindingsExist(payload.config, teamUUID);
 
   const updatedAgent = await updateAgentDraftConfig(uuid, payload.config, teamUUID);
 
@@ -429,22 +394,5 @@ async function assertAgentBindingsExist(
 
   if (missingSkillUUID) {
     throw new AgentSkillBindingNotFoundError(missingSkillUUID);
-  }
-}
-
-async function assertAgentConfigBindingsExist(
-  config: AgentConfig,
-  teamUUID: string
-): Promise<void> {
-  const modelProfileUUID = config.modelProfileUUID?.trim() ?? '';
-
-  if (!modelProfileUUID) {
-    return;
-  }
-
-  const modelProfile = await findModelProfileByUUID(modelProfileUUID, teamUUID);
-
-  if (!modelProfile) {
-    throw new AgentModelProfileBindingNotFoundError(modelProfileUUID);
   }
 }

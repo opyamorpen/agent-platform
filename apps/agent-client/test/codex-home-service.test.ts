@@ -164,6 +164,38 @@ test('CodexHomeService defers when no home is currently available', async () => 
   });
 });
 
+test('CodexHomeService treats API key auth files as available homes', async () => {
+  const service = new CodexHomeService(['/Users/liwei/.codex-api-key'], {
+    readFile: async () =>
+      JSON.stringify({
+        auth_mode: 'apikey',
+        OPENAI_API_KEY: 'sk-test'
+      }),
+    fetch: async () => {
+      throw new Error('API key auth should not request ChatGPT usage');
+    }
+  });
+
+  const statuses = await service.getHomeStatuses();
+  assert.deepEqual(statuses, [
+    {
+      homePath: '/Users/liwei/.codex-api-key',
+      account: 'api-key',
+      available: true,
+      remaining5hPercent: 100,
+      remaining7dPercent: 100,
+      reason: null
+    }
+  ]);
+
+  assert.deepEqual(await service.selectHome(), {
+    kind: 'selected',
+    homePath: '/Users/liwei/.codex-api-key',
+    message:
+      '[codex-home] selected home: /Users/liwei/.codex-api-key (5h remaining 100%, 7d remaining 100%)'
+  });
+});
+
 test('getCodexHomeRetryDelayMs backs off to a maximum of five minutes', () => {
   assert.equal(getCodexHomeRetryDelayMs(1), 5_000);
   assert.equal(getCodexHomeRetryDelayMs(2), 10_000);

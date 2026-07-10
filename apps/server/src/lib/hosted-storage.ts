@@ -1,4 +1,8 @@
 import { Readable } from 'node:stream';
+import { createReadStream } from 'node:fs';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import * as onesNodeSdk from '@ones-open/node-sdk';
 import { getLogger } from './logger.js';
 
@@ -113,6 +117,10 @@ export interface HostedEntityStore<T extends object> {
 
 const OBJECT_READBACK_RETRY_DELAYS_MS = [50, 100, 200, 400, 800] as const;
 
+function getLocalStorageRoot(): string {
+  return process.env.ONES_LOCAL_STORAGE_ROOT?.trim() ?? '';
+}
+
 function normalizeHostedObjectKeySegment(value: string | number): string {
   const normalized = String(value)
     .trim()
@@ -132,7 +140,30 @@ function resolveHostedObjectKey(key: string): string {
   return buildHostedObjectKey(key);
 }
 
+function resolveLocalStoragePath(...segments: string[]): string {
+  return join(getLocalStorageRoot(), ...segments);
+}
+
+function resolveLocalEntityPath(entityName: string): string {
+  return resolveLocalStoragePath(
+    'entities',
+    `${normalizeHostedObjectKeySegment(entityName)}.json`
+  );
+}
+
+function resolveLocalObjectPath(key: string): string {
+  return resolveLocalStoragePath('objects', resolveHostedObjectKey(key));
+}
+
+function resolveLocalObjectMetadataPath(key: string): string {
+  return `${resolveLocalObjectPath(key)}.metadata.json`;
+}
+
 function assertHostedStorageEnabled(): void {
+  if (getLocalStorageRoot()) {
+    return;
+  }
+
   const hasHostedToken = Boolean(process.env.ONES_HOSTED_TOKEN);
   const hasHostedAppId = Boolean(process.env.ONES_HOSTED_APP_ID);
   const hasHostedManagerBaseUrl = Boolean(process.env.ONES_HOSTED_MANAGER_BASE_URL);
@@ -160,9 +191,71 @@ function isHostedObjectError(value: unknown): value is HostedObjectError {
   return value instanceof storage.object.ObjectError;
 }
 
+async function readLocalEntityData<T extends object>(
+  entityName: string
+): Promise<Record<string, T>> {
+  const filePath = resolveLocalEntityPath(entityName);
+
+  try {
+    return JSON.parse(await readFile(filePath, 'utf8')) as Record<string, T>;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return {};
+    }
+
+    throw error;
+  }
+}
+
+async function writeLocalEntityData<T extends object>(
+  entityName: string,
+  data: Record<string, T>
+): Promise<void> {
+  const filePath = resolveLocalEntityPath(entityName);
+  await mkdir(dirname(filePath), { recursive: true });
+  await writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
+}
+
+function createLocalEntityStore<T extends object>(
+  entityName: string
+): HostedEntityStore<T> {
+  return {
+    async get(key: string): Promise<T | undefined> {
+      const data = await readLocalEntityData<T>(entityName);
+      return data[key];
+    },
+    async set(key: string, value: Partial<T>): Promise<void> {
+      const data = await readLocalEntityData<T>(entityName);
+      data[key] = value as T;
+      await writeLocalEntityData(entityName, data);
+    },
+    async delete(key: string): Promise<void> {
+      const data = await readLocalEntityData<T>(entityName);
+      delete data[key];
+      await writeLocalEntityData(entityName, data);
+    },
+    async getMany(): Promise<Array<HostedEntityEntry<T>>> {
+      const data = await readLocalEntityData<T>(entityName);
+      return Object.entries(data).map(([key, value]) => ({ key, value }));
+    },
+    async queryByIndexEqualTo<K extends keyof T & string>(
+      _indexName: string,
+      attributeName: K,
+      value: T[K] & PrimitiveValue
+    ): Promise<Array<HostedEntityEntry<T>>> {
+      const entries = await this.getMany();
+      return entries.filter((entry) => entry.value[attributeName] === value);
+    }
+  };
+}
+
 export function createEntityStore<T extends object>(
   entityName: string
 ): HostedEntityStore<T> {
+  if (getLocalStorageRoot()) {
+    return createLocalEntityStore<T>(entityName);
+  }
+
   const hostedEntity = storage.entity<T>(entityName);
 
   return {
@@ -278,6 +371,19 @@ export async function uploadObjectBuffer(
   content: Buffer,
   contentType = 'application/octet-stream'
 ): Promise<void> {
+  if (getLocalStorageRoot()) {
+    const filePath = resolveLocalObjectPath(key);
+    const metadataPath = resolveLocalObjectMetadataPath(key);
+    await mkdir(dirname(filePath), { recursive: true });
+    await writeFile(filePath, content);
+    await writeFile(
+      metadataPath,
+      JSON.stringify({ content_type: contentType }, null, 2),
+      'utf8'
+    );
+    return;
+  }
+
   assertHostedStorageEnabled();
   const resolvedKey = resolveHostedObjectKey(key);
 
@@ -377,6 +483,21 @@ function resolveHostedObjectDownloadUrl(
 }
 
 export async function getObjectDownloadUrl(key: string): Promise<string | null> {
+  if (getLocalStorageRoot()) {
+    const filePath = resolveLocalObjectPath(key);
+
+    try {
+      await readFile(filePath);
+      return pathToFileURL(filePath).toString();
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return null;
+      }
+
+      throw error;
+    }
+  }
+
   assertHostedStorageEnabled();
   const resolvedKey = resolveHostedObjectKey(key);
   const downloadResult = await storage.object.download(resolvedKey);
@@ -396,6 +517,28 @@ export async function openObjectStream(key: string): Promise<{
   stream: NodeJS.ReadableStream;
   contentType: string;
 } | null> {
+  if (getLocalStorageRoot()) {
+    const filePath = resolveLocalObjectPath(key);
+    const metadataPath = resolveLocalObjectMetadataPath(key);
+
+    try {
+      const metadata = JSON.parse(await readFile(metadataPath, 'utf8')) as {
+        content_type?: string;
+      };
+
+      return {
+        stream: createReadStream(filePath),
+        contentType: metadata.content_type ?? 'application/octet-stream'
+      };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return null;
+      }
+
+      throw error;
+    }
+  }
+
   assertHostedStorageEnabled();
   const resolvedKey = resolveHostedObjectKey(key);
 
@@ -480,6 +623,14 @@ export async function readObjectJson<T>(key: string): Promise<T | null> {
 }
 
 export async function deleteObject(key: string): Promise<void> {
+  if (getLocalStorageRoot()) {
+    await Promise.all([
+      rm(resolveLocalObjectPath(key), { force: true }),
+      rm(resolveLocalObjectMetadataPath(key), { force: true })
+    ]);
+    return;
+  }
+
   assertHostedStorageEnabled();
   const resolvedKey = resolveHostedObjectKey(key);
 

@@ -12,6 +12,10 @@ const ENTITY_NAME = 'knowledge_source';
 const TEAM_UUID_INDEX_NAME = 'idx_team_uuid';
 const SPACE_UUID_INDEX_NAME = 'idx_space_uuid';
 const store = createEntityStore<StoredKnowledgeSource>(ENTITY_NAME);
+const NAME_MAX_LENGTH = 128;
+const DESCRIPTION_MAX_LENGTH = 512;
+const SPACE_NAME_MAX_LENGTH = 256;
+const LAST_ERROR_MAX_LENGTH = 512;
 
 interface StoredKnowledgeSource {
   team_uuid: string;
@@ -31,6 +35,10 @@ interface StoredKnowledgeSource {
 
 function key(uuid: string): string {
   return `knowledge_source_${uuid.replace(/[^a-z0-9]/giu, '').toLowerCase()}`;
+}
+
+function truncate(value: string, maxLength: number): string {
+  return value.slice(0, maxLength);
 }
 
 function toRecord(value: StoredKnowledgeSource): KnowledgeSource {
@@ -117,10 +125,10 @@ export async function createKnowledgeSource(input: {
   const value: StoredKnowledgeSource = {
     team_uuid: input.teamUUID,
     uuid: randomUUID(),
-    name: input.name,
-    description: input.description,
+    name: truncate(input.name, NAME_MAX_LENGTH),
+    description: truncate(input.description, DESCRIPTION_MAX_LENGTH),
     space_uuid: input.spaceUUID,
-    space_name: input.spaceName,
+    space_name: truncate(input.spaceName, SPACE_NAME_MAX_LENGTH),
     home_page_uuid: input.homePageUUID,
     status: input.status,
     last_successful_query_at: 0,
@@ -153,10 +161,10 @@ export async function updateKnowledgeSource(
 
   const value: StoredKnowledgeSource = {
     ...current,
-    name: input.name,
-    description: input.description,
+    name: truncate(input.name, NAME_MAX_LENGTH),
+    description: truncate(input.description, DESCRIPTION_MAX_LENGTH),
     space_uuid: input.spaceUUID,
-    space_name: input.spaceName,
+    space_name: truncate(input.spaceName, SPACE_NAME_MAX_LENGTH),
     home_page_uuid: input.homePageUUID,
     status: input.status,
     updated_at: Date.now()
@@ -180,7 +188,9 @@ export async function updateKnowledgeSourceQueryState(
     last_successful_query_at: input.success
       ? Date.now()
       : current.last_successful_query_at,
-    last_error: input.success ? '' : (input.error ?? '').slice(0, 1000),
+    last_error: input.success
+      ? ''
+      : truncate(input.error ?? '', LAST_ERROR_MAX_LENGTH),
     updated_at: Date.now()
   });
 }

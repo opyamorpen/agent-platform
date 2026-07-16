@@ -288,12 +288,12 @@
             },
             "name": {
               "type": "string",
-              "length": 256,
+              "length": 128,
               "required": true
             },
             "description": {
               "type": "string",
-              "length": 2048,
+              "length": 512,
               "required": true
             },
             "space_uuid": {
@@ -322,7 +322,7 @@
             },
             "last_error": {
               "type": "string",
-              "length": 1024,
+              "length": 512,
               "required": true
             },
             "created_by": {

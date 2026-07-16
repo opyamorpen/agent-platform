@@ -66,6 +66,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ChevronUpIcon,
+  PencilIcon,
   PlusIcon,
   SparklesIcon,
   Trash2Icon
@@ -123,6 +124,35 @@ const DEFAULT_CONFIG: AgentConfig = {
 };
 
 const STEP_ORDER: StepKey[] = ['basic', 'inputs', 'outputs', 'prompt'];
+
+function createAgentEditorSignature(input: {
+  name: string;
+  workspaceUUID: string;
+  skillUUIDs: string[];
+  executorUUID: string;
+  executorName: string;
+  config: AgentConfig;
+}) {
+  return JSON.stringify({
+    name: input.name,
+    workspaceUUID: input.workspaceUUID,
+    skillUUIDs: input.skillUUIDs,
+    executorUUID: input.executorUUID,
+    executorName: input.executorName,
+    config: input.config
+  });
+}
+
+function createAgentDraftSignature(draft: AgentDraft) {
+  return createAgentEditorSignature({
+    name: draft.name,
+    workspaceUUID: draft.workspaceUUID ?? '',
+    skillUUIDs: draft.skillUUIDs ?? [],
+    executorUUID: draft.executor?.uuid ?? '',
+    executorName: draft.executor?.name ?? '',
+    config: draft.config ?? DEFAULT_CONFIG
+  });
+}
 
 function FieldHelpTooltip({
   label,
@@ -1336,6 +1366,9 @@ export function AgentDetailPage() {
   const recommendationAbortRef = useRef<AbortController | null>(null);
   const [isPublishConfirmOpen, setIsPublishConfirmOpen] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isEditing, setIsEditing] = useState(true);
+  const [hasUnpublishedDraft, setHasUnpublishedDraft] = useState(false);
+  const [editBaselineSignature, setEditBaselineSignature] = useState('');
   const [basicConfigContentElement, setBasicConfigContentElement] =
     useState<HTMLDivElement | null>(null);
 
@@ -1368,6 +1401,28 @@ export function AgentDetailPage() {
     }),
     [description, inputs, outputs, prompt]
   );
+
+  const currentEditorSignature = useMemo(
+    () =>
+      createAgentEditorSignature({
+        name: agentName,
+        workspaceUUID,
+        skillUUIDs,
+        executorUUID,
+        executorName,
+        config: buildAgentConfig()
+      }),
+    [
+      agentName,
+      buildAgentConfig,
+      executorName,
+      executorUUID,
+      skillUUIDs,
+      workspaceUUID
+    ]
+  );
+  const hasLocalChanges = currentEditorSignature !== editBaselineSignature;
+  const canPublish = isEditing && (hasUnpublishedDraft || hasLocalChanges);
 
   const buildPromptRecommendationPayload = useCallback(
     () => ({
@@ -1688,6 +1743,9 @@ export function AgentDetailPage() {
         }
 
         applyDraft(payload.data);
+        setIsEditing(payload.data.source !== 'published');
+        setHasUnpublishedDraft(payload.data.hasUnpublishedDraft);
+        setEditBaselineSignature(createAgentDraftSignature(payload.data));
       } catch (error) {
         setAgentName('');
         setWorkspaceUUID('');
@@ -1695,6 +1753,18 @@ export function AgentDetailPage() {
         setExecutorUUID('');
         setExecutorName('');
         applyConfig(null);
+        setIsEditing(true);
+        setHasUnpublishedDraft(false);
+        setEditBaselineSignature(
+          createAgentEditorSignature({
+            name: '',
+            workspaceUUID: '',
+            skillUUIDs: [],
+            executorUUID: '',
+            executorName: '',
+            config: DEFAULT_CONFIG
+          })
+        );
         setDraftErrorMessage(
           getErrorMessage(error, t, 'pages.agentDetail.draftLoadFailed')
         );
@@ -1947,6 +2017,7 @@ export function AgentDetailPage() {
 
   const persistAgentChanges = useCallback(
     async (agentUUID: string) => {
+      const persistedSignature = currentEditorSignature;
       const validationError = validateBasicConfig();
 
       if (validationError) {
@@ -2016,10 +2087,13 @@ export function AgentDetailPage() {
       }
 
       applyConfig(saveDraftPayload.data.draftConfig);
+      setHasUnpublishedDraft(true);
+      setEditBaselineSignature(persistedSignature);
     },
     [
       agentName,
       buildAgentConfig,
+      currentEditorSignature,
       executorName,
       executorUUID,
       skillUUIDs,
@@ -2033,6 +2107,7 @@ export function AgentDetailPage() {
       toast.error(t('pages.agentDetail.missingUuid'));
       return;
     }
+    if (!canPublish) return;
 
     try {
       setIsPublishing(true);
@@ -2061,6 +2136,9 @@ export function AgentDetailPage() {
       }
 
       applyConfig(publishPayload.data.config);
+      setHasUnpublishedDraft(false);
+      setEditBaselineSignature(currentEditorSignature);
+      setIsEditing(false);
       setIsPublishConfirmOpen(false);
       toast.success(t('pages.agentDetail.publishSuccess'));
     } catch (error) {
@@ -2068,17 +2146,17 @@ export function AgentDetailPage() {
     } finally {
       setIsPublishing(false);
     }
-  }, [persistAgentChanges, t, uuid]);
+  }, [canPublish, currentEditorSignature, persistAgentChanges, t, uuid]);
 
   const handleSilentSave = useCallback(async () => {
-    if (!uuid) return;
+    if (!uuid || !isEditing || !hasLocalChanges) return;
 
     try {
       await persistAgentChanges(uuid);
     } catch {
       // silent save on step switch
     }
-  }, [persistAgentChanges, uuid]);
+  }, [hasLocalChanges, isEditing, persistAgentChanges, uuid]);
 
   const handleStepSwitch = useCallback(
     (nextStep: StepKey) => {
@@ -2108,6 +2186,11 @@ export function AgentDetailPage() {
   const isLastStep =
     STEP_ORDER.indexOf(activeStep) === STEP_ORDER.length - 1;
 
+  const handleStartEditing = useCallback(() => {
+    setEditBaselineSignature(currentEditorSignature);
+    setIsEditing(true);
+  }, [currentEditorSignature]);
+
   const headerActions = useMemo(
     () => (
       <>
@@ -2128,15 +2211,7 @@ export function AgentDetailPage() {
           <ChevronLeftIcon />
           {t('pages.agentDetail.actions.previousStep')}
         </Button>
-        {isLastStep ? (
-          <Button
-            type="button"
-            onClick={() => setIsPublishConfirmOpen(true)}
-            disabled={isBusy || !uuid}
-          >
-            {t('pages.agentDetail.actions.publish')}
-          </Button>
-        ) : (
+        {!isLastStep ? (
           <Button
             type="button"
             variant="outline"
@@ -2146,10 +2221,39 @@ export function AgentDetailPage() {
             {t('pages.agentDetail.actions.nextStep')}
             <ChevronRightIcon />
           </Button>
-        )}
+        ) : null}
+        {!isEditing ? (
+          <Button
+            type="button"
+            onClick={handleStartEditing}
+            disabled={isBusy || !uuid}
+          >
+            <PencilIcon />
+            {t('pages.agentDetail.actions.edit')}
+          </Button>
+        ) : isLastStep ? (
+          <Button
+            type="button"
+            onClick={() => setIsPublishConfirmOpen(true)}
+            disabled={isBusy || !uuid || !canPublish}
+          >
+            {t('pages.agentDetail.actions.publish')}
+          </Button>
+        ) : null}
       </>
     ),
-    [activeStep, goToAdjacentStep, isBusy, isLastStep, isLoadingDraft, t, uuid]
+    [
+      activeStep,
+      canPublish,
+      goToAdjacentStep,
+      handleStartEditing,
+      isBusy,
+      isEditing,
+      isLastStep,
+      isLoadingDraft,
+      t,
+      uuid
+    ]
   );
 
   const headerCenter = useMemo(
@@ -2224,7 +2328,7 @@ export function AgentDetailPage() {
                         setBasicConfigError(null);
                       }}
                       placeholder={t('pages.agentDetail.basic.namePlaceholder')}
-                      disabled={isBusy}
+                      disabled={isBusy || !isEditing}
                     />
                     <FieldError>{basicConfigError}</FieldError>
                   </FieldContent>
@@ -2249,7 +2353,7 @@ export function AgentDetailPage() {
                         'pages.agentDetail.basic.descriptionPlaceholder'
                       )}
                       className="min-h-24 resize-y"
-                      disabled={isBusy}
+                      disabled={isBusy || !isEditing}
                     />
                   </FieldContent>
                 </FormField>
@@ -2283,7 +2387,7 @@ export function AgentDetailPage() {
                               ? t('pages.agentDetail.basic.executorEmpty')
                               : t('pages.agentDetail.basic.executorSearchHint')
                         }
-                        disabled={isBusy}
+                        disabled={isBusy || !isEditing}
                         clearable
                         className="w-full md:shrink-0"
                         portalContainer={basicConfigContentElement}
@@ -2318,7 +2422,7 @@ export function AgentDetailPage() {
                             : t('pages.agentDetail.basic.workspacePlaceholder')
                         }
                         emptyText={t('pages.agentDetail.basic.workspaceEmpty')}
-                        disabled={isBusy || isLoadingResources}
+                        disabled={isBusy || isLoadingResources || !isEditing}
                         clearable
                         className="w-full md:shrink-0"
                         portalContainer={basicConfigContentElement}
@@ -2349,7 +2453,7 @@ export function AgentDetailPage() {
                       onValuesChange={(nextValues) => setSkillUUIDs(nextValues)}
                       placeholder={t('pages.agentDetail.basic.skillsPlaceholder')}
                       emptyText={t('pages.agentDetail.basic.skillsEmpty')}
-                      disabled={isBusy}
+                      disabled={isBusy || !isEditing}
                       portalContainer={basicConfigContentElement}
                     />
                   </FieldContent>
@@ -2382,7 +2486,7 @@ export function AgentDetailPage() {
               onChangeField={handleChangeInputField}
               isLoadingAvailableFields={isLoadingOnesFields}
               availableFieldsErrorMessage={onesFieldsErrorMessage}
-              isDisabled={isBusy}
+              isDisabled={isBusy || !isEditing}
             />
           ) : null}
 
@@ -2403,7 +2507,7 @@ export function AgentDetailPage() {
               onChangeField={handleChangeOutputField}
               isLoadingAvailableFields={isLoadingOnesFields}
               availableFieldsErrorMessage={onesFieldsErrorMessage}
-              isDisabled={isBusy}
+              isDisabled={isBusy || !isEditing}
             />
           ) : null}
 
@@ -2415,7 +2519,13 @@ export function AgentDetailPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => void handleGeneratePromptRecommendation()}
-                  disabled={isBusy || isGeneratingRecommendation || !isAIConfigured || !agentName.trim()}
+                  disabled={
+                    isBusy ||
+                    !isEditing ||
+                    isGeneratingRecommendation ||
+                    !isAIConfigured ||
+                    !agentName.trim()
+                  }
                   title={
                     !isAIConfigured
                       ? t('pages.agentDetail.recommendation.notConfigured')
@@ -2435,7 +2545,7 @@ export function AgentDetailPage() {
                 style={{ height: '288px' }}
                 preview={false}
                 language={locale}
-                disabled={isBusy}
+                disabled={isBusy || !isEditing}
                 theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
               />
             </section>
@@ -2563,7 +2673,7 @@ export function AgentDetailPage() {
             <Button
               type="button"
               onClick={() => void handlePublish()}
-              disabled={isPublishing}
+              disabled={isPublishing || !canPublish}
             >
               {isPublishing
                 ? t('pages.agentDetail.publishDialog.publishing')

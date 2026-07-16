@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
+  AIModelConfigStatus,
   AgentConfig,
   AgentDraft,
   AgentFieldMeta,
@@ -66,11 +67,13 @@ import {
   ChevronRightIcon,
   ChevronUpIcon,
   PlusIcon,
+  SparklesIcon,
   Trash2Icon
 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { streamPost } from '@/lib/sse';
 
 type AgentDraftResponse = ApiSuccess<AgentDraft> | ApiError;
 type AgentMutationResponse = ApiSuccess<AgentSummary> | ApiError;
@@ -87,6 +90,7 @@ type PublishAgentResponse =
     }>
   | ApiError;
 type AgentPromptPreviewResponse = ApiSuccess<{ prompt: string }> | ApiError;
+type AIModelStatusResponse = ApiSuccess<AIModelConfigStatus> | ApiError;
 type OnesField = {
   uuid: string;
   name: string;
@@ -1299,6 +1303,7 @@ export function AgentDetailPage() {
     null
   );
   const [agentName, setAgentName] = useState('');
+  const [description, setDescription] = useState('');
   const [workspaceUUID, setWorkspaceUUID] = useState('');
   const [skillUUIDs, setSkillUUIDs] = useState<string[]>([]);
   const [executorUUID, setExecutorUUID] = useState('');
@@ -1317,6 +1322,18 @@ export function AgentDetailPage() {
     null
   );
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [isAIConfigured, setIsAIConfigured] = useState(false);
+  const [isRecommendationOpen, setIsRecommendationOpen] = useState(false);
+  const [isGeneratingRecommendation, setIsGeneratingRecommendation] =
+    useState(false);
+  const [recommendationPrompt, setRecommendationPrompt] = useState('');
+  const [recommendationError, setRecommendationError] = useState<string | null>(
+    null
+  );
+  const [recommendationContext, setRecommendationContext] = useState<
+    string | null
+  >(null);
+  const recommendationAbortRef = useRef<AbortController | null>(null);
   const [isPublishConfirmOpen, setIsPublishConfirmOpen] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [basicConfigContentElement, setBasicConfigContentElement] =
@@ -1327,6 +1344,7 @@ export function AgentDetailPage() {
 
   function applyConfig(config: AgentConfig | null) {
     const nextConfig = config ?? DEFAULT_CONFIG;
+    setDescription(nextConfig.description ?? '');
     setInputs(nextConfig.inputs ?? []);
     setOutputs(nextConfig.outputs ?? []);
     setPrompt(nextConfig.prompt);
@@ -1343,13 +1361,112 @@ export function AgentDetailPage() {
 
   const buildAgentConfig = useCallback(
     (): AgentConfig => ({
-      description: '',
+      description,
       prompt,
       inputs,
       outputs
     }),
-    [inputs, outputs, prompt]
+    [description, inputs, outputs, prompt]
   );
+
+  const buildPromptRecommendationPayload = useCallback(
+    () => ({
+      name: agentName.trim(),
+      description,
+      skillUUIDs,
+      inputs,
+      outputs
+    }),
+    [agentName, description, inputs, outputs, skillUUIDs]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void fetch('/api/ai-model-config/status')
+      .then(async (response) => ({
+        response,
+        payload: (await response.json()) as AIModelStatusResponse
+      }))
+      .then(({ response, payload }) => {
+        if (!cancelled) {
+          setIsAIConfigured(
+            response.ok && payload.success && payload.data.configured
+          );
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setIsAIConfigured(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleGeneratePromptRecommendation() {
+    const payload = buildPromptRecommendationPayload();
+    const abortController = new AbortController();
+    recommendationAbortRef.current?.abort();
+    recommendationAbortRef.current = abortController;
+    setIsRecommendationOpen(true);
+    setIsGeneratingRecommendation(true);
+    setRecommendationPrompt('');
+    setRecommendationError(null);
+    setRecommendationContext(JSON.stringify(payload));
+
+    try {
+      await streamPost(
+        '/api/agents/prompt-recommendations/stream',
+        payload,
+        ({ event, data }) => {
+          if (event === 'text_delta') {
+            setRecommendationPrompt(
+              (current) => current + (data as { delta: string }).delta
+            );
+          }
+
+          if (event === 'done') {
+            setRecommendationPrompt((data as { prompt: string }).prompt);
+          }
+        },
+        abortController.signal
+      );
+    } catch (error) {
+      if (!abortController.signal.aborted) {
+        setRecommendationError(
+          getErrorMessage(error, t, 'pages.agentDetail.recommendation.failed')
+        );
+      }
+    } finally {
+      if (recommendationAbortRef.current === abortController) {
+        recommendationAbortRef.current = null;
+      }
+      setIsGeneratingRecommendation(false);
+    }
+  }
+
+  function closePromptRecommendation() {
+    recommendationAbortRef.current?.abort();
+    recommendationAbortRef.current = null;
+    setIsRecommendationOpen(false);
+  }
+
+  function applyPromptRecommendation() {
+    if (
+      recommendationContext !==
+      JSON.stringify(buildPromptRecommendationPayload())
+    ) {
+      setRecommendationError(
+        t('pages.agentDetail.recommendation.contextChanged')
+      );
+      return;
+    }
+
+    setPrompt(recommendationPrompt);
+    setIsRecommendationOpen(false);
+    toast.success(t('pages.agentDetail.recommendation.applied'));
+  }
 
   useEffect(() => {
     if (!isPreviewOpen) {
@@ -2117,6 +2234,30 @@ export function AgentDetailPage() {
                   orientation="vertical"
                   className="gap-3 md:flex-row md:items-start md:gap-6"
                 >
+                  <FieldLabel
+                    htmlFor="agent-description"
+                    className="md:w-24 md:shrink-0 md:justify-end md:pt-2 md:whitespace-nowrap"
+                  >
+                    {t('pages.agentDetail.basic.descriptionLabel')}
+                  </FieldLabel>
+                  <FieldContent className="md:w-[420px] md:flex-none">
+                    <Textarea
+                      id="agent-description"
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                      placeholder={t(
+                        'pages.agentDetail.basic.descriptionPlaceholder'
+                      )}
+                      className="min-h-24 resize-y"
+                      disabled={isBusy}
+                    />
+                  </FieldContent>
+                </FormField>
+
+                <FormField
+                  orientation="vertical"
+                  className="gap-3 md:flex-row md:items-start md:gap-6"
+                >
                   <FieldLabel className="md:w-24 md:shrink-0 md:justify-end md:pt-2 md:whitespace-nowrap">
                     {t('pages.agentDetail.basic.executorLabel')}
                   </FieldLabel>
@@ -2267,7 +2408,26 @@ export function AgentDetailPage() {
           ) : null}
 
           {activeStep === 'prompt' ? (
-            <section>
+            <section className="space-y-3">
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleGeneratePromptRecommendation()}
+                  disabled={isBusy || isGeneratingRecommendation || !isAIConfigured || !agentName.trim()}
+                  title={
+                    !isAIConfigured
+                      ? t('pages.agentDetail.recommendation.notConfigured')
+                      : undefined
+                  }
+                >
+                  <SparklesIcon />
+                  {isGeneratingRecommendation
+                    ? t('pages.agentDetail.recommendation.generating')
+                    : t('pages.agentDetail.recommendation.action')}
+                </Button>
+              </div>
               <MdEditor
                 value={prompt}
                 onChange={(v) => setPrompt(v)}
@@ -2323,6 +2483,62 @@ export function AgentDetailPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      <Dialog
+        open={isRecommendationOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setIsRecommendationOpen(true);
+          } else {
+            closePromptRecommendation();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              {t('pages.agentDetail.recommendation.title')}
+            </DialogTitle>
+            <DialogDescription>
+              {t('pages.agentDetail.recommendation.description')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[55vh] min-h-64 overflow-auto border bg-muted/20 p-4">
+            {recommendationError ? (
+              <div className="text-sm text-destructive">
+                {recommendationError}
+              </div>
+            ) : recommendationPrompt ? (
+              <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-6">
+                {recommendationPrompt}
+              </pre>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                {t('pages.agentDetail.recommendation.generating')}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={closePromptRecommendation}
+            >
+              {t('common.actions.cancel')}
+            </Button>
+            <Button
+              onClick={applyPromptRecommendation}
+              disabled={
+                isGeneratingRecommendation ||
+                !recommendationPrompt ||
+                recommendationContext !==
+                  JSON.stringify(buildPromptRecommendationPayload())
+              }
+            >
+              {t('pages.agentDetail.recommendation.apply')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={isPublishConfirmOpen}

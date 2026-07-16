@@ -8,12 +8,15 @@ export const jaJP = {
   common: {
     actions: {
       refresh: "リフレッシュ",
+      back: "戻る",
+      save: "保存",
       cancel: "キャンセル",
       confirmDelete: "削除の確認",
       retry: "更新後に再試行してください"
     },
     states: {
       loading: "読み込み中...",
+      saving: "保存中...",
       deleting: "削除中..."
     },
     fallback: {
@@ -62,6 +65,11 @@ export const jaJP = {
       "workflows.deletion_blocked": "このワークフローにはまだ実行ノードが含まれています。ワークフローを削除する前に、これらのノードを削除してください。",
       "agents.invalid_payload": "エージェント要求ペイロードが無効です。",
       "agents.invalid_prompt_preview_payload": "プロンプト プレビュー ペイロードが無効です。",
+      "agents.invalid_prompt_recommendation_payload": "プロンプト推奨リクエストが無効です。",
+      "ai_model_config.not_configured": "管理者が AI モデルを設定していません。",
+      "ai_model_config.unsafe_base_url": "モデル URL が公開 HTTPS セキュリティポリシーを満たしていません。",
+      "skill_generation.revision_conflict": "Skill ドラフトが変更されました。再読み込みして再試行してください。",
+      "skill_generation.script_review_required": "生成されたスクリプトを確認してください。",
       "agents.invalid_draft_payload": "エージェントのドラフト ペイロードが無効です。",
       "agents.invalid_publish_payload": "エージェントのパブリッシュ ペイロードが無効です。",
       "agents.workspace_binding_not_found": "バインドされたエージェント ワークスペースが見つかりませんでした。",
@@ -114,6 +122,7 @@ export const jaJP = {
       agentSkills: "エージェントのスキル",
       agentWorkspaces: "エージェントワークスペース",
       agentClients: "エージェントクライアント",
+      aiModelConfig: "AI モデル",
       members: "メンバー"
     }
   },
@@ -125,7 +134,8 @@ export const jaJP = {
       agentConfig: "エージェント構成",
       agentClients: "エージェントクライアント",
       agentWorkspaces: "エージェントワークスペース",
-      agentSkills: "エージェントのスキル"
+      agentSkills: "エージェントのスキル",
+      aiModelConfig: "AI モデル設定"
     },
     descriptions: {
       workflowExecution: "ワークフローによってトリガーされた実行レコードを表示し、各実行の最新ステータスを追跡します。",
@@ -383,6 +393,17 @@ export const jaJP = {
       draftSaveFailed: "下書きの保存に失敗しました",
       publishFailed: "エージェント構成の公開に失敗しました",
       publishSuccess: "エージェント構成が公開されました",
+      recommendation: {
+        action: "AI で生成",
+        generating: "推奨プロンプトを生成中...",
+        title: "推奨プロンプト",
+        description: "エージェントの目標、入力、出力、選択した Skill から生成します。確認後にのみ適用されます。",
+        apply: "推奨を適用",
+        applied: "推奨プロンプトを適用しました",
+        failed: "推奨プロンプトの生成に失敗しました",
+        contextChanged: "エージェント構成が変更されました。再生成してください。",
+        notConfigured: "管理者が AI モデルを設定していません"
+      },
       validation: {
         nameRequired: "エージェント名を入力してください"
       },
@@ -405,6 +426,8 @@ export const jaJP = {
       basic: {
         nameLabel: "名前",
         namePlaceholder: "エージェント名を入力してください",
+        descriptionLabel: "ビジネス目標",
+        descriptionPlaceholder: "エージェントの責任、目標、主要ルール、完了基準を説明します",
         executorLabel: "実行者",
         executorPlaceholder: "ONESユーザーを検索",
         executorSearchLoading: "検索中...",
@@ -599,6 +622,13 @@ export const jaJP = {
       deleteFailed: "スキルの削除に失敗しました",
       deleteSuccess: "スキル「{{name}}」を削除しました",
       empty: "スキルデータなし",
+      ai: {
+        create: "AI で作成",
+        creating: "作成中...",
+        createFailed: "Skill ドラフトの作成に失敗しました",
+        notConfigured: "管理者が AI モデルを設定していません",
+        drafts: "未完了の AI ドラフト"
+      },
       validation: {
         filesRequired: "ディレクトリを選択してください"
       },
@@ -631,6 +661,67 @@ export const jaJP = {
         descriptionWithName: "スキル「{{name}}」を削除しますか?これにより、スキルのすべてのバージョンとローカル ストレージ ファイルが削除されます。",
         descriptionFallback: "このスキルを削除しますか?"
       }
+    },
+    skillCreator: {
+      title: "AI で Skill を作成",
+      missingUuid: "Skill ドラフト識別子がありません",
+      loadFailed: "Skill ドラフトの読み込みに失敗しました",
+      messageFailed: "メッセージの送信に失敗しました",
+      generateFailed: "Skill ファイルの生成に失敗しました",
+      generateSuccess: "Skill ファイルを生成しました",
+      saveFailed: "Skill ファイルの保存に失敗しました",
+      saveSuccess: "Skill ファイルを保存しました",
+      publishFailed: "Skill の作成に失敗しました",
+      publishSuccess: "Skill「{{name}}」を作成しました",
+      chat: "チャット",
+      files: "ファイル",
+      you: "あなた",
+      assistant: "AI アシスタント",
+      interrupted: "応答が中断されました",
+      emptyChat: "Skill に実行させたい内容を説明してください。AI が複数回の対話で要件を明確にします。",
+      emptyFiles: "要件の確認後、「Skill を生成」をクリックしてファイルパッケージを作成します。",
+      noFileSelected: "ファイルが選択されていません",
+      unsaved: "未保存",
+      messagePlaceholder: "目標、入力、処理ルール、期待する出力を説明します。Command/Ctrl + Enter で送信します。",
+      scriptReview: "生成されたすべてのスクリプトと実行動作を確認しました",
+      actions: {
+        send: "送信",
+        generate: "Skill を生成",
+        regenerate: "再生成",
+        save: "ファイルを保存",
+        publish: "作成を確認"
+      },
+      status: {
+        draft: "要件を確認中",
+        generating: "生成中",
+        ready: "ファイルの確認待ち",
+        published: "作成済み",
+        failed: "前回の生成に失敗"
+      },
+      stages: {
+        thinking: "AI が応答中",
+        generating_files: "ファイルパッケージを生成中",
+        repairing_structure: "ファイル構造を修復中"
+      }
+    },
+    aiModelConfig: {
+      title: "組織のデフォルト AI モデル",
+      description: "AI Skill 作成と Agent 推奨プロンプトに使用します。Agent Client の実行モデルには影響しません。",
+      loadFailed: "AI モデル設定の読み込みに失敗しました",
+      saveFailed: "AI モデル設定の保存に失敗しました",
+      saveSuccess: "AI モデル設定を保存しました",
+      testFailed: "モデル接続テストに失敗しました",
+      testSuccess: "モデル接続テストに成功しました",
+      validationFailed: "有効な HTTPS URL、モデル名、0～2 の Temperature を入力してください。",
+      baseURL: "Base URL",
+      model: "モデル",
+      keyConfigured: "API Key 設定済み",
+      keyMissing: "API Key 未設定",
+      keyPlaceholder: "API Key を入力",
+      keyReplacePlaceholder: "空欄なら現在のキーを保持し、新しい値で置き換えます",
+      keyHelp: "キーは暗号化され、保存後は再表示されません。",
+      test: "接続テスト",
+      testing: "テスト中..."
     },
     workflowDetail: {
       missingUuid: "ワークフロー UUID がありません",

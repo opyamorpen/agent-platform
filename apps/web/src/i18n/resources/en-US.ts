@@ -8,12 +8,15 @@ export const enUS = {
   common: {
     actions: {
       refresh: 'Refresh',
+      back: 'Back',
+      save: 'Save',
       cancel: 'Cancel',
       confirmDelete: 'Confirm delete',
       retry: 'Retry after refresh'
     },
     states: {
       loading: 'Loading...',
+      saving: 'Saving...',
       deleting: 'Deleting...'
     },
     fallback: {
@@ -78,6 +81,11 @@ export const enUS = {
         'This workflow still contains execution nodes. Delete those nodes before deleting the workflow.',
       'agents.invalid_payload': 'The agent request payload is invalid.',
       'agents.invalid_prompt_preview_payload': 'The prompt preview payload is invalid.',
+      'agents.invalid_prompt_recommendation_payload': 'The prompt recommendation payload is invalid.',
+      'ai_model_config.not_configured': 'The administrator has not configured an AI model.',
+      'ai_model_config.unsafe_base_url': 'The model URL does not meet the public HTTPS security policy.',
+      'skill_generation.revision_conflict': 'The Skill draft changed. Reload and try again.',
+      'skill_generation.script_review_required': 'Review and confirm the generated scripts first.',
       'agents.invalid_draft_payload': 'The agent draft payload is invalid.',
       'agents.invalid_publish_payload': 'The agent publish payload is invalid.',
       'agents.workspace_binding_not_found': 'The bound agent workspace was not found.',
@@ -132,6 +140,7 @@ export const enUS = {
       agentSkills: 'Agent Skills',
       agentWorkspaces: 'Agent Workspaces',
       agentClients: 'Agent Clients',
+      aiModelConfig: 'AI Model',
       members: 'Members'
     }
   },
@@ -143,7 +152,8 @@ export const enUS = {
       agentConfig: 'Agent Config',
       agentClients: 'Agent Clients',
       agentWorkspaces: 'Agent Workspaces',
-      agentSkills: 'Agent Skills'
+      agentSkills: 'Agent Skills',
+      aiModelConfig: 'AI Model Configuration'
     },
     descriptions: {
       workflowExecution:
@@ -422,6 +432,17 @@ export const enUS = {
       draftSaveFailed: 'Failed to save draft',
       publishFailed: 'Failed to publish agent configuration',
       publishSuccess: 'Agent configuration published',
+      recommendation: {
+        action: 'Generate with AI',
+        generating: 'Generating recommendation...',
+        title: 'Recommended prompt',
+        description: 'Generated from the Agent goal, inputs, outputs, and selected Skills. It is applied only after confirmation.',
+        apply: 'Apply recommendation',
+        applied: 'Recommended prompt applied',
+        failed: 'Failed to generate a prompt recommendation',
+        contextChanged: 'The Agent configuration changed. Generate a new recommendation.',
+        notConfigured: 'The administrator has not configured an AI model'
+      },
       validation: {
         nameRequired: 'Enter an agent name'
       },
@@ -444,6 +465,8 @@ export const enUS = {
       basic: {
         nameLabel: 'Name',
         namePlaceholder: 'Enter an agent name',
+        descriptionLabel: 'Business goal',
+        descriptionPlaceholder: 'Describe the Agent responsibility, objective, key rules, and completion criteria',
         executorLabel: 'Executor',
         executorPlaceholder: 'Search ONES users',
         executorSearchLoading: 'Searching...',
@@ -658,6 +681,13 @@ export const enUS = {
       deleteFailed: 'Failed to delete skill',
       deleteSuccess: 'Skill "{{name}}" deleted',
       empty: 'No skill data',
+      ai: {
+        create: 'Create with AI',
+        creating: 'Creating...',
+        createFailed: 'Failed to create a Skill draft',
+        notConfigured: 'The administrator has not configured an AI model',
+        drafts: 'Unfinished AI drafts'
+      },
       validation: {
         filesRequired: 'Select a directory'
       },
@@ -694,6 +724,67 @@ export const enUS = {
           'Delete skill "{{name}}"? This deletes all versions and local storage files for the skill.',
         descriptionFallback: 'Delete this skill?'
       }
+    },
+    skillCreator: {
+      title: 'Create Skill with AI',
+      missingUuid: 'Missing Skill draft identifier',
+      loadFailed: 'Failed to load the Skill draft',
+      messageFailed: 'Failed to send the message',
+      generateFailed: 'Failed to generate Skill files',
+      generateSuccess: 'Skill files generated',
+      saveFailed: 'Failed to save Skill files',
+      saveSuccess: 'Skill files saved',
+      publishFailed: 'Failed to create the Skill',
+      publishSuccess: 'Skill "{{name}}" created',
+      chat: 'Chat',
+      files: 'Files',
+      you: 'You',
+      assistant: 'AI assistant',
+      interrupted: 'Response interrupted',
+      emptyChat: 'Describe what the Skill should do. The AI will clarify the requirement through multiple turns.',
+      emptyFiles: 'Finish discussing the requirement, then generate the Skill package.',
+      noFileSelected: 'No file selected',
+      unsaved: 'Unsaved',
+      messagePlaceholder: 'Describe the goal, inputs, processing rules, and expected output. Command/Ctrl + Enter to send.',
+      scriptReview: 'I reviewed every generated script and confirmed its execution behavior',
+      actions: {
+        send: 'Send',
+        generate: 'Generate Skill',
+        regenerate: 'Regenerate',
+        save: 'Save files',
+        publish: 'Create Skill'
+      },
+      status: {
+        draft: 'Discussing requirements',
+        generating: 'Generating',
+        ready: 'Files awaiting review',
+        published: 'Created',
+        failed: 'Last generation failed'
+      },
+      stages: {
+        thinking: 'AI is responding',
+        generating_files: 'Generating the file package',
+        repairing_structure: 'Repairing the file structure'
+      }
+    },
+    aiModelConfig: {
+      title: 'Organization default AI model',
+      description: 'Used for AI Skill creation and Agent prompt recommendations. It does not change the Agent Client execution model.',
+      loadFailed: 'Failed to load AI model configuration',
+      saveFailed: 'Failed to save AI model configuration',
+      saveSuccess: 'AI model configuration saved',
+      testFailed: 'Model connection test failed',
+      testSuccess: 'Model connection test succeeded',
+      validationFailed: 'Enter a valid HTTPS URL, model name, and Temperature between 0 and 2.',
+      baseURL: 'Base URL',
+      model: 'Model',
+      keyConfigured: 'API Key configured',
+      keyMissing: 'API Key missing',
+      keyPlaceholder: 'Enter API Key',
+      keyReplacePlaceholder: 'Leave blank to keep the current key, or enter a replacement',
+      keyHelp: 'The key is encrypted and is never shown again after saving.',
+      test: 'Test connection',
+      testing: 'Testing...'
     },
     workflowDetail: {
       missingUuid: 'Missing workflow uuid',

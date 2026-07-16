@@ -6,7 +6,7 @@ import {
 import { resolveCurrentInstallationInfo } from '../../lib/installation-info.js';
 import { getLogger } from '../../lib/logger.js';
 
-const APP_VERSION = 'v0.1.15';
+const APP_VERSION = 'v0.1.17';
 const logger = getLogger('app.service');
 
 export class InstallationBaseUrlConflictError extends Error {

@@ -55,6 +55,15 @@ export interface SkillDownloadUrlPackage {
   downloadUrl: string;
 }
 
+export interface SkillMarkdownDocument {
+  uuid: string;
+  name: string;
+  content: string;
+}
+
+const MAX_SKILL_MARKDOWN_BYTES = 256 * 1024;
+const MAX_SKILL_ARCHIVE_READ_BYTES = 10 * 1024 * 1024;
+
 export class SkillNotFoundError extends Error {
   constructor(uuid: string) {
     super(`Skill not found: ${uuid}`);
@@ -257,6 +266,45 @@ export async function createSkillDownloadPackage(
     fileName: `${buildArchiveBaseName(skill.name, resolvedVersion)}.tar.gz`,
     stream: opened.stream as Readable
   };
+}
+
+export async function readCurrentSkillMarkdown(
+  uuid: string,
+  teamUUID: string
+): Promise<SkillMarkdownDocument> {
+  const skill = await findSkillByUUID(uuid, teamUUID);
+
+  if (!skill) {
+    throw new SkillNotFoundError(uuid);
+  }
+
+  const archive = await createSkillDownloadPackage(uuid, skill.currentVersion, teamUUID);
+  const workspaceDirectory = await mkdtemp(
+    path.join(os.tmpdir(), 'ones-ai-workflow-skill-read-')
+  );
+  const archivePath = path.join(workspaceDirectory, archive.fileName);
+  const chunks: Buffer[] = [];
+  let archiveBytes = 0;
+
+  try {
+    for await (const chunk of archive.stream) {
+      const buffer = Buffer.from(chunk);
+      archiveBytes += buffer.length;
+      if (archiveBytes > MAX_SKILL_ARCHIVE_READ_BYTES) {
+        throw new InvalidSkillPackageError('Skill archive exceeds the 10 MB read limit');
+      }
+      chunks.push(buffer);
+    }
+    await writeFile(archivePath, Buffer.concat(chunks));
+
+    return {
+      uuid,
+      name: skill.name,
+      content: await extractArchiveTextFile(archivePath, './SKILL.md')
+    };
+  } finally {
+    await rm(workspaceDirectory, { recursive: true, force: true });
+  }
 }
 
 export async function createSkillDownloadUrlPackage(
@@ -577,6 +625,46 @@ async function createTarArchive(
 
 function hasShebang(fileBuffer: Buffer): boolean {
   return fileBuffer.length >= 2 && fileBuffer[0] === 35 && fileBuffer[1] === 33;
+}
+
+async function extractArchiveTextFile(
+  archivePath: string,
+  relativePath: string
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('tar', ['-xOzf', archivePath, relativePath], {
+      env: process.env
+    });
+    const stdout: Buffer[] = [];
+    let stdoutBytes = 0;
+    let rejected = false;
+    let stderr = '';
+
+    child.stdout.on('data', (chunk) => {
+      const buffer = Buffer.from(chunk);
+      stdoutBytes += buffer.length;
+      if (stdoutBytes > MAX_SKILL_MARKDOWN_BYTES && !rejected) {
+        rejected = true;
+        child.kill();
+        reject(new InvalidSkillPackageError('SKILL.md exceeds the 256 KB context limit'));
+        return;
+      }
+      stdout.push(buffer);
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (rejected) return;
+      if (code !== 0) {
+        reject(new InvalidSkillPackageError(stderr.trim() || 'Skill package is missing root SKILL.md'));
+        return;
+      }
+
+      resolve(Buffer.concat(stdout).toString('utf8'));
+    });
+  });
 }
 
 async function createSkillArchive(

@@ -8,12 +8,15 @@ export const zhCN = {
   common: {
     actions: {
       refresh: '刷新',
+      back: '返回',
+      save: '保存',
       cancel: '取消',
       confirmDelete: '确认删除',
       retry: '刷新后重试'
     },
     states: {
       loading: '加载中...',
+      saving: '保存中...',
       deleting: '删除中...'
     },
     fallback: {
@@ -63,6 +66,11 @@ export const zhCN = {
       'workflows.deletion_blocked': '工作流下仍有执行节点，请先删除执行节点后再删除工作流。',
       'agents.invalid_payload': 'Agent 请求参数无效。',
       'agents.invalid_prompt_preview_payload': '提示词预览请求参数无效。',
+      'agents.invalid_prompt_recommendation_payload': '推荐提示词请求参数无效。',
+      'ai_model_config.not_configured': '管理员尚未配置 AI 模型。',
+      'ai_model_config.unsafe_base_url': '模型地址不符合公网 HTTPS 安全要求。',
+      'skill_generation.revision_conflict': 'Skill 草稿已发生变化，请刷新后重试。',
+      'skill_generation.script_review_required': '请先确认已审核生成脚本。',
       'agents.invalid_draft_payload': 'Agent 草稿请求参数无效。',
       'agents.invalid_publish_payload': 'Agent 发布请求参数无效。',
       'agents.workspace_binding_not_found': 'Agent 绑定的工作区不存在。',
@@ -115,6 +123,7 @@ export const zhCN = {
       agentSkills: 'Agent 技能',
       agentWorkspaces: 'Agent 工作区',
       agentClients: 'Agent Client',
+      aiModelConfig: 'AI 模型配置',
       members: '成员管理'
     }
   },
@@ -126,7 +135,8 @@ export const zhCN = {
       agentConfig: 'Agent 配置',
       agentClients: 'Agent Client',
       agentWorkspaces: 'Agent 工作区',
-      agentSkills: 'Agent 技能'
+      agentSkills: 'Agent 技能',
+      aiModelConfig: 'AI 模型配置'
     },
     descriptions: {
       workflowExecution: '用于查看工作流触发的执行记录，并跟踪每次运行的最新状态。',
@@ -386,6 +396,17 @@ export const zhCN = {
       draftSaveFailed: '保存草稿失败',
       publishFailed: '发布 Agent 配置失败',
       publishSuccess: 'Agent 配置已发布',
+      recommendation: {
+        action: 'AI 生成建议',
+        generating: '正在生成建议...',
+        title: '推荐提示词',
+        description: '根据 Agent 的业务目标、输入、输出和已选 Skill 生成。确认后才会应用到编辑器。',
+        apply: '应用建议',
+        applied: '推荐提示词已应用',
+        failed: '推荐提示词生成失败',
+        contextChanged: 'Agent 配置已变化，请重新生成建议。',
+        notConfigured: '管理员尚未配置 AI 模型'
+      },
       validation: {
         nameRequired: '请输入 Agent 名称'
       },
@@ -408,6 +429,8 @@ export const zhCN = {
       basic: {
         nameLabel: '名称',
         namePlaceholder: '请输入 Agent 名称',
+        descriptionLabel: '业务目标',
+        descriptionPlaceholder: '说明 Agent 的职责、处理目标、关键规则和完成标准',
         executorLabel: '执行身份',
         executorPlaceholder: '搜索 ONES 用户',
         executorSearchLoading: '搜索中...',
@@ -610,6 +633,13 @@ export const zhCN = {
       deleteFailed: '技能删除失败',
       deleteSuccess: '技能“{{name}}”已删除',
       empty: '暂无技能数据',
+      ai: {
+        create: 'AI 创建',
+        creating: '创建中...',
+        createFailed: '创建 Skill 草稿失败',
+        notConfigured: '管理员尚未配置 AI 模型',
+        drafts: '未完成的 AI 草稿'
+      },
       validation: {
         filesRequired: '请选择一个目录'
       },
@@ -645,6 +675,67 @@ export const zhCN = {
           '确认删除技能“{{name}}”吗？这会删除该技能的所有版本和本地存储文件。',
         descriptionFallback: '确认删除该技能吗？'
       }
+    },
+    skillCreator: {
+      title: 'AI 创建 Skill',
+      missingUuid: '缺少 Skill 草稿标识',
+      loadFailed: 'Skill 草稿加载失败',
+      messageFailed: '发送消息失败',
+      generateFailed: '生成 Skill 文件失败',
+      generateSuccess: 'Skill 文件已生成',
+      saveFailed: '保存 Skill 文件失败',
+      saveSuccess: 'Skill 文件已保存',
+      publishFailed: '创建 Skill 失败',
+      publishSuccess: 'Skill“{{name}}”已创建',
+      chat: '对话',
+      files: '文件',
+      you: '你',
+      assistant: 'AI 助手',
+      interrupted: '响应已中断',
+      emptyChat: '描述你希望 Skill 完成的工作，AI 会通过多轮对话帮助补全需求。',
+      emptyFiles: '完成需求沟通后，点击“生成 Skill”创建文件包。',
+      noFileSelected: '未选择文件',
+      unsaved: '未保存',
+      messagePlaceholder: '描述目标、输入、处理规则和期望输出。Command/Ctrl + Enter 发送。',
+      scriptReview: '我已逐个审核生成的脚本文件，并确认其执行行为',
+      actions: {
+        send: '发送',
+        generate: '生成 Skill',
+        regenerate: '重新生成',
+        save: '保存文件',
+        publish: '确认创建'
+      },
+      status: {
+        draft: '需求沟通中',
+        generating: '生成中',
+        ready: '文件待审核',
+        published: '已创建',
+        failed: '上次生成失败'
+      },
+      stages: {
+        thinking: 'AI 正在回复',
+        generating_files: '正在生成文件包',
+        repairing_structure: '正在修复文件结构'
+      }
+    },
+    aiModelConfig: {
+      title: '组织默认 AI 模型',
+      description: '用于 AI 创建 Skill 和生成 Agent 推荐提示词，不影响 Agent Client 的执行模型。',
+      loadFailed: 'AI 模型配置加载失败',
+      saveFailed: 'AI 模型配置保存失败',
+      saveSuccess: 'AI 模型配置已保存',
+      testFailed: '模型连接测试失败',
+      testSuccess: '模型连接测试成功',
+      validationFailed: '请填写有效的 HTTPS 地址、模型名称和 0-2 之间的 Temperature。',
+      baseURL: 'Base URL',
+      model: '模型名称',
+      keyConfigured: 'API Key 已配置',
+      keyMissing: 'API Key 未配置',
+      keyPlaceholder: '输入 API Key',
+      keyReplacePlaceholder: '留空保留当前密钥，输入新值可替换',
+      keyHelp: '密钥会加密保存，保存后不会再次回显。',
+      test: '测试连接',
+      testing: '测试中...'
     },
     workflowDetail: {
       missingUuid: '工作流 uuid 缺失',

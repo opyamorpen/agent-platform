@@ -16,6 +16,7 @@ export function SiteHeader() {
     "/settings/agent-clients": t("header.titles.agentClients"),
     "/settings/agent-workspaces": t("header.titles.agentWorkspaces"),
     "/settings/skills": t("header.titles.agentSkills"),
+    "/settings/ai-model-config": t("header.titles.aiModelConfig"),
   }
   const descriptionMap: Record<string, string> = {
     "/settings/issues":

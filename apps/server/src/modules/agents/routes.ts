@@ -7,6 +7,7 @@ import {
   getAgentDraftHandler,
   listAgentsHandler,
   previewAgentPromptHandler,
+  recommendAgentPromptHandler,
   publishAgentDraftHandler,
   saveAgentDraftHandler,
   updateAgentHandler
@@ -21,6 +22,7 @@ agentsRoutes.use('*', async (c, next) => {
 
 agentsRoutes.get('/', listAgentsHandler);
 agentsRoutes.post('/prompt-preview', previewAgentPromptHandler);
+agentsRoutes.post('/prompt-recommendations/stream', recommendAgentPromptHandler);
 agentsRoutes.post('/', createAgentHandler);
 agentsRoutes.post('/:uuid/duplicate', duplicateAgentHandler);
 agentsRoutes.patch('/:uuid', updateAgentHandler);

@@ -134,6 +134,21 @@ function isSameOriginApiRequest(input: RequestInfo | URL): boolean {
   return pathname?.startsWith('/api/') ?? false;
 }
 
+function isStreamingApiRequest(input: RequestInfo | URL): boolean {
+  const pathname = resolveSameOriginPathname(input);
+  return pathname?.endsWith('/stream') ?? false;
+}
+
+function shouldUseNativeAppTransport(input: RequestInfo | URL): boolean {
+  const pathname = resolveSameOriginPathname(input);
+
+  return Boolean(
+    isStreamingApiRequest(input) ||
+    pathname?.startsWith('/api/ai-model-config') ||
+    pathname?.startsWith('/api/skill-generation-sessions')
+  );
+}
+
 function isTokenInfoRequest(input: RequestInfo | URL): boolean {
   return resolveSameOriginPathname(input) === '/api/ones/token-info';
 }
@@ -341,6 +356,15 @@ export async function appFetch(
   }
 
   const requestInit = withAuthorizationInit(input, init);
+
+  // ONES.fetchApp may buffer or time out long-lived responses. Streaming APIs must
+  // use the native fetch transport so POST bodies are not replayed after 800 ms.
+  if (shouldUseNativeAppTransport(input)) {
+    return withSessionRedirect(
+      input,
+      nativeFetch(resolveFallbackInput(input), requestInit)
+    );
+  }
 
   if (!shouldUseOnesFetch(input)) {
     return withSessionRedirect(input, nativeFetch(input, requestInit));

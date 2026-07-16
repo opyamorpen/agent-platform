@@ -10,7 +10,7 @@ import {
   SidebarFooter,
   SidebarHeader,
 } from "@/components/ui/sidebar"
-import { Settings2Icon, BotIcon, WorkflowIcon, TicketIcon, PackageIcon, FolderIcon, UsersIcon } from "lucide-react"
+import { Settings2Icon, BotIcon, WorkflowIcon, TicketIcon, PackageIcon, FolderIcon, UsersIcon, SparklesIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -47,6 +47,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       },
     ],
     adminSettings: [
+      {
+        name: t("navigation.items.aiModelConfig"),
+        url: "/settings/ai-model-config",
+        icon: <SparklesIcon />,
+      },
       {
         name: t("navigation.items.agentClients"),
         url: "/settings/agent-clients",

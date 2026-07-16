@@ -15,6 +15,8 @@ import { PermissionDeniedPage } from '@/pages/permission-denied-page';
 import { SkillsPage } from '@/pages/skills-page';
 import { WorkflowDetailPage } from '@/pages/workflow-detail-page';
 import { WorkflowsPage } from '@/pages/workflows-page';
+import { AIModelConfigPage } from '@/pages/ai-model-config-page';
+import { SkillCreatorPage } from '@/pages/skill-creator-page';
 
 export const router = createHashRouter([
   {
@@ -58,6 +60,10 @@ export const router = createHashRouter([
         element: <SkillsPage />
       },
       {
+        path: 'settings/skills/create/:uuid',
+        element: <SkillCreatorPage />
+      },
+      {
         path: 'settings/agents/:uuid',
         element: <AgentDetailPage />
       },
@@ -74,6 +80,14 @@ export const router = createHashRouter([
         element: (
           <AdminRouteGuard>
             <MembersPage />
+          </AdminRouteGuard>
+        )
+      },
+      {
+        path: 'settings/ai-model-config',
+        element: (
+          <AdminRouteGuard>
+            <AIModelConfigPage />
           </AdminRouteGuard>
         )
       },

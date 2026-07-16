@@ -3,6 +3,7 @@ import { failure, success } from '../../lib/api-response.js';
 import { getWebSession } from '../../lib/web-session.js';
 import {
   agentPromptPreviewSchema,
+  agentPromptRecommendationSchema,
   createAgentSchema,
   duplicateAgentSchema,
   publishAgentSchema,
@@ -26,6 +27,9 @@ import {
   saveAgentDraft,
   updateAgentRecord
 } from './service.js';
+import { randomUUID } from 'node:crypto';
+import { streamAIEvents } from '../../lib/sse.js';
+import { streamPromptRecommendation } from './prompt-recommendation.js';
 
 export async function listAgentsHandler(c: Context) {
   const { teamUUID } = await getWebSession(c.req);
@@ -59,6 +63,34 @@ export async function previewAgentPromptHandler(c: Context) {
 
     throw error;
   }
+}
+
+export async function recommendAgentPromptHandler(c: Context) {
+  const result = agentPromptRecommendationSchema.safeParse(
+    await c.req.json().catch(() => null)
+  );
+
+  if (!result.success) {
+    return c.json(
+      failure('Invalid prompt recommendation payload', 'agents.invalid_prompt_recommendation_payload'),
+      400
+    );
+  }
+
+  const { teamUUID } = await getWebSession(c.req);
+  const requestUUID = randomUUID();
+
+  return streamAIEvents(c, async ({ signal, send }) => {
+    await send('meta', { requestUUID });
+    await send('stage', { stage: 'generating' });
+    const recommendation = await streamPromptRecommendation({
+      payload: result.data,
+      teamUUID,
+      signal,
+      onDelta: (delta) => send('text_delta', { delta })
+    });
+    await send('done', recommendation);
+  });
 }
 
 export async function createAgentHandler(c: Context) {

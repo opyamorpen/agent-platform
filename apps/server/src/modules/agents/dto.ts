@@ -166,6 +166,14 @@ export const agentPromptPreviewSchema = z.object({
   workspaceUUID: z.string().trim().min(1).nullable().optional()
 });
 
+export const agentPromptRecommendationSchema = z.object({
+  name: z.string().trim().min(1).max(256),
+  description: z.string().max(20_000),
+  skillUUIDs: z.array(z.string().trim().min(1)).max(20),
+  inputs: z.array(agentInputFieldSchema),
+  outputs: z.array(agentOutputFieldSchema)
+});
+
 export const publishAgentSchema = z.object({
   createdBy: z.string().trim().min(1).optional(),
   note: z.string().trim().min(1).optional()
@@ -173,6 +181,9 @@ export const publishAgentSchema = z.object({
 
 export type SaveAgentDraftDTO = z.infer<typeof saveAgentDraftSchema>;
 export type AgentPromptPreviewDTO = z.infer<typeof agentPromptPreviewSchema>;
+export type AgentPromptRecommendationDTO = z.infer<
+  typeof agentPromptRecommendationSchema
+>;
 export type PublishAgentDTO = z.infer<typeof publishAgentSchema>;
 export type CreateAgentDTO = z.infer<typeof createAgentSchema>;
 export type UpdateAgentDTO = z.infer<typeof updateAgentSchema>;

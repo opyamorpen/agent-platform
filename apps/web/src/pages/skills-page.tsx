@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ApiError, ApiSuccess, SkillSummary } from '@ones-ai-workflow/shared';
+import type {
+  AIModelConfigStatus,
+  ApiError,
+  ApiSuccess,
+  SkillGenerationSession,
+  SkillGenerationSessionSummary,
+  SkillSummary
+} from '@ones-ai-workflow/shared';
 import { getApiErrorMessage, getErrorMessage } from '@/lib/api-error';
 import {
   AlertDialog,
@@ -37,15 +44,17 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
 import {
   DownloadIcon,
+  HistoryIcon,
   PlusIcon,
+  SparklesIcon,
   Trash2Icon,
   UploadIcon
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 type SkillsResponse = ApiSuccess<SkillSummary[]> | ApiError;
 type SkillResponse = ApiSuccess<SkillSummary> | ApiError;
@@ -54,6 +63,9 @@ type SkillDownloadUrlResponse = ApiSuccess<{
   fileName: string;
   downloadUrl: string;
 }> | ApiError;
+type AIModelStatusResponse = ApiSuccess<AIModelConfigStatus> | ApiError;
+type GenerationSessionsResponse = ApiSuccess<SkillGenerationSessionSummary[]> | ApiError;
+type GenerationSessionResponse = ApiSuccess<SkillGenerationSession> | ApiError;
 
 type FormErrors = {
   files?: string;
@@ -62,6 +74,7 @@ type FormErrors = {
 
 export function SkillsPage() {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const locale = resolveLocale(i18n.resolvedLanguage ?? i18n.language) ?? DEFAULT_LOCALE;
   const createInputRef = useRef<HTMLInputElement | null>(null);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
@@ -78,10 +91,54 @@ export function SkillsPage() {
   const [uploadingSkill, setUploadingSkill] = useState<SkillSummary | null>(null);
   const [pendingDeleteSkill, setPendingDeleteSkill] = useState<SkillSummary | null>(null);
   const [deletingSkillUUID, setDeletingSkillUUID] = useState<string | null>(null);
+  const [isAIConfigured, setIsAIConfigured] = useState(false);
+  const [generationSessions, setGenerationSessions] = useState<SkillGenerationSessionSummary[]>([]);
+  const [isCreatingAISkill, setIsCreatingAISkill] = useState(false);
 
   useEffect(() => {
     void loadSkills();
+    void loadAIAuthoringState();
   }, []);
+
+  async function loadAIAuthoringState() {
+    try {
+      const [statusResponse, sessionsResponse] = await Promise.all([
+        fetch('/api/ai-model-config/status'),
+        fetch('/api/skill-generation-sessions')
+      ]);
+      const statusPayload = (await statusResponse.json()) as AIModelStatusResponse;
+      const sessionsPayload = (await sessionsResponse.json()) as GenerationSessionsResponse;
+      setIsAIConfigured(statusResponse.ok && statusPayload.success && statusPayload.data.configured);
+      setGenerationSessions(
+        sessionsResponse.ok && sessionsPayload.success
+          ? sessionsPayload.data.filter((session) => session.status !== 'published')
+          : []
+      );
+    } catch {
+      setIsAIConfigured(false);
+      setGenerationSessions([]);
+    }
+  }
+
+  async function handleCreateAISkill() {
+    try {
+      setIsCreatingAISkill(true);
+      const response = await fetch('/api/skill-generation-sessions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const payload = (await response.json()) as GenerationSessionResponse;
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.success ? t('pages.skills.ai.createFailed') : getApiErrorMessage(payload, t, 'pages.skills.ai.createFailed'));
+      }
+      navigate(`/settings/skills/create/${payload.data.uuid}`);
+    } catch (error) {
+      toast.error(getErrorMessage(error, t, 'pages.skills.ai.createFailed'));
+    } finally {
+      setIsCreatingAISkill(false);
+    }
+  }
 
   async function loadSkills() {
     setIsLoading(true);
@@ -329,7 +386,7 @@ export function SkillsPage() {
   return (
     <div className="@container/main flex flex-1 flex-col gap-2">
       <div className="relative flex flex-1 flex-col gap-4 overflow-auto px-4 py-4 lg:px-6 md:py-6">
-        <div className="flex items-center justify-start">
+        <div className="flex flex-wrap items-center justify-start gap-2">
           <Button
             size="sm"
             onClick={() => {
@@ -340,7 +397,33 @@ export function SkillsPage() {
             <PlusIcon />
             {t('pages.skills.actions.upload')}
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void handleCreateAISkill()}
+            disabled={!isAIConfigured || isCreatingAISkill}
+            title={!isAIConfigured ? t('pages.skills.ai.notConfigured') : undefined}
+          >
+            <SparklesIcon />
+            {isCreatingAISkill ? t('pages.skills.ai.creating') : t('pages.skills.ai.create')}
+          </Button>
         </div>
+        {generationSessions.length > 0 ? (
+          <section className="border-y bg-muted/20 px-3 py-3">
+            <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+              <HistoryIcon className="size-4" />
+              {t('pages.skills.ai.drafts')}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {generationSessions.map((session) => (
+                <Button key={session.uuid} size="sm" variant="ghost" onClick={() => navigate(`/settings/skills/create/${session.uuid}`)}>
+                  <span className="max-w-52 truncate">{session.title}</span>
+                  <span className="text-xs text-muted-foreground">{t(`pages.skillCreator.status.${session.status}`)}</span>
+                </Button>
+              ))}
+            </div>
+          </section>
+        ) : null}
         <div className="overflow-hidden rounded-lg border">
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-muted">

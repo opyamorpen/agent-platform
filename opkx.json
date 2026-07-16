@@ -2,7 +2,7 @@
   "app": {
     "id": "app_onesaiworkflow01",
     "name": "ones-ai-workflow",
-    "version": "v0.1.16",
+    "version": "v0.1.17",
     "desc": "ONES hosted AI workflow management app with external agent workers.",
     "auth": {
       "type": "jwt"
@@ -1028,6 +1028,121 @@
             {
               "name": "idx_issue_execution_uuid",
               "range_attribute": "issue_execution_uuid"
+            }
+          ]
+        },
+        {
+          "name": "ai_model_config",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "provider": {
+              "type": "string",
+              "length": 64,
+              "required": true
+            },
+            "base_url": {
+              "type": "string",
+              "length": 512,
+              "required": true
+            },
+            "model": {
+              "type": "string",
+              "length": 128,
+              "required": true
+            },
+            "temperature": {
+              "type": "float",
+              "required": true
+            },
+            "secret_object_key": {
+              "type": "string",
+              "length": 512,
+              "required": true
+            },
+            "updated_by": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            },
+            "updated_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            }
+          ]
+        },
+        {
+          "name": "skill_generation_session",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "creator_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "title": {
+              "type": "string",
+              "length": 128,
+              "required": true
+            },
+            "status": {
+              "type": "string",
+              "length": 32,
+              "required": true
+            },
+            "revision": {
+              "type": "integer",
+              "required": true
+            },
+            "draft_object_key": {
+              "type": "string",
+              "length": 512,
+              "required": true
+            },
+            "published_skill_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            },
+            "updated_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            },
+            {
+              "name": "idx_creator_uuid",
+              "range_attribute": "creator_uuid"
             }
           ]
         },

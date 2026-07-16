@@ -72,6 +72,55 @@ export interface SkillManifest {
   skills: SkillManifestItem[];
 }
 
+export interface AIModelConfigStatus {
+  configured: boolean;
+}
+
+export interface AIModelConfig {
+  provider: 'openai-compatible';
+  baseURL: string;
+  model: string;
+  temperature: number;
+  hasAPIKey: boolean;
+  updatedBy: string | null;
+  updatedAt: string | null;
+}
+
+export type SkillGenerationSessionStatus =
+  | 'draft'
+  | 'generating'
+  | 'ready'
+  | 'published'
+  | 'failed';
+
+export interface SkillGenerationMessage {
+  uuid: string;
+  role: 'user' | 'assistant';
+  content: string;
+  status: 'complete' | 'interrupted';
+  createdAt: string;
+}
+
+export interface SkillGenerationFile {
+  path: string;
+  content: string;
+}
+
+export interface SkillGenerationSessionSummary {
+  uuid: string;
+  title: string;
+  status: SkillGenerationSessionStatus;
+  revision: number;
+  publishedSkillUUID: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SkillGenerationSession extends SkillGenerationSessionSummary {
+  messages: SkillGenerationMessage[];
+  files: SkillGenerationFile[];
+}
+
 export interface AgentWorkspaceRepository {
   uuid: string;
   url: string;

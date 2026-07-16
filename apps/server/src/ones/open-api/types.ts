@@ -222,3 +222,56 @@ export interface OnesOpenApiExecuteIssueWorkflowRequest {
   id: string;
   fieldValues?: readonly OnesOpenApiFieldValue[];
 }
+
+export interface OnesOpenApiWikiSpace {
+  id: string;
+  title: string;
+  description: string;
+  homePageID: string;
+  updatedTime?: number;
+}
+
+export interface OnesOpenApiWikiPage {
+  id: string;
+  title: string;
+  spaceID: string;
+  parentID: string;
+  refType: string;
+  updatedTime: number;
+  isArchived: boolean;
+  canEdit: boolean;
+  locked: boolean;
+  content?: string;
+}
+
+export interface OnesOpenApiWikiReference {
+  contentType: 'page' | 'media' | 'attachment';
+  itemID: string;
+  fileName?: string;
+}
+
+export interface OnesOpenApiCopilotAnswer {
+  content: string;
+  references: OnesOpenApiWikiReference[];
+}
+
+export interface OnesOpenApiAskWikiRequest {
+  scopeType: 'space';
+  scopeID: string;
+  query: string;
+  language?: string;
+  expandQuery?: boolean;
+  enableCache?: boolean;
+  signal?: AbortSignal;
+}
+
+export interface OnesOpenApiCreateWikiPageRequest {
+  parentPageID: string;
+  title: string;
+  content: string;
+}
+
+export interface OnesOpenApiUpdateWikiPageRequest {
+  title?: string;
+  content?: string;
+}

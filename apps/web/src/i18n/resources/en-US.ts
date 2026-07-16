@@ -26,18 +26,23 @@ export const enUS = {
   },
   apiErrors: {
     codes: {
-      'auth.user_not_logged_in': 'Your session has expired. Please sign in again.',
-      'auth.missing_authorization_header': 'Your session has expired. Please sign in again.',
-      'auth.invalid_authorization_token': 'Your sign-in token is invalid. Please sign in again.',
+      'auth.user_not_logged_in':
+        'Your session has expired. Please sign in again.',
+      'auth.missing_authorization_header':
+        'Your session has expired. Please sign in again.',
+      'auth.invalid_authorization_token':
+        'Your sign-in token is invalid. Please sign in again.',
       'auth.organization_identifier_missing':
         'Your sign-in token is missing organization information. Please sign in again.',
-      'auth.team_uuid_required': 'Missing team context. Select a team and try again.',
+      'auth.team_uuid_required':
+        'Missing team context. Select a team and try again.',
       'auth.selected_team_not_accessible':
         'The selected team is not accessible. Select another team and try again.',
       'access.not_app_member':
         'Your account is not a member of AI Workflow for the current team. Ask an administrator to add you.',
       'access.admin_only': 'This page is only available to administrators.',
-      'common.internal_server_error': 'Internal server error. Please try again later.',
+      'common.internal_server_error':
+        'Internal server error. Please try again later.',
       'common.route_not_found': 'The requested endpoint was not found.',
       'skills.invalid_payload': 'The skill request payload is invalid.',
       'skills.invalid_package_payload':
@@ -46,7 +51,8 @@ export const enUS = {
       'skills.version_invalid': 'The skill version is invalid.',
       'skills.not_found': 'The requested skill was not found.',
       'skills.conflict': 'A skill with the same name already exists.',
-      'skills.in_use': 'This skill is still referenced by an agent and cannot be deleted.',
+      'skills.in_use':
+        'This skill is still referenced by an agent and cannot be deleted.',
       'agent_clients.invalid_connect_payload':
         'The agent client connection request payload is invalid.',
       'agent_clients.invalid_connect_poll_payload':
@@ -80,43 +86,71 @@ export const enUS = {
       'workflows.deletion_blocked':
         'This workflow still contains execution nodes. Delete those nodes before deleting the workflow.',
       'agents.invalid_payload': 'The agent request payload is invalid.',
-      'agents.invalid_prompt_preview_payload': 'The prompt preview payload is invalid.',
-      'agents.invalid_prompt_recommendation_payload': 'The prompt recommendation payload is invalid.',
-      'ai_model_config.not_configured': 'The administrator has not configured an AI model.',
-      'ai_model_config.unsafe_base_url': 'The model URL does not meet the public HTTPS security policy.',
-      'skill_generation.revision_conflict': 'The Skill draft changed. Reload and try again.',
-      'skill_generation.script_review_required': 'Review and confirm the generated scripts first.',
+      'agents.invalid_prompt_preview_payload':
+        'The prompt preview payload is invalid.',
+      'agents.invalid_prompt_recommendation_payload':
+        'The prompt recommendation payload is invalid.',
+      'ai_model_config.not_configured':
+        'The administrator has not configured an AI model.',
+      'ai_model_config.unsafe_base_url':
+        'The model URL does not meet the public HTTPS security policy.',
+      'skill_generation.revision_conflict':
+        'The Skill draft changed. Reload and try again.',
+      'skill_generation.script_review_required':
+        'Review and confirm the generated scripts first.',
       'agents.invalid_draft_payload': 'The agent draft payload is invalid.',
       'agents.invalid_publish_payload': 'The agent publish payload is invalid.',
-      'agents.workspace_binding_not_found': 'The bound agent workspace was not found.',
+      'agents.workspace_binding_not_found':
+        'The bound agent workspace was not found.',
       'agents.skill_binding_not_found': 'The bound agent skill was not found.',
+      'agents.knowledge_binding_not_found':
+        'The bound knowledge source was not found.',
       'agents.conflict': 'Agent data is in conflict. Refresh and try again.',
       'agents.uuid_required': 'Missing agent identifier.',
       'agents.not_found': 'The requested agent was not found.',
-      'agents.draft_not_found': 'There is no draft configuration available to publish for this agent.',
-      'agents.in_use': 'This agent is still referenced by a workflow and cannot be deleted.',
+      'agents.draft_not_found':
+        'There is no draft configuration available to publish for this agent.',
+      'agents.in_use':
+        'This agent is still referenced by a workflow and cannot be deleted.',
       'members.invalid_payload': 'The member request payload is invalid.',
       'members.conflict': 'This member already exists.',
       'members.user_uuid_required': 'Missing member user identifier.',
       'members.not_found': 'The requested member was not found.',
       'ones.config_error':
         'The ONES integration configuration is invalid. Ask an administrator to check it.',
-      'ones.request_error': 'Failed to request the ONES service. Please try again later.',
+      'ones.request_error':
+        'Failed to request the ONES service. Please try again later.',
       'ones.response_error':
         'The ONES service returned a response that could not be processed. Please try again later.',
-      'ones.invalid_user_search_query': 'The ONES user search query is invalid.',
-      'agent_workspaces.invalid_payload': 'The workspace request payload is invalid.',
+      'ones.invalid_user_search_query':
+        'The ONES user search query is invalid.',
+      'agent_workspaces.invalid_payload':
+        'The workspace request payload is invalid.',
       'agent_workspaces.uuid_required': 'Missing workspace identifier.',
       'agent_workspaces.not_found': 'The requested workspace was not found.',
-      'agent_workspaces.in_use': 'This workspace is still referenced by an agent and cannot be deleted.',
-      'agent_workspaces.auth_conflict': 'The current workspace auth configuration is incompatible with this operation.',
-      'agent_workspaces.repository_uuid_required': 'Missing repository identifier.',
-      'agent_workspaces.invalid_repository_payload': 'The repository request payload is invalid.',
-      'agent_workspaces.repository_not_found': 'The requested repository was not found.',
-      'agent_workspaces.invalid_auth_payload': 'The workspace auth payload is invalid.',
-      'agent_workspaces.invalid_credential_payload': 'The workspace credential payload is invalid.',
-      'agent_workspaces.credential_env_name_required': 'Missing credential environment variable name.',
-      'agent_workspaces.credential_not_found': 'The requested workspace credential was not found.'
+      'agent_workspaces.in_use':
+        'This workspace is still referenced by an agent and cannot be deleted.',
+      'agent_workspaces.auth_conflict':
+        'The current workspace auth configuration is incompatible with this operation.',
+      'agent_workspaces.repository_uuid_required':
+        'Missing repository identifier.',
+      'agent_workspaces.invalid_repository_payload':
+        'The repository request payload is invalid.',
+      'agent_workspaces.repository_not_found':
+        'The requested repository was not found.',
+      'agent_workspaces.invalid_auth_payload':
+        'The workspace auth payload is invalid.',
+      'agent_workspaces.invalid_credential_payload':
+        'The workspace credential payload is invalid.',
+      'agent_workspaces.credential_env_name_required':
+        'Missing credential environment variable name.',
+      'agent_workspaces.credential_not_found':
+        'The requested workspace credential was not found.',
+      'knowledge_sources.invalid_payload': 'Invalid knowledge source payload.',
+      'knowledge_sources.not_found':
+        'Knowledge source or Wiki space not found.',
+      'knowledge_sources.conflict':
+        'The knowledge source already exists or is still referenced by an Agent.'
     }
   },
   language: {
@@ -138,6 +172,7 @@ export const enUS = {
       workflowDesign: 'Workflow Design',
       agentConfig: 'Agent Config',
       agentSkills: 'Agent Skills',
+      agentKnowledge: 'Agent Knowledge',
       agentWorkspaces: 'Agent Workspaces',
       agentClients: 'Agent Clients',
       aiModelConfig: 'AI Model',
@@ -153,6 +188,7 @@ export const enUS = {
       agentClients: 'Agent Clients',
       agentWorkspaces: 'Agent Workspaces',
       agentSkills: 'Agent Skills',
+      agentKnowledge: 'Agent Knowledge',
       aiModelConfig: 'AI Model Configuration'
     },
     descriptions: {
@@ -165,7 +201,9 @@ export const enUS = {
       agentWorkspaces:
         'Provide agents with the workspaces, repositories, and runtime environment they need to execute tasks.',
       agentSkills:
-        'Provide reusable capabilities, knowledge, and execution rules for agents.'
+        'Provide reusable capabilities, knowledge, and execution rules for agents.',
+      agentKnowledge:
+        'Manage reusable ONES Wiki space knowledge sources for agents.'
     }
   },
   permissionDenied: {
@@ -427,6 +465,7 @@ export const enUS = {
       resourcesLoadFailed: 'Failed to load agent bindings',
       workspacesLoadFailed: 'Failed to load workspaces',
       skillsLoadFailed: 'Failed to load skills',
+      knowledgeSourcesLoadFailed: 'Failed to load knowledge sources',
       executorSearchFailed: 'Failed to search executors',
       basicConfigSaveFailed: 'Failed to save agent basic settings',
       draftSaveFailed: 'Failed to save draft',
@@ -436,18 +475,24 @@ export const enUS = {
         action: 'Generate with AI',
         generating: 'Generating recommendation...',
         title: 'Recommended prompt',
-        description: 'Generated from the Agent goal, inputs, outputs, and selected Skills. It is applied only after confirmation.',
+        description:
+          'Generated from the Agent goal, inputs, outputs, and selected Skills. It is applied only after confirmation.',
         apply: 'Apply recommendation',
         applied: 'Recommended prompt applied',
         failed: 'Failed to generate a prompt recommendation',
-        contextChanged: 'The Agent configuration changed. Generate a new recommendation.',
+        contextChanged:
+          'The Agent configuration changed. Generate a new recommendation.',
         notConfigured: 'The administrator has not configured an AI model'
       },
       validation: {
         nameRequired: 'Enter an agent name'
       },
-      duplicateInputField: 'An input binding already exists for top-level field "{{name}}"',
-      duplicateOutputField: 'An output binding already exists for top-level field "{{name}}"',
+      duplicateInputField:
+        'An input binding already exists for top-level field "{{name}}"',
+      duplicateOutputField:
+        'An output binding already exists for top-level field "{{name}}"',
+      onlyOneWikiOutput:
+        'Each Agent can configure at most one related Wiki page output field',
       steps: {
         basic: 'Basic settings',
         inputs: 'Input settings',
@@ -466,7 +511,8 @@ export const enUS = {
         nameLabel: 'Name',
         namePlaceholder: 'Enter an agent name',
         descriptionLabel: 'Business goal',
-        descriptionPlaceholder: 'Describe the Agent responsibility, objective, key rules, and completion criteria',
+        descriptionPlaceholder:
+          'Describe the Agent responsibility, objective, key rules, and completion criteria',
         executorLabel: 'Executor',
         executorPlaceholder: 'Search ONES users',
         executorSearchLoading: 'Searching...',
@@ -484,7 +530,12 @@ export const enUS = {
           'The workspace can be left empty for agents that do not depend on a local code repository.',
         skillsLabel: 'Skills',
         skillsPlaceholder: 'Search or select skills',
-        skillsEmpty: 'No bindable skills'
+        skillsEmpty: 'No bindable skills',
+        knowledgeLabel: 'Knowledge',
+        knowledgePlaceholder: 'Search or select up to 5 knowledge sources',
+        knowledgeEmpty: 'No bindable knowledge sources',
+        knowledgeHelp:
+          'Binding changes take effect after publication. Wiki content changes do not require republishing.'
       },
       fields: {
         pickerPlaceholder: 'Search or select a field',
@@ -500,11 +551,13 @@ export const enUS = {
           actions: 'Actions'
         },
         preview: {
-          noSubFieldDescriptions: 'No internal field descriptions configured yet',
+          noSubFieldDescriptions:
+            'No internal field descriptions configured yet',
           noDescription: 'No description provided'
         },
         internalFieldSummaryTitle: '{{fieldName}} internal field descriptions',
-        inputDescriptionPlaceholder: 'Describe how this input field is used by the agent',
+        inputDescriptionPlaceholder:
+          'Describe how this input field is used by the agent',
         inputSubFieldDescriptionPlaceholder:
           'Describe how this internal field is used by the agent',
         outputDescriptionPlaceholderObject:
@@ -635,7 +688,8 @@ export const enUS = {
       saveSuccess: 'Credential saved',
       deleteFailed: 'Failed to delete credential',
       deleteSuccess: 'Credential deleted',
-      empty: 'No credentials yet. Added credentials will be injected as environment variables during task execution.',
+      empty:
+        'No credentials yet. Added credentials will be injected as environment variables during task execution.',
       actions: {
         create: 'New credential',
         delete: 'Delete',
@@ -669,6 +723,46 @@ export const enUS = {
         title: 'Delete credential?',
         description:
           'After deletion, this environment variable will no longer be injected during task execution.'
+      }
+    },
+    knowledgeSources: {
+      loadFailed: 'Failed to load knowledge sources',
+      spacesLoadFailed: 'Failed to load Wiki spaces',
+      saveFailed: 'Failed to save the knowledge source',
+      saveSuccess: 'Knowledge source saved',
+      deleteFailed: 'Failed to delete the knowledge source',
+      deleteSuccess: 'Knowledge source deleted',
+      empty: 'No knowledge sources',
+      actions: {
+        create: 'New knowledge source',
+        edit: 'Edit',
+        delete: 'Delete'
+      },
+      table: {
+        name: 'Name',
+        space: 'Wiki space',
+        status: 'Status',
+        lastSuccess: 'Last successful retrieval',
+        lastError: 'Last error',
+        actions: 'Actions'
+      },
+      status: { active: 'Active', disabled: 'Disabled', error: 'Error' },
+      form: {
+        createTitle: 'New knowledge source',
+        editTitle: 'Edit knowledge source',
+        description:
+          'A knowledge source references a complete ONES Wiki space. Page content is not stored by the app.',
+        name: 'Name',
+        space: 'Wiki space',
+        spacePlaceholder: 'Search or select a Wiki space',
+        detail: 'Description',
+        status: 'Status',
+        required: 'Enter a name and select a Wiki space'
+      },
+      deleteDialog: {
+        title: 'Delete knowledge source?',
+        description:
+          'Delete "{{name}}"? Deletion is blocked while an Agent draft or published version still references it.'
       }
     },
     skills: {
@@ -741,12 +835,16 @@ export const enUS = {
       you: 'You',
       assistant: 'AI assistant',
       interrupted: 'Response interrupted',
-      emptyChat: 'Describe what the Skill should do. The AI will clarify the requirement through multiple turns.',
-      emptyFiles: 'Finish discussing the requirement, then generate the Skill package.',
+      emptyChat:
+        'Describe what the Skill should do. The AI will clarify the requirement through multiple turns.',
+      emptyFiles:
+        'Finish discussing the requirement, then generate the Skill package.',
       noFileSelected: 'No file selected',
       unsaved: 'Unsaved',
-      messagePlaceholder: 'Describe the goal, inputs, processing rules, and expected output. Command/Ctrl + Enter to send.',
-      scriptReview: 'I reviewed every generated script and confirmed its execution behavior',
+      messagePlaceholder:
+        'Describe the goal, inputs, processing rules, and expected output. Command/Ctrl + Enter to send.',
+      scriptReview:
+        'I reviewed every generated script and confirmed its execution behavior',
       actions: {
         send: 'Send',
         generate: 'Generate Skill',
@@ -769,19 +867,22 @@ export const enUS = {
     },
     aiModelConfig: {
       title: 'Organization default AI model',
-      description: 'Used for AI Skill creation and Agent prompt recommendations. It does not change the Agent Client execution model.',
+      description:
+        'Used for AI Skill creation and Agent prompt recommendations. It does not change the Agent Client execution model.',
       loadFailed: 'Failed to load AI model configuration',
       saveFailed: 'Failed to save AI model configuration',
       saveSuccess: 'AI model configuration saved',
       testFailed: 'Model connection test failed',
       testSuccess: 'Model connection test succeeded',
-      validationFailed: 'Enter a valid HTTPS URL, model name, and Temperature between 0 and 2.',
+      validationFailed:
+        'Enter a valid HTTPS URL, model name, and Temperature between 0 and 2.',
       baseURL: 'Base URL',
       model: 'Model',
       keyConfigured: 'API Key configured',
       keyMissing: 'API Key missing',
       keyPlaceholder: 'Enter API Key',
-      keyReplacePlaceholder: 'Leave blank to keep the current key, or enter a replacement',
+      keyReplacePlaceholder:
+        'Leave blank to keep the current key, or enter a replacement',
       keyHelp: 'The key is encrypted and is never shown again after saving.',
       test: 'Test connection',
       testing: 'Testing...'
@@ -807,7 +908,8 @@ export const enUS = {
         issueTypeRequired: 'Select an issue type',
         statusRequired: 'Select a status',
         agentRequired: 'Select an agent',
-        incompleteSelection: 'The form data is incomplete. Reselect the options and try again.'
+        incompleteSelection:
+          'The form data is incomplete. Reselect the options and try again.'
       },
       actions: {
         createNode: 'New execution node',
@@ -870,7 +972,8 @@ export const enUS = {
       deleteRepositorySuccess: 'Repository deleted',
       saveAuthFailed: 'Failed to save authentication',
       saveAuthSuccess: 'Authentication updated',
-      copyPublicKeyUnavailable: 'There is no SSH public key available to copy for this workspace',
+      copyPublicKeyUnavailable:
+        'There is no SSH public key available to copy for this workspace',
       copyPublicKeySuccess: 'SSH public key copied',
       copyPublicKeyFailed: 'Failed to copy SSH public key',
       generateSshKeyFailed: 'Failed to generate SSH key',
@@ -880,10 +983,13 @@ export const enUS = {
       validation: {
         repositoryUrlRequired: 'Enter a repository URL',
         repositoryUrlListRequired: 'Enter at least one repository URL',
-        repositoryUrlInvalid: 'Each line must contain a valid Git SSH or HTTPS URL',
+        repositoryUrlInvalid:
+          'Each line must contain a valid Git SSH or HTTPS URL',
         httpsUsernameRequired: 'Enter an HTTPS username',
-        sshUrlOnly: 'This workspace uses SSH auth, so only Git SSH URLs are allowed.',
-        httpsUrlOnly: 'This workspace uses HTTPS auth, so only HTTPS repository URLs are allowed.',
+        sshUrlOnly:
+          'This workspace uses SSH auth, so only Git SSH URLs are allowed.',
+        httpsUrlOnly:
+          'This workspace uses HTTPS auth, so only HTTPS repository URLs are allowed.',
         publicHttpsUrlOnly:
           'This workspace has no auth configured, so only public HTTPS repository URLs are allowed.'
       },
@@ -927,23 +1033,22 @@ export const enUS = {
           'Typical values are a Git username, service account name, or fixed placeholder username.',
         secretLabel: 'Secret',
         secretPlaceholder: 'Enter a token, PAT, or compatible password',
-        secretDescriptionKeep: 'Leave empty to keep the currently saved secret.',
-        secretDescriptionRequired: 'Enter a secret that can be used for Git HTTPS access.'
+        secretDescriptionKeep:
+          'Leave empty to keep the currently saved secret.',
+        secretDescriptionRequired:
+          'Enter a secret that can be used for Git HTTPS access.'
       },
       authDescription: {
         ssh: 'Use this for SSH repositories accessed with a deploy key or machine account.',
         https:
           'Use this for private HTTPS repositories accessed with a username and token/PAT/password.',
-        none:
-          'Use this only for public HTTPS repositories. No extra authentication details will be provided.'
+        none: 'Use this only for public HTTPS repositories. No extra authentication details will be provided.'
       },
       repositoryInputDescription: {
-        ssh:
-          'This workspace uses SSH auth, so only `git@...` or `ssh://...` repository URLs can be added.',
+        ssh: 'This workspace uses SSH auth, so only `git@...` or `ssh://...` repository URLs can be added.',
         https:
           'This workspace uses HTTPS auth, so only `https://...` repository URLs can be added.',
-        none:
-          'This workspace has no auth configured, so only public `https://...` repository URLs can be added.'
+        none: 'This workspace has no auth configured, so only public `https://...` repository URLs can be added.'
       },
       generateSshKeyDialog: {
         titleGenerate: 'Generate SSH key?',

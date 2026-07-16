@@ -17,6 +17,7 @@ import { WorkflowDetailPage } from '@/pages/workflow-detail-page';
 import { WorkflowsPage } from '@/pages/workflows-page';
 import { AIModelConfigPage } from '@/pages/ai-model-config-page';
 import { SkillCreatorPage } from '@/pages/skill-creator-page';
+import { KnowledgeSourcesPage } from '@/pages/knowledge-sources-page';
 
 export const router = createHashRouter([
   {
@@ -58,6 +59,10 @@ export const router = createHashRouter([
       {
         path: 'settings/skills',
         element: <SkillsPage />
+      },
+      {
+        path: 'settings/knowledge-sources',
+        element: <KnowledgeSourcesPage />
       },
       {
         path: 'settings/skills/create/:uuid',

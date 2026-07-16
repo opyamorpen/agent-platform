@@ -2,11 +2,11 @@ import { z } from 'zod';
 
 const agentMutationSchema = z
   .object({
-  name: z.string().trim(),
-  workspaceUUID: z.string().trim().min(1).nullable().optional(),
-  skillUUIDs: z.array(z.string().trim().min(1)).optional(),
-  executorUUID: z.string().trim().min(1).nullable().optional(),
-  executorName: z.string().trim().min(1).nullable().optional()
+    name: z.string().trim(),
+    workspaceUUID: z.string().trim().min(1).nullable().optional(),
+    skillUUIDs: z.array(z.string().trim().min(1)).optional(),
+    executorUUID: z.string().trim().min(1).nullable().optional(),
+    executorName: z.string().trim().min(1).nullable().optional()
   })
   .superRefine((value, ctx) => {
     const hasExecutorUUID = Boolean(value.executorUUID);
@@ -43,13 +43,26 @@ const agentFieldMetaSchema = z.object({
   referenceObjectType: z.string().trim().min(1).nullable()
 });
 
-export const agentInputFieldSchema: z.ZodTypeAny = z.lazy(() =>
+export const agentIssueInputFieldSchema: z.ZodTypeAny = z.lazy(() =>
   z.object({
+    kind: z.literal('issue_field').optional(),
     field: agentFieldMetaSchema,
     description: z.string(),
-    subFields: z.array(agentInputFieldSchema).default([])
+    subFields: z.array(agentIssueInputFieldSchema).default([])
   })
 );
+
+export const agentWikiPageInputSchema = z.object({
+  kind: z.literal('wiki_page'),
+  field: agentFieldMetaSchema,
+  description: z.string(),
+  subFields: z.tuple([]).default([])
+});
+
+export const agentInputFieldSchema = z.union([
+  agentIssueInputFieldSchema,
+  agentWikiPageInputSchema
+]);
 
 export const agentCreateSchema = z.object({
   alias: z.string().trim().min(1),
@@ -60,6 +73,7 @@ export const agentCreateSchema = z.object({
 
 export const agentOutputSetValueFieldSchema: z.ZodTypeAny = z.lazy(() =>
   z.object({
+    kind: z.literal('issue_field').optional(),
     mode: z.literal('set_value'),
     field: agentFieldMetaSchema,
     description: z.string(),
@@ -67,7 +81,18 @@ export const agentOutputSetValueFieldSchema: z.ZodTypeAny = z.lazy(() =>
   })
 );
 
-export const agentOutputFieldSchema = agentOutputSetValueFieldSchema;
+export const agentWikiPageOutputFieldSchema = z.object({
+  kind: z.literal('wiki_page'),
+  mode: z.literal('wiki_page'),
+  field: agentFieldMetaSchema,
+  description: z.string(),
+  subFields: z.tuple([]).default([])
+});
+
+export const agentOutputFieldSchema = z.union([
+  agentOutputSetValueFieldSchema,
+  agentWikiPageOutputFieldSchema
+]);
 
 function validateInputFieldNode(
   value: z.infer<typeof agentInputFieldSchema>,
@@ -75,6 +100,20 @@ function validateInputFieldNode(
   path: Array<string | number>,
   depth: number
 ) {
+  if (value.kind === 'wiki_page') {
+    if (
+      value.field.referenceObjectType !== 'wiki_page' &&
+      value.field.referenceObjectType !== 'wiki'
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, 'field', 'referenceObjectType'],
+        message: 'Wiki input must use a Wiki page reference field'
+      });
+    }
+    return;
+  }
+
   if (depth >= 2 && value.subFields.length > 0) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -83,7 +122,10 @@ function validateInputFieldNode(
     });
   }
 
-  if (value.subFields.length > 0 && value.field.referenceObjectType !== 'issue') {
+  if (
+    value.subFields.length > 0 &&
+    value.field.referenceObjectType !== 'issue'
+  ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: [...path, 'field', 'referenceObjectType'],
@@ -92,16 +134,35 @@ function validateInputFieldNode(
   }
 
   for (const [index, subField] of value.subFields.entries()) {
-    validateInputFieldNode(subField, ctx, [...path, 'subFields', index], depth + 1);
+    validateInputFieldNode(
+      subField,
+      ctx,
+      [...path, 'subFields', index],
+      depth + 1
+    );
   }
 }
 
 function validateOutputSetValueFieldNode(
-  value: z.infer<typeof agentOutputSetValueFieldSchema>,
+  value: z.infer<typeof agentOutputFieldSchema>,
   ctx: z.RefinementCtx,
   path: Array<string | number>,
   depth: number
 ) {
+  if (value.kind === 'wiki_page') {
+    if (
+      value.field.referenceObjectType !== 'wiki_page' &&
+      value.field.referenceObjectType !== 'wiki'
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, 'field', 'referenceObjectType'],
+        message: 'Wiki output must use a Wiki page reference field'
+      });
+    }
+    return;
+  }
+
   if (depth >= 2 && value.subFields.length > 0) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -122,7 +183,10 @@ function validateOutputSetValueFieldNode(
     });
   }
 
-  if (value.subFields.length > 0 && value.field.referenceObjectType !== 'issue') {
+  if (
+    value.subFields.length > 0 &&
+    value.field.referenceObjectType !== 'issue'
+  ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: [...path, 'field', 'referenceObjectType'],
@@ -145,7 +209,8 @@ export const agentConfigSchema = z
     description: z.string(),
     prompt: z.string(),
     inputs: z.array(agentInputFieldSchema),
-    outputs: z.array(agentOutputFieldSchema)
+    outputs: z.array(agentOutputFieldSchema),
+    knowledgeSourceUUIDs: z.array(z.string().trim().min(1)).max(5).default([])
   })
   .superRefine((value, ctx) => {
     for (const [index, input] of value.inputs.entries()) {
@@ -154,6 +219,16 @@ export const agentConfigSchema = z
 
     for (const [index, output] of value.outputs.entries()) {
       validateOutputSetValueFieldNode(output, ctx, ['outputs', index], 1);
+    }
+
+    if (
+      value.outputs.filter((output) => output.kind === 'wiki_page').length > 1
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['outputs'],
+        message: 'Agent supports at most one Wiki page output'
+      });
     }
   });
 
@@ -170,6 +245,7 @@ export const agentPromptRecommendationSchema = z.object({
   name: z.string().trim().min(1).max(256),
   description: z.string().max(20_000),
   skillUUIDs: z.array(z.string().trim().min(1)).max(20),
+  knowledgeSourceUUIDs: z.array(z.string().trim().min(1)).max(5).default([]),
   inputs: z.array(agentInputFieldSchema),
   outputs: z.array(agentOutputFieldSchema)
 });

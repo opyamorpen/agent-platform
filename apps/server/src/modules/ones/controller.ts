@@ -4,16 +4,25 @@ import { z } from 'zod';
 import { failure, success } from '../../lib/api-response.js';
 import { getLogger } from '../../lib/logger.js';
 import { getWebAccess } from '../../lib/web-access.js';
-import { getAuthorizationHeader, getWebSession } from '../../lib/web-session.js';
-import { OnesConfigError, OnesRequestError, OnesResponseError } from '../../ones/errors.js';
+import {
+  getAuthorizationHeader,
+  getWebSession
+} from '../../lib/web-session.js';
+import {
+  OnesConfigError,
+  OnesRequestError,
+  OnesResponseError
+} from '../../ones/errors.js';
 import {
   getOnesFields,
   getOnesIssueStatuses,
   getOnesIssueTypes,
   getOnesProjects,
   getOnesTokenInfo,
-  searchOnesUsers
+  searchOnesUsers,
+  getOnesWikiSpaces
 } from './service.js';
+import { requireAdmin } from '../../lib/web-access.js';
 
 const logger = getLogger('ones.controller');
 const searchOnesUsersQuerySchema = z.object({
@@ -133,6 +142,15 @@ export async function searchOnesUsersHandler(c: Context) {
   try {
     const session = await getWebSession(c.req);
     return c.json(success(await searchOnesUsers(session, queryResult.data)));
+  } catch (error) {
+    return handleOnesError(c, error);
+  }
+}
+
+export async function listOnesWikiSpacesHandler(c: Context) {
+  try {
+    const session = await requireAdmin(c.req);
+    return c.json(success(await getOnesWikiSpaces(session)));
   } catch (error) {
     return handleOnesError(c, error);
   }

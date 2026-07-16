@@ -19,6 +19,7 @@ export interface OnesHttpRequest {
   headers?: OnesHttpHeaders;
   body?: unknown;
   redirect?: 'follow' | 'manual' | 'error';
+  signal?: AbortSignal;
   allowedStatusCodes?: readonly number[];
 }
 
@@ -73,7 +74,8 @@ export async function requestRaw(request: OnesHttpRequest): Promise<Response> {
     method: request.method ?? 'GET',
     headers,
     body: body as RequestInit['body'],
-    redirect: request.redirect
+    redirect: request.redirect,
+    signal: request.signal
   });
 
   const allowedStatusCodes = new Set(request.allowedStatusCodes ?? []);

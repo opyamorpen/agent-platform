@@ -1,4 +1,9 @@
-import type { AgentConfig, AgentInputField, AgentOutputField } from '@ones-ai-workflow/shared';
+import type {
+  AgentConfig,
+  AgentInput,
+  AgentOutputField,
+  AgentOutputSetValueField
+} from '@ones-ai-workflow/shared';
 import { AGENT_PROMPT_TEMPLATE } from './prompt-template.generated.js';
 
 const READABLE_ENV_POLICY_BLOCK_PLACEHOLDER = '{{READABLE_ENV_POLICY_BLOCK}}';
@@ -104,17 +109,27 @@ function isCommentObjectField(field: {
   uuid: string;
   referenceObjectType?: string | null;
 }): boolean {
-  return field.uuid === ISSUE_COMMENT_FIELD_UUID || field.referenceObjectType === 'comment';
+  return (
+    field.uuid === ISSUE_COMMENT_FIELD_UUID ||
+    field.referenceObjectType === 'comment'
+  );
 }
 
 function isAttachmentObjectField(field: {
   uuid: string;
   referenceObjectType?: string | null;
 }): boolean {
-  return field.uuid === ISSUE_ATTACHMENT_FIELD_UUID || field.referenceObjectType === 'attachment';
+  return (
+    field.uuid === ISSUE_ATTACHMENT_FIELD_UUID ||
+    field.referenceObjectType === 'attachment'
+  );
 }
 
 function supportsFieldWriteMode(field: AgentOutputField): boolean {
+  if (field.kind === 'wiki_page') {
+    return false;
+  }
+
   return (
     field.field.valueType === 'multi_reference_object' &&
     !isCommentObjectField(field.field) &&
@@ -123,14 +138,20 @@ function supportsFieldWriteMode(field: AgentOutputField): boolean {
 }
 
 function isReferenceObjectOutputField(field: AgentOutputField): boolean {
+  if (field.kind === 'wiki_page') {
+    return false;
+  }
+
   return (
-    (isReferenceObjectValueType(field.field.valueType) ||
-      isCommentObjectField(field.field) ||
-      isAttachmentObjectField(field.field))
+    isReferenceObjectValueType(field.field.valueType) ||
+    isCommentObjectField(field.field) ||
+    isAttachmentObjectField(field.field)
   );
 }
 
-function getAgentInputPreviewFields(fields: AgentInputField[]): AgentInputContextEntry[] {
+function getAgentInputPreviewFields(
+  fields: AgentInput[]
+): AgentInputContextEntry[] {
   return fields.map((field) => {
     if (field.subFields.length === 0) {
       return {
@@ -143,19 +164,19 @@ function getAgentInputPreviewFields(fields: AgentInputField[]): AgentInputContex
       };
     }
 
-      return {
-        fieldUUID: field.field.uuid,
-        fieldName: field.field.name,
-        fieldValueType: field.field.valueType,
-        fieldReferenceObjectType: field.field.referenceObjectType,
-        description: field.description,
-        value: {
-          objectType: inferObjectTypeFromField(field.field),
-          uuid: 'Runtime value',
-          name: 'Runtime value',
-          fields: getAgentInputPreviewFields(field.subFields)
-        }
-      };
+    return {
+      fieldUUID: field.field.uuid,
+      fieldName: field.field.name,
+      fieldValueType: field.field.valueType,
+      fieldReferenceObjectType: field.field.referenceObjectType,
+      description: field.description,
+      value: {
+        objectType: inferObjectTypeFromField(field.field),
+        uuid: 'Runtime value',
+        name: 'Runtime value',
+        fields: getAgentInputPreviewFields(field.subFields)
+      }
+    };
   });
 }
 
@@ -214,7 +235,9 @@ function renderFieldValueLines(
   }
 
   if (Array.isArray(value)) {
-    const nonNullItems = value.filter((item) => item !== null && item !== undefined);
+    const nonNullItems = value.filter(
+      (item) => item !== null && item !== undefined
+    );
 
     if (nonNullItems.every((item) => isInputObjectLike(item))) {
       return nonNullItems.flatMap((item) =>
@@ -222,13 +245,17 @@ function renderFieldValueLines(
       );
     }
 
-    return nonNullItems.map((item) => `<value>${renderScalarXmlValue(String(item))}</value>`);
+    return nonNullItems.map(
+      (item) => `<value>${renderScalarXmlValue(String(item))}</value>`
+    );
   }
 
   return [renderScalarXmlValue(String(value))];
 }
 
-export function buildAgentInputContextXml(input: AgentInputContextObject): string {
+export function buildAgentInputContextXml(
+  input: AgentInputContextObject
+): string {
   return [
     '<input>',
     '  <object>',
@@ -245,7 +272,7 @@ export function buildAgentInputContextXml(input: AgentInputContextObject): strin
   ].join('\n');
 }
 
-function buildPreviewAgentInputContextXml(fields: AgentInputField[]): string {
+function buildPreviewAgentInputContextXml(fields: AgentInput[]): string {
   return buildAgentInputContextXml({
     objectType: 'issue',
     objectUUID: 'Runtime value',
@@ -255,7 +282,8 @@ function buildPreviewAgentInputContextXml(fields: AgentInputField[]): string {
 }
 
 function renderInputFieldLines(field: AgentInputContextEntry): string[] {
-  const description = field.description.trim() || 'No field description provided';
+  const description =
+    field.description.trim() || 'No field description provided';
   const fieldValueLines = renderFieldValueLines(
     field.value,
     field.fieldReferenceObjectType ?? null
@@ -290,7 +318,7 @@ function renderInputFieldLines(field: AgentInputContextEntry): string[] {
 }
 
 function renderReferenceFieldObjectTemplateLines(
-  field: AgentOutputField,
+  field: AgentOutputSetValueField,
   indent: string
 ): string[] {
   const objectType = inferObjectTypeFromField(field.field);
@@ -379,7 +407,10 @@ function renderReferenceFieldObjectTemplateLines(
           : []),
         `${indent}        <field-description>${escapeXmlText(entryDescription)}</field-description>`,
         ...(isReferenceObjectOutputField(subField)
-          ? renderReferenceFieldObjectTemplateLines(subField, `${indent}        `)
+          ? renderReferenceFieldObjectTemplateLines(
+              subField,
+              `${indent}        `
+            )
           : [`${indent}        <set-value></set-value>`]),
         `${indent}      </field>`
       ];
@@ -399,6 +430,27 @@ function buildAgentOutputTemplateXml(fields: AgentOutputField[]): string {
           const description = sanitizeXmlCommentText(
             field.description.trim() || 'No field description provided'
           );
+
+          if (field.kind === 'wiki_page') {
+            return [
+              '  <output>',
+              `    <field-uuid>${escapeXmlText(field.field.uuid)}</field-uuid>`,
+              `    <field-name>${escapeXmlText(field.field.name)}</field-name>`,
+              '    <field-value-type>wiki_page</field-value-type>',
+              `    <field-description>${escapeXmlText(description)}</field-description>`,
+              '    <!-- Emit exactly one action: create, replace, or append. Prefer UUID. Name lookup is restricted and ambiguous names are rejected. -->',
+              '    <wiki-action>',
+              '      <action></action>',
+              '      <target-page-uuid></target-page-uuid>',
+              '      <target-page-name></target-page-name>',
+              '      <parent-page-uuid></parent-page-uuid>',
+              '      <space-uuid></space-uuid>',
+              '      <title></title>',
+              '      <markdown><![CDATA[]]></markdown>',
+              '    </wiki-action>',
+              '  </output>'
+            ];
+          }
 
           return [
             '  <output>',
@@ -453,24 +505,34 @@ export function buildAgentPrompt(
   config: Pick<AgentConfig, 'description' | 'inputs' | 'outputs' | 'prompt'>,
   options: {
     inputContextXml?: string;
+    wikiInputsXml?: string;
+    knowledgeContextXml?: string;
     readableEnvKeys?: string[];
   } = {}
 ): string {
-  return AGENT_PROMPT_TEMPLATE
-    .replace(
-      READABLE_ENV_POLICY_BLOCK_PLACEHOLDER,
-      buildReadableEnvPolicyBlock(
-        normalizeReadableEnvKeys(options.readableEnvKeys)
-      )
+  return AGENT_PROMPT_TEMPLATE.replace(
+    READABLE_ENV_POLICY_BLOCK_PLACEHOLDER,
+    buildReadableEnvPolicyBlock(
+      normalizeReadableEnvKeys(options.readableEnvKeys)
     )
+  )
     .replace(
       INPUT_CONTEXT_XML_PLACEHOLDER,
-      (options.inputContextXml?.trim() ||
-        buildPreviewAgentInputContextXml(config.inputs)).trim()
+      [
+        options.inputContextXml?.trim() ||
+          buildPreviewAgentInputContextXml(config.inputs),
+        options.wikiInputsXml?.trim() || '<wiki-inputs />',
+        options.knowledgeContextXml?.trim() || '<knowledge-context />'
+      ]
+        .join('\n\n')
+        .trim()
     )
     .replace(
       OUTPUT_TEMPLATE_XML_PLACEHOLDER,
       buildAgentOutputTemplateXml(config.outputs)
     )
-    .replace(TASK_PROMPT_PLACEHOLDER, config.prompt.trim() || 'No prompt provided');
+    .replace(
+      TASK_PROMPT_PLACEHOLDER,
+      config.prompt.trim() || 'No prompt provided'
+    );
 }

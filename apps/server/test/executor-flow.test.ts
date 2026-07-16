@@ -23,9 +23,7 @@ import {
   shouldSendTaskStartedComment,
   shouldBlockAfterConsecutiveFailures
 } from '../src/modules/agent-clients/service.ts';
-import {
-  extractAgentClientTaskAttachments
-} from '../src/modules/agent-clients/controller.ts';
+import { extractAgentClientTaskAttachments } from '../src/modules/agent-clients/controller.ts';
 import {
   canRetryIssueAgentExecution,
   getExecutionStatus,
@@ -48,27 +46,23 @@ test('buildListAssignedIssuesQuery uses explicit assignee UUIDs', () => {
 });
 
 test('buildListAssignedIssuesQuery pushes workflow node filters into query', () => {
-  const query = buildListAssignedIssuesQuery(
-    ['executor-a'],
-    20,
-    [
-      {
-        projectUUID: 'project-1',
-        issueTypeUUID: 'type-1',
-        statusUUID: 'status-1'
-      },
-      {
-        projectUUID: 'project-1',
-        issueTypeUUID: 'type-1',
-        statusUUID: 'status-1'
-      },
-      {
-        projectUUID: 'project-2',
-        issueTypeUUID: 'type-2',
-        statusUUID: 'status-2'
-      }
-    ]
-  );
+  const query = buildListAssignedIssuesQuery(['executor-a'], 20, [
+    {
+      projectUUID: 'project-1',
+      issueTypeUUID: 'type-1',
+      statusUUID: 'status-1'
+    },
+    {
+      projectUUID: 'project-1',
+      issueTypeUUID: 'type-1',
+      statusUUID: 'status-1'
+    },
+    {
+      projectUUID: 'project-2',
+      issueTypeUUID: 'type-2',
+      statusUUID: 'status-2'
+    }
+  ]);
 
   assert.match(
     query,
@@ -721,7 +715,8 @@ test('buildIssueOutputWritePlan skips empty object outputs', async () => {
     issueFieldValues: [],
     issueComments: [],
     issueAttachments: [],
-    statusFieldValues: []
+    statusFieldValues: [],
+    wikiWrites: []
   });
 });
 

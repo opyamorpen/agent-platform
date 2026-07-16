@@ -155,7 +155,9 @@ export const onesOpenApiIssueWorkflowSchema = z.object({
   end: z.string().min(1)
 });
 
-function createOpenApiListEnvelopeSchema<T extends z.ZodTypeAny>(itemSchema: T) {
+function createOpenApiListEnvelopeSchema<T extends z.ZodTypeAny>(
+  itemSchema: T
+) {
   return z
     .object({
       result: z.string().optional(),
@@ -173,9 +175,8 @@ function createOpenApiListEnvelopeSchema<T extends z.ZodTypeAny>(itemSchema: T) 
     .passthrough();
 }
 
-export const onesOpenApiProjectsEnvelopeSchema = createOpenApiListEnvelopeSchema(
-  onesOpenApiProjectSchema
-);
+export const onesOpenApiProjectsEnvelopeSchema =
+  createOpenApiListEnvelopeSchema(onesOpenApiProjectSchema);
 
 export const onesOpenApiIssueTypesEnvelopeSchema =
   createOpenApiListEnvelopeSchema(onesOpenApiIssueTypeSchema);
@@ -183,30 +184,30 @@ export const onesOpenApiIssueTypesEnvelopeSchema =
 export const onesOpenApiIssueStatusesEnvelopeSchema =
   createOpenApiListEnvelopeSchema(onesOpenApiIssueStatusSchema);
 
-export const onesOpenApiUsersEnvelopeSchema =
-  createOpenApiListEnvelopeSchema(onesOpenApiUserSchema);
+export const onesOpenApiUsersEnvelopeSchema = createOpenApiListEnvelopeSchema(
+  onesOpenApiUserSchema
+);
 
-export const onesOpenApiIssueCommentsEnvelopeSchema =
-  z
-    .object({
-      result: z.string().optional(),
-      errorCode: z.string().optional(),
-      errorMsg: z.string().optional(),
-      errorData: z.unknown().optional(),
-      data: z
-        .union([
-          z.array(onesOpenApiIssueCommentSchema),
-          z.object({
-            list: z.array(onesOpenApiIssueCommentSchema).default([]),
-            pageInfo: onesOpenApiPageInfoSchema.optional(),
-            page_info: onesOpenApiPageInfoSchema.optional()
-          })
-        ])
-        .optional(),
-      pageInfo: onesOpenApiPageInfoSchema.optional(),
-      page_info: onesOpenApiPageInfoSchema.optional()
-    })
-    .passthrough();
+export const onesOpenApiIssueCommentsEnvelopeSchema = z
+  .object({
+    result: z.string().optional(),
+    errorCode: z.string().optional(),
+    errorMsg: z.string().optional(),
+    errorData: z.unknown().optional(),
+    data: z
+      .union([
+        z.array(onesOpenApiIssueCommentSchema),
+        z.object({
+          list: z.array(onesOpenApiIssueCommentSchema).default([]),
+          pageInfo: onesOpenApiPageInfoSchema.optional(),
+          page_info: onesOpenApiPageInfoSchema.optional()
+        })
+      ])
+      .optional(),
+    pageInfo: onesOpenApiPageInfoSchema.optional(),
+    page_info: onesOpenApiPageInfoSchema.optional()
+  })
+  .passthrough();
 
 export const onesOpenApiIssueAttachmentsEnvelopeSchema =
   createOpenApiListEnvelopeSchema(onesOpenApiIssueAttachmentSchema);
@@ -347,3 +348,80 @@ export const onesOpenApiExecuteIssueWorkflowRequestSchema = z.object({
 
 export const onesOpenApiExecuteIssueWorkflowResponseSchema =
   onesOpenApiBaseResponseSchema;
+
+export const onesOpenApiWikiSpaceSchema = z
+  .object({
+    id: z.string().min(1),
+    title: z.string().default(''),
+    description: z.string().default(''),
+    homePageID: z.string().default(''),
+    updatedTime: z.number().optional()
+  })
+  .passthrough();
+
+export const onesOpenApiWikiSpacesEnvelopeSchema = z
+  .object({
+    result: z.string().optional(),
+    errorCode: z.string().optional(),
+    errorMsg: z.string().optional(),
+    errorData: z.unknown().optional(),
+    data: z
+      .object({
+        spaces: z.array(onesOpenApiWikiSpaceSchema).default([])
+      })
+      .optional()
+  })
+  .passthrough();
+
+export const onesOpenApiWikiPageSchema = z
+  .object({
+    id: z.string().min(1),
+    title: z.string().default(''),
+    spaceID: z.string().default(''),
+    parentID: z.string().default(''),
+    refType: z.string().default(''),
+    updatedTime: z.number().default(0),
+    isArchived: z.boolean().default(false),
+    canEdit: z.boolean().default(false),
+    locked: z.boolean().default(false),
+    content: z.string().optional()
+  })
+  .passthrough();
+
+export const onesOpenApiWikiPagesEnvelopeSchema = z
+  .object({
+    result: z.string().optional(),
+    errorCode: z.string().optional(),
+    errorMsg: z.string().optional(),
+    errorData: z.unknown().optional(),
+    data: z
+      .union([
+        z.array(onesOpenApiWikiPageSchema),
+        z.object({ pages: z.array(onesOpenApiWikiPageSchema).default([]) })
+      ])
+      .optional()
+  })
+  .passthrough();
+
+export const onesOpenApiWikiPageEnvelopeSchema = z
+  .object({
+    result: z.string().optional(),
+    errorCode: z.string().optional(),
+    errorMsg: z.string().optional(),
+    errorData: z.unknown().optional(),
+    data: onesOpenApiWikiPageSchema.optional()
+  })
+  .passthrough();
+
+export const onesOpenApiWikiPageMutationSchema = z
+  .union([
+    onesOpenApiWikiPageSchema,
+    z.object({
+      result: z.string().optional(),
+      errorCode: z.string().optional(),
+      errorMsg: z.string().optional(),
+      errorData: z.unknown().optional(),
+      data: onesOpenApiWikiPageSchema.optional()
+    })
+  ])
+  .transform((value) => ('data' in value ? value : { data: value }));

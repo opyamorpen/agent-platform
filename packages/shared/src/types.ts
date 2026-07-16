@@ -166,8 +166,9 @@ export interface AgentVersion {
 export interface AgentConfig {
   description: string;
   prompt: string;
-  inputs: AgentInputField[];
+  inputs: AgentInput[];
   outputs: AgentOutputField[];
+  knowledgeSourceUUIDs: string[];
 }
 
 export interface AgentFieldMeta {
@@ -178,10 +179,20 @@ export interface AgentFieldMeta {
 }
 
 export interface AgentInputField {
+  kind?: 'issue_field';
   field: AgentFieldMeta;
   description: string;
   subFields: AgentInputField[];
 }
+
+export interface AgentWikiPageInput {
+  kind: 'wiki_page';
+  field: AgentFieldMeta;
+  description: string;
+  subFields: AgentInputField[];
+}
+
+export type AgentInput = AgentInputField | AgentWikiPageInput;
 
 export interface AgentIOField {
   uuid: string;
@@ -191,13 +202,24 @@ export interface AgentIOField {
 }
 
 export interface AgentOutputSetValueField {
+  kind?: 'issue_field';
   mode: 'set_value';
   field: AgentFieldMeta;
   description: string;
   subFields: AgentOutputSetValueField[];
 }
 
-export type AgentOutputField = AgentOutputSetValueField;
+export interface AgentWikiPageOutputField {
+  kind: 'wiki_page';
+  mode: 'wiki_page';
+  field: AgentFieldMeta;
+  description: string;
+  subFields: AgentOutputSetValueField[];
+}
+
+export type AgentOutputField =
+  | AgentOutputSetValueField
+  | AgentWikiPageOutputField;
 
 export interface AgentDraft {
   uuid: string;
@@ -209,6 +231,30 @@ export interface AgentDraft {
   config: AgentConfig | null;
   publishedConfig: AgentConfig | null;
   hasUnpublishedDraft: boolean;
+}
+
+export type KnowledgeSourceStatus = 'active' | 'disabled' | 'error';
+
+export interface KnowledgeSource {
+  uuid: string;
+  name: string;
+  description: string;
+  spaceUUID: string;
+  spaceName: string;
+  homePageUUID: string;
+  status: KnowledgeSourceStatus;
+  lastSuccessfulQueryAt: string | null;
+  lastError: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WikiSpaceSummary {
+  uuid: string;
+  name: string;
+  description: string;
+  homePageUUID: string;
 }
 
 export interface OnesUserSummary {

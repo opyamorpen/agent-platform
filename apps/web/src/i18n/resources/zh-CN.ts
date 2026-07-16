@@ -29,31 +29,40 @@ export const zhCN = {
       'auth.user_not_logged_in': '当前登录状态已失效，请重新登录。',
       'auth.missing_authorization_header': '当前登录状态已失效，请重新登录。',
       'auth.invalid_authorization_token': '当前登录凭证无效，请重新登录。',
-      'auth.organization_identifier_missing': '当前登录凭证缺少组织信息，请重新登录。',
+      'auth.organization_identifier_missing':
+        '当前登录凭证缺少组织信息，请重新登录。',
       'auth.team_uuid_required': '缺少团队上下文，请重新选择团队后重试。',
-      'auth.selected_team_not_accessible': '当前选择的团队不可访问，请重新选择团队后重试。',
-      'access.not_app_member': '当前账号不是当前团队的 AI 工作流成员，请联系管理员添加。',
+      'auth.selected_team_not_accessible':
+        '当前选择的团队不可访问，请重新选择团队后重试。',
+      'access.not_app_member':
+        '当前账号不是当前团队的 AI 工作流成员，请联系管理员添加。',
       'access.admin_only': '当前页面仅管理员可访问。',
       'common.internal_server_error': '服务内部错误，请稍后重试。',
       'common.route_not_found': '请求的接口不存在。',
       'skills.invalid_payload': '技能请求参数无效。',
-      'skills.invalid_package_payload': '技能包内容无效，请检查目录结构和 SKILL.md。',
+      'skills.invalid_package_payload':
+        '技能包内容无效，请检查目录结构和 SKILL.md。',
       'skills.uuid_required': '缺少技能标识。',
       'skills.version_invalid': '技能版本号无效。',
       'skills.not_found': '未找到对应的技能。',
       'skills.conflict': '已存在同名技能，请修改后重试。',
       'skills.in_use': '该技能仍被 Agent 引用，暂时不能删除。',
-      'agent_clients.invalid_connect_payload': 'Agent Client 连接请求参数无效。',
-      'agent_clients.invalid_connect_poll_payload': 'Agent Client 轮询请求参数无效。',
-      'agent_clients.invalid_connection_request': 'Agent Client 连接请求已失效，请重新发起连接。',
+      'agent_clients.invalid_connect_payload':
+        'Agent Client 连接请求参数无效。',
+      'agent_clients.invalid_connect_poll_payload':
+        'Agent Client 轮询请求参数无效。',
+      'agent_clients.invalid_connection_request':
+        'Agent Client 连接请求已失效，请重新发起连接。',
       'agent_clients.uuid_required': '缺少 Agent Client 标识。',
       'agent_clients.not_found': '未找到对应的 Agent Client。',
       'executions.dispatched_issue_uuid_required': '缺少工作项执行记录标识。',
       'executions.dispatched_issue_not_found': '未找到对应的工作项执行记录。',
       'executions.issue_execution_history_uuid_required': '缺少执行历史标识。',
       'executions.issue_execution_history_not_found': '未找到对应的执行历史。',
-      'executions.issue_agent_execution_history_uuid_required': '缺少 Agent 执行历史标识。',
-      'executions.issue_agent_execution_history_not_found': '未找到对应的 Agent 执行历史。',
+      'executions.issue_agent_execution_history_uuid_required':
+        '缺少 Agent 执行历史标识。',
+      'executions.issue_agent_execution_history_not_found':
+        '未找到对应的 Agent 执行历史。',
       'executions.issue_agent_execution_retry_not_allowed':
         '当前 Agent 执行记录不允许重置，请刷新后重试。',
       'workflows.uuid_required': '缺少工作流标识。',
@@ -62,19 +71,24 @@ export const zhCN = {
       'workflows.node_uuid_required': '缺少执行节点标识。',
       'workflows.invalid_node_payload': '执行节点请求参数无效。',
       'workflows.node_not_found': '未找到对应的执行节点。',
-      'workflows.node_executor_invalid': '工作流节点绑定的执行 Agent 配置无效。',
-      'workflows.deletion_blocked': '工作流下仍有执行节点，请先删除执行节点后再删除工作流。',
+      'workflows.node_executor_invalid':
+        '工作流节点绑定的执行 Agent 配置无效。',
+      'workflows.deletion_blocked':
+        '工作流下仍有执行节点，请先删除执行节点后再删除工作流。',
       'agents.invalid_payload': 'Agent 请求参数无效。',
       'agents.invalid_prompt_preview_payload': '提示词预览请求参数无效。',
-      'agents.invalid_prompt_recommendation_payload': '推荐提示词请求参数无效。',
+      'agents.invalid_prompt_recommendation_payload':
+        '推荐提示词请求参数无效。',
       'ai_model_config.not_configured': '管理员尚未配置 AI 模型。',
       'ai_model_config.unsafe_base_url': '模型地址不符合公网 HTTPS 安全要求。',
-      'skill_generation.revision_conflict': 'Skill 草稿已发生变化，请刷新后重试。',
+      'skill_generation.revision_conflict':
+        'Skill 草稿已发生变化，请刷新后重试。',
       'skill_generation.script_review_required': '请先确认已审核生成脚本。',
       'agents.invalid_draft_payload': 'Agent 草稿请求参数无效。',
       'agents.invalid_publish_payload': 'Agent 发布请求参数无效。',
       'agents.workspace_binding_not_found': 'Agent 绑定的工作区不存在。',
       'agents.skill_binding_not_found': 'Agent 绑定的技能不存在。',
+      'agents.knowledge_binding_not_found': 'Agent 绑定的知识源不存在。',
       'agents.conflict': 'Agent 数据存在冲突，请刷新后重试。',
       'agents.uuid_required': '缺少 Agent 标识。',
       'agents.not_found': '未找到对应的 Agent。',
@@ -92,14 +106,18 @@ export const zhCN = {
       'agent_workspaces.uuid_required': '缺少工作区标识。',
       'agent_workspaces.not_found': '未找到对应的工作区。',
       'agent_workspaces.in_use': '该工作区仍被 Agent 引用，暂时不能删除。',
-      'agent_workspaces.auth_conflict': '当前工作区认证配置与操作不兼容，请先调整认证配置。',
+      'agent_workspaces.auth_conflict':
+        '当前工作区认证配置与操作不兼容，请先调整认证配置。',
       'agent_workspaces.repository_uuid_required': '缺少代码仓标识。',
       'agent_workspaces.invalid_repository_payload': '代码仓请求参数无效。',
       'agent_workspaces.repository_not_found': '未找到对应的代码仓。',
       'agent_workspaces.invalid_auth_payload': '工作区认证参数无效。',
       'agent_workspaces.invalid_credential_payload': '工作区凭证参数无效。',
       'agent_workspaces.credential_env_name_required': '缺少凭证环境变量名。',
-      'agent_workspaces.credential_not_found': '未找到对应的工作区凭证。'
+      'agent_workspaces.credential_not_found': '未找到对应的工作区凭证。',
+      'knowledge_sources.invalid_payload': '知识源请求参数无效。',
+      'knowledge_sources.not_found': '未找到对应的知识源或 Wiki 页面组。',
+      'knowledge_sources.conflict': '该知识源已存在或仍被 Agent 引用。'
     }
   },
   language: {
@@ -121,6 +139,7 @@ export const zhCN = {
       workflowDesign: '工作流设计',
       agentConfig: 'Agent 配置',
       agentSkills: 'Agent 技能',
+      agentKnowledge: 'Agent 知识',
       agentWorkspaces: 'Agent 工作区',
       agentClients: 'Agent Client',
       aiModelConfig: 'AI 模型配置',
@@ -136,14 +155,20 @@ export const zhCN = {
       agentClients: 'Agent Client',
       agentWorkspaces: 'Agent 工作区',
       agentSkills: 'Agent 技能',
+      agentKnowledge: 'Agent 知识',
       aiModelConfig: 'AI 模型配置'
     },
     descriptions: {
-      workflowExecution: '用于查看工作流触发的执行记录，并跟踪每次运行的最新状态。',
-      workflowDesign: '用于将 ONES 的工作流与 Agent 打通，让 Agent 参与业务流转。',
-      agentConfig: '用于定义 Agent 的基础配置，包括提示词、执行身份、工作区和技能绑定。',
-      agentWorkspaces: '用于为 Agent 提供执行任务所需的工作区、代码仓和运行环境。',
-      agentSkills: '用于为 Agent 提供可复用的能力、知识和执行规则。'
+      workflowExecution:
+        '用于查看工作流触发的执行记录，并跟踪每次运行的最新状态。',
+      workflowDesign:
+        '用于将 ONES 的工作流与 Agent 打通，让 Agent 参与业务流转。',
+      agentConfig:
+        '用于定义 Agent 的基础配置，包括提示词、执行身份、工作区和技能绑定。',
+      agentWorkspaces:
+        '用于为 Agent 提供执行任务所需的工作区、代码仓和运行环境。',
+      agentSkills: '用于为 Agent 提供可复用的能力、知识和执行规则。',
+      agentKnowledge: '用于管理可跨 Agent 复用的 ONES Wiki 页面组知识源。'
     }
   },
   permissionDenied: {
@@ -154,13 +179,18 @@ export const zhCN = {
     },
     description: {
       adminOnly: '当前页面仅管理员可访问，系统已阻止继续进入该功能页面。',
-      notAppMember: '当前账号还不是这个团队下的 AI 工作流成员，系统已阻止继续进入功能页面。',
-      missingOrgAdmin: '当前账号缺少使用本应用所需的组织级权限，系统已阻止继续进入功能页面。'
+      notAppMember:
+        '当前账号还不是这个团队下的 AI 工作流成员，系统已阻止继续进入功能页面。',
+      missingOrgAdmin:
+        '当前账号缺少使用本应用所需的组织级权限，系统已阻止继续进入功能页面。'
     },
     hint: {
-      adminOnly: '如果你需要管理 Agent Client 或成员，请联系组织管理员协助处理。',
-      notAppMember: '请联系管理员将你加入当前团队的 AI 工作流成员列表，然后刷新页面重试。',
-      missingOrgAdmin: '请联系管理员将你的账号加入「应用」管理员权限，然后刷新当前页面重新进入。'
+      adminOnly:
+        '如果你需要管理 Agent Client 或成员，请联系组织管理员协助处理。',
+      notAppMember:
+        '请联系管理员将你加入当前团队的 AI 工作流成员列表，然后刷新页面重试。',
+      missingOrgAdmin:
+        '请联系管理员将你的账号加入「应用」管理员权限，然后刷新当前页面重新进入。'
     },
     requiredPermission: '所需权限点'
   },
@@ -301,7 +331,8 @@ export const zhCN = {
         title: '确认重置？',
         descriptionWithAgent:
           '这会将 Agent“{{name}}”的当前执行记录重置为待执行状态，不会新增记录。',
-        descriptionFallback: '这会将当前执行记录重置为待执行状态，不会新增记录。'
+        descriptionFallback:
+          '这会将当前执行记录重置为待执行状态，不会新增记录。'
       }
     },
     workflows: {
@@ -350,7 +381,8 @@ export const zhCN = {
       },
       deleteDialog: {
         title: '确认删除工作流？',
-        descriptionWithName: '工作流“{{name}}”删除后不可恢复，关联的执行节点也会一起删除。',
+        descriptionWithName:
+          '工作流“{{name}}”删除后不可恢复，关联的执行节点也会一起删除。',
         descriptionFallback: '工作流删除后不可恢复。'
       }
     },
@@ -379,7 +411,8 @@ export const zhCN = {
       },
       deleteDialog: {
         title: '确认删除 Agent？',
-        descriptionWithName: 'Agent“{{name}}”删除后不可恢复。只要它仍被工作流引用，系统会阻止删除。',
+        descriptionWithName:
+          'Agent“{{name}}”删除后不可恢复。只要它仍被工作流引用，系统会阻止删除。',
         descriptionFallback: 'Agent 删除后不可恢复。'
       }
     },
@@ -391,6 +424,7 @@ export const zhCN = {
       resourcesLoadFailed: 'Agent 绑定资源加载失败',
       workspacesLoadFailed: '工作区列表加载失败',
       skillsLoadFailed: '技能列表加载失败',
+      knowledgeSourcesLoadFailed: '知识源列表加载失败',
       executorSearchFailed: '执行身份搜索失败',
       basicConfigSaveFailed: '保存 Agent 基础配置失败',
       draftSaveFailed: '保存草稿失败',
@@ -400,7 +434,8 @@ export const zhCN = {
         action: 'AI 生成建议',
         generating: '正在生成建议...',
         title: '推荐提示词',
-        description: '根据 Agent 的业务目标、输入、输出和已选 Skill 生成。确认后才会应用到编辑器。',
+        description:
+          '根据 Agent 的业务目标、输入、输出和已选 Skill 生成。确认后才会应用到编辑器。',
         apply: '应用建议',
         applied: '推荐提示词已应用',
         failed: '推荐提示词生成失败',
@@ -412,6 +447,7 @@ export const zhCN = {
       },
       duplicateInputField: '已存在一级字段“{{name}}”的输入字段配置',
       duplicateOutputField: '已存在一级字段“{{name}}”的输出配置',
+      onlyOneWikiOutput: '每个 Agent 最多配置一个关联 Wiki 页面输出字段',
       steps: {
         basic: '基础配置',
         inputs: '输入配置',
@@ -430,7 +466,8 @@ export const zhCN = {
         nameLabel: '名称',
         namePlaceholder: '请输入 Agent 名称',
         descriptionLabel: '业务目标',
-        descriptionPlaceholder: '说明 Agent 的职责、处理目标、关键规则和完成标准',
+        descriptionPlaceholder:
+          '说明 Agent 的职责、处理目标、关键规则和完成标准',
         executorLabel: '执行身份',
         executorPlaceholder: '搜索 ONES 用户',
         executorSearchLoading: '搜索中...',
@@ -448,7 +485,12 @@ export const zhCN = {
           '工作区可以留空，适用于不依赖本地代码仓的 Agent。',
         skillsLabel: '技能',
         skillsPlaceholder: '搜索或选择技能',
-        skillsEmpty: '暂无可绑定技能'
+        skillsEmpty: '暂无可绑定技能',
+        knowledgeLabel: '知识',
+        knowledgePlaceholder: '搜索或选择知识源，最多 5 个',
+        knowledgeEmpty: '暂无可绑定知识源',
+        knowledgeHelp:
+          '知识源绑定在重新发布后生效；Wiki 内容更新不需要重新发布。'
       },
       fields: {
         pickerPlaceholder: '搜索或者选择字段',
@@ -469,7 +511,8 @@ export const zhCN = {
         },
         internalFieldSummaryTitle: '{{fieldName}}内部字段说明',
         inputDescriptionPlaceholder: '描述这个输入字段在 Agent 中的作用',
-        inputSubFieldDescriptionPlaceholder: '描述这个内部字段在 Agent 中的作用',
+        inputSubFieldDescriptionPlaceholder:
+          '描述这个内部字段在 Agent 中的作用',
         outputDescriptionPlaceholderObject:
           '描述这个输出字段整体要做什么，例如创建、更新或创建/更新 Issue 对象',
         outputDescriptionPlaceholderSimple: '描述这个输出字段在 Agent 中的作用',
@@ -485,8 +528,7 @@ export const zhCN = {
         moveDownAria: '下移字段 {{name}}'
       },
       prompt: {
-        placeholder:
-          '例如：你是一个擅长需求分析的助手，请根据输入字段生成...'
+        placeholder: '例如：你是一个擅长需求分析的助手，请根据输入字段生成...'
       },
       preview: {
         title: '提示词预览',
@@ -528,7 +570,8 @@ export const zhCN = {
       },
       dialog: {
         title: '添加成员',
-        description: '从 ONES 用户中选择一个账号，加入当前团队的 AI 工作流成员列表。',
+        description:
+          '从 ONES 用户中选择一个账号，加入当前团队的 AI 工作流成员列表。',
         userLabel: 'ONES 用户',
         searchPlaceholderLoading: '搜索 ONES 用户中...',
         searchPlaceholder: '搜索姓名、邮箱或工号',
@@ -540,7 +583,8 @@ export const zhCN = {
       },
       deleteDialog: {
         title: '移除成员',
-        description: '确认要移除成员“{{name}}”吗？移除后该账号将无法继续访问当前团队的 AI 工作流。'
+        description:
+          '确认要移除成员“{{name}}”吗？移除后该账号将无法继续访问当前团队的 AI 工作流。'
       }
     },
     agentWorkspaces: {
@@ -578,7 +622,8 @@ export const zhCN = {
       },
       deleteDialog: {
         title: '删除工作区？',
-        description: '删除后会同时移除该工作区下的所有代码仓配置，此操作不可恢复。'
+        description:
+          '删除后会同时移除该工作区下的所有代码仓配置，此操作不可恢复。'
       }
     },
     agentWorkspaceCredentials: {
@@ -606,7 +651,8 @@ export const zhCN = {
         title: '新增凭证',
         envNameLabel: '环境变量名',
         envNamePlaceholder: 'OPENAI_API_KEY',
-        envNameDescription: '以大写字母开头，仅支持 A-Z、0-9、_。同名会覆盖已有凭证。',
+        envNameDescription:
+          '以大写字母开头，仅支持 A-Z、0-9、_。同名会覆盖已有凭证。',
         valueLabel: '凭证值',
         valuePlaceholder: 'sk-...',
         descriptionLabel: '说明',
@@ -621,6 +667,42 @@ export const zhCN = {
       deleteDialog: {
         title: '删除凭证？',
         description: '删除后，后续任务执行时将不再注入该环境变量。'
+      }
+    },
+    knowledgeSources: {
+      loadFailed: '知识源列表加载失败',
+      spacesLoadFailed: 'Wiki 页面组列表加载失败',
+      saveFailed: '知识源保存失败',
+      saveSuccess: '知识源已保存',
+      deleteFailed: '知识源删除失败',
+      deleteSuccess: '知识源已删除',
+      empty: '暂无知识源',
+      actions: { create: '新建知识源', edit: '编辑', delete: '删除' },
+      table: {
+        name: '名称',
+        space: 'Wiki 页面组',
+        status: '状态',
+        lastSuccess: '最近成功检索',
+        lastError: '最近错误',
+        actions: '操作'
+      },
+      status: { active: '启用', disabled: '停用', error: '异常' },
+      form: {
+        createTitle: '新建知识源',
+        editTitle: '编辑知识源',
+        description:
+          '知识源引用完整的 ONES Wiki 页面组，插件不会保存页面正文。',
+        name: '名称',
+        space: 'Wiki 页面组',
+        spacePlaceholder: '搜索或选择页面组',
+        detail: '说明',
+        status: '状态',
+        required: '请填写名称并选择 Wiki 页面组'
+      },
+      deleteDialog: {
+        title: '删除知识源？',
+        description:
+          '确认删除“{{name}}”吗？如果仍被 Agent 草稿或已发布版本引用，系统会阻止删除。'
       }
     },
     skills: {
@@ -660,7 +742,8 @@ export const zhCN = {
       },
       dialog: {
         createTitle: '上传技能',
-        createDescription: '选择一个技能目录进行上传，目录内容需要符合技能规范。',
+        createDescription:
+          '选择一个技能目录进行上传，目录内容需要符合技能规范。',
         uploadTitle: '上传技能新版本',
         uploadDescriptionWithName:
           '为 {{name}} 上传新的目录数据包。系统会重新从包内 SKILL.md 提取元数据。',
@@ -696,7 +779,8 @@ export const zhCN = {
       emptyFiles: '完成需求沟通后，点击“生成 Skill”创建文件包。',
       noFileSelected: '未选择文件',
       unsaved: '未保存',
-      messagePlaceholder: '描述目标、输入、处理规则和期望输出。Command/Ctrl + Enter 发送。',
+      messagePlaceholder:
+        '描述目标、输入、处理规则和期望输出。Command/Ctrl + Enter 发送。',
       scriptReview: '我已逐个审核生成的脚本文件，并确认其执行行为',
       actions: {
         send: '发送',
@@ -720,13 +804,15 @@ export const zhCN = {
     },
     aiModelConfig: {
       title: '组织默认 AI 模型',
-      description: '用于 AI 创建 Skill 和生成 Agent 推荐提示词，不影响 Agent Client 的执行模型。',
+      description:
+        '用于 AI 创建 Skill 和生成 Agent 推荐提示词，不影响 Agent Client 的执行模型。',
       loadFailed: 'AI 模型配置加载失败',
       saveFailed: 'AI 模型配置保存失败',
       saveSuccess: 'AI 模型配置已保存',
       testFailed: '模型连接测试失败',
       testSuccess: '模型连接测试成功',
-      validationFailed: '请填写有效的 HTTPS 地址、模型名称和 0-2 之间的 Temperature。',
+      validationFailed:
+        '请填写有效的 HTTPS 地址、模型名称和 0-2 之间的 Temperature。',
       baseURL: 'Base URL',
       model: '模型名称',
       keyConfigured: 'API Key 已配置',
@@ -834,7 +920,8 @@ export const zhCN = {
         httpsUsernameRequired: '请输入 HTTPS 用户名',
         sshUrlOnly: '当前工作区使用 SSH 认证，只能填写 Git SSH 地址。',
         httpsUrlOnly: '当前工作区使用 HTTPS 认证，只能填写 HTTPS 仓库地址。',
-        publicHttpsUrlOnly: '当前工作区未配置认证，只能填写公开 HTTPS 仓库地址。'
+        publicHttpsUrlOnly:
+          '当前工作区未配置认证，只能填写公开 HTTPS 仓库地址。'
       },
       actions: {
         createRepository: '新增仓库',
@@ -868,10 +955,12 @@ export const zhCN = {
         typeHttps: 'HTTPS 用户名 + 密钥',
         sshPublicKeyLabel: 'SSH 公钥',
         sshPublicKeyPlaceholder: '当前还没有生成 SSH 公钥',
-        sshPublicKeyDescription: '把这把公钥添加到目标仓库的 Deploy Key 或只读公钥配置中。',
+        sshPublicKeyDescription:
+          '把这把公钥添加到目标仓库的 Deploy Key 或只读公钥配置中。',
         usernameLabel: '用户名',
         usernamePlaceholder: '例如：git-bot',
-        usernameDescription: '常见场景为 Git 用户名、服务账号名或固定占位用户名。',
+        usernameDescription:
+          '常见场景为 Git 用户名、服务账号名或固定占位用户名。',
         secretLabel: '密钥',
         secretPlaceholder: '输入 Token、PAT 或兼容密码',
         secretDescriptionKeep: '留空则保留当前已保存的密钥。',
@@ -890,7 +979,8 @@ export const zhCN = {
       generateSshKeyDialog: {
         titleGenerate: '生成 SSH 密钥？',
         titleRegenerate: '重新生成 SSH 密钥？',
-        descriptionGenerate: '生成后，可以把新的公钥配置到对应 Git 仓库作为 Deploy Key。',
+        descriptionGenerate:
+          '生成后，可以把新的公钥配置到对应 Git 仓库作为 Deploy Key。',
         descriptionRegenerate:
           '重新生成后，旧私钥会立即失效。你需要把新的公钥重新配置到所有使用该 workspace 的 Git 仓库。',
         confirmGenerate: '生成',

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { AgentPromptRecommendationDTO } from './dto.js';
 import { streamAIChatCompletion } from '../ai-model/client.js';
 import { readCurrentSkillMarkdown } from '../skills/service.js';
+import { findKnowledgeSourcesByUUIDs } from '../knowledge-sources/repository.js';
 
 const MAX_SKILL_CONTEXT_BYTES = 256 * 1024;
 
@@ -23,6 +24,10 @@ export async function streamPromptRecommendation(input: {
     input.payload.skillUUIDs.map((uuid) =>
       readCurrentSkillMarkdown(uuid, input.teamUUID)
     )
+  );
+  const knowledgeSources = await findKnowledgeSourcesByUUIDs(
+    input.payload.knowledgeSourceUUIDs,
+    input.teamUUID
   );
   const totalSkillBytes = skillDocuments.reduce(
     (total, skill) => total + Buffer.byteLength(skill.content, 'utf8'),
@@ -46,6 +51,12 @@ export async function streamPromptRecommendation(input: {
       uuid: skill.uuid,
       name: skill.name,
       document: skill.content
+    })),
+    knowledgeSources: knowledgeSources.map((source) => ({
+      uuid: source.uuid,
+      name: source.name,
+      description: source.description,
+      wikiSpaceName: source.spaceName
     }))
   };
   const serializedContext = JSON.stringify(context, null, 2);

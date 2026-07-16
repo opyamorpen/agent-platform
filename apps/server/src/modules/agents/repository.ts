@@ -13,16 +13,24 @@ import { listSkills } from '../skills/repository.js';
 
 const AGENT_ENTITY_NAME = 'agent';
 const AGENT_SKILL_BINDING_ENTITY_NAME = 'agent_skill_binding';
+const AGENT_KNOWLEDGE_BINDING_ENTITY_NAME = 'agent_knowledge_binding';
 const AGENT_VERSION_ENTITY_NAME = 'agent_version';
 const TEAM_UUID_INDEX_NAME = 'idx_team_uuid';
 const AGENT_UUID_INDEX_NAME = 'idx_agent_uuid';
 const SKILL_UUID_INDEX_NAME = 'idx_skill_uuid';
+const KNOWLEDGE_SOURCE_UUID_INDEX_NAME = 'idx_knowledge_source_uuid';
 
 const agentStore = createEntityStore<StoredAgentEntity>(AGENT_ENTITY_NAME);
-const agentSkillBindingStore =
-  createEntityStore<StoredAgentSkillBindingEntity>(AGENT_SKILL_BINDING_ENTITY_NAME);
-const agentVersionStore =
-  createEntityStore<StoredAgentVersionEntity>(AGENT_VERSION_ENTITY_NAME);
+const agentSkillBindingStore = createEntityStore<StoredAgentSkillBindingEntity>(
+  AGENT_SKILL_BINDING_ENTITY_NAME
+);
+const agentKnowledgeBindingStore =
+  createEntityStore<StoredAgentKnowledgeBindingEntity>(
+    AGENT_KNOWLEDGE_BINDING_ENTITY_NAME
+  );
+const agentVersionStore = createEntityStore<StoredAgentVersionEntity>(
+  AGENT_VERSION_ENTITY_NAME
+);
 
 type AgentSummaryRecord = AgentSummary;
 
@@ -64,6 +72,14 @@ interface StoredAgentSkillBindingEntity {
   created_at: number;
 }
 
+interface StoredAgentKnowledgeBindingEntity {
+  team_uuid: string;
+  uuid: string;
+  agent_uuid: string;
+  knowledge_source_uuid: string;
+  created_at: number;
+}
+
 interface StoredAgentVersionEntity {
   team_uuid: string;
   uuid: string;
@@ -75,7 +91,9 @@ interface StoredAgentVersionEntity {
   created_at: number;
 }
 
-function normalizeStoredAgentRecord(record: StoredAgentEntity): StoredAgentEntity {
+function normalizeStoredAgentRecord(
+  record: StoredAgentEntity
+): StoredAgentEntity {
   return {
     ...record,
     workspace_uuid: record.workspace_uuid ?? '',
@@ -94,6 +112,10 @@ function getAgentVersionKey(agentUUID: string, version: number): string {
 
 function getAgentSkillBindingKey(uuid: string): string {
   return `agent_skill_binding_${uuid.replace(/-/g, '').toLowerCase()}`;
+}
+
+function getAgentKnowledgeBindingKey(uuid: string): string {
+  return `agent_knowledge_binding_${uuid.replace(/-/g, '').toLowerCase()}`;
 }
 
 function getDraftObjectKey(teamUUID: string, agentUUID: string): string {
@@ -117,7 +139,9 @@ function normalizeCurrentVersion(value: number): number | null {
   return value > 0 ? value : null;
 }
 
-function normalizeWorkspaceUUID(value: string | null | undefined): string | null {
+function normalizeWorkspaceUUID(
+  value: string | null | undefined
+): string | null {
   const normalized = (value ?? '').trim();
   return normalized ? normalized : null;
 }
@@ -215,6 +239,32 @@ async function listAgentSkillBindingEntriesBySkillUUID(
   ).filter((entry) => entry.value.team_uuid === teamUUID);
 }
 
+async function listAgentKnowledgeBindingEntriesByAgentUUID(
+  agentUUID: string,
+  teamUUID: string
+): Promise<Array<HostedEntityEntry<StoredAgentKnowledgeBindingEntity>>> {
+  return (
+    await agentKnowledgeBindingStore.queryByIndexEqualTo(
+      AGENT_UUID_INDEX_NAME,
+      'agent_uuid',
+      agentUUID
+    )
+  ).filter((entry) => entry.value.team_uuid === teamUUID);
+}
+
+async function listAgentKnowledgeBindingEntriesByKnowledgeSourceUUID(
+  knowledgeSourceUUID: string,
+  teamUUID: string
+): Promise<Array<HostedEntityEntry<StoredAgentKnowledgeBindingEntity>>> {
+  return (
+    await agentKnowledgeBindingStore.queryByIndexEqualTo(
+      KNOWLEDGE_SOURCE_UUID_INDEX_NAME,
+      'knowledge_source_uuid',
+      knowledgeSourceUUID
+    )
+  ).filter((entry) => entry.value.team_uuid === teamUUID);
+}
+
 async function getStoredAgentByUUID(
   uuid: string,
   teamUUID: string
@@ -248,7 +298,27 @@ async function loadAgentConfig(
     return null;
   }
 
-  return readObjectJson<AgentConfig>(objectKey);
+  const config = await readObjectJson<AgentConfig>(objectKey);
+  return config ? normalizeAgentConfig(config) : null;
+}
+
+function normalizeAgentConfig(config: AgentConfig): AgentConfig {
+  return {
+    ...config,
+    knowledgeSourceUUIDs: Array.isArray(config.knowledgeSourceUUIDs)
+      ? config.knowledgeSourceUUIDs
+      : []
+  };
+}
+
+async function readRequiredAgentConfig(
+  objectKey: string
+): Promise<AgentConfig> {
+  const config = await readObjectJson<AgentConfig>(objectKey);
+  if (!config) {
+    throw new Error(`Agent config object is missing: ${objectKey}`);
+  }
+  return normalizeAgentConfig(config);
 }
 
 function mapSkillUUIDsByAgentUUID(
@@ -256,7 +326,9 @@ function mapSkillUUIDsByAgentUUID(
 ): Map<string, string[]> {
   const skillUUIDsByAgentUUID = new Map<string, string[]>();
 
-  for (const binding of bindings.sort((left, right) => left.created_at - right.created_at)) {
+  for (const binding of bindings.sort(
+    (left, right) => left.created_at - right.created_at
+  )) {
     const current = skillUUIDsByAgentUUID.get(binding.agent_uuid) ?? [];
     current.push(binding.skill_uuid);
     skillUUIDsByAgentUUID.set(binding.agent_uuid, current);
@@ -315,7 +387,10 @@ async function replaceAgentSkillBindings(
   skillUUIDs: string[],
   teamUUID: string
 ): Promise<void> {
-  const currentBindings = await listAgentSkillBindingEntriesByAgentUUID(agentUUID, teamUUID);
+  const currentBindings = await listAgentSkillBindingEntriesByAgentUUID(
+    agentUUID,
+    teamUUID
+  );
 
   await Promise.all(
     currentBindings.map((binding) =>
@@ -340,7 +415,48 @@ async function replaceAgentSkillBindings(
   );
 }
 
-export async function listAgents(teamUUID: string): Promise<AgentSummaryRecord[]> {
+export async function replaceAgentKnowledgeBindings(
+  agentUUID: string,
+  knowledgeSourceUUIDs: string[],
+  teamUUID: string
+): Promise<void> {
+  const currentBindings = await listAgentKnowledgeBindingEntriesByAgentUUID(
+    agentUUID,
+    teamUUID
+  );
+
+  await Promise.all(
+    currentBindings.map((binding) =>
+      agentKnowledgeBindingStore.delete(
+        getAgentKnowledgeBindingKey(binding.value.uuid)
+      )
+    )
+  );
+
+  const baseCreatedAt = Date.now();
+  const bindings = Array.from(new Set(knowledgeSourceUUIDs)).map(
+    (knowledgeSourceUUID, index): StoredAgentKnowledgeBindingEntity => ({
+      team_uuid: teamUUID,
+      uuid: randomUUID(),
+      agent_uuid: agentUUID,
+      knowledge_source_uuid: knowledgeSourceUUID,
+      created_at: baseCreatedAt + index
+    })
+  );
+
+  await Promise.all(
+    bindings.map((binding) =>
+      agentKnowledgeBindingStore.set(
+        getAgentKnowledgeBindingKey(binding.uuid),
+        binding
+      )
+    )
+  );
+}
+
+export async function listAgents(
+  teamUUID: string
+): Promise<AgentSummaryRecord[]> {
   const entries = await listTeamAgentEntries(teamUUID);
   const records = entries
     .map((entry) => entry.value)
@@ -500,7 +616,7 @@ export async function findAgentVersion(
     uuid: record.uuid,
     agentUUID: record.agent_uuid,
     version: record.version,
-    config: await readObjectJson<AgentConfig>(record.config_object_key)
+    config: await readRequiredAgentConfig(record.config_object_key)
   };
 }
 
@@ -518,10 +634,12 @@ export async function findAgentVersions(
   const entries = await listTeamAgentVersionEntries(teamUUID);
   const matched = entries
     .map((entry) => entry.value)
-    .filter((record) => requested.has(`${record.agent_uuid}:${record.version}`));
+    .filter((record) =>
+      requested.has(`${record.agent_uuid}:${record.version}`)
+    );
 
   const configs = await Promise.all(
-    matched.map((record) => readObjectJson<AgentConfig>(record.config_object_key))
+    matched.map((record) => readRequiredAgentConfig(record.config_object_key))
   );
 
   return matched.map((record, index) => ({
@@ -557,7 +675,9 @@ export async function listAgentsWithDraftConfigs(teamUUID: string) {
     .map((entry) => entry.value)
     .sort((left, right) => left.created_at - right.created_at);
   const configs = await Promise.all(
-    records.map((record) => loadAgentConfig(normalizeObjectKey(record.draft_object_key)))
+    records.map((record) =>
+      loadAgentConfig(normalizeObjectKey(record.draft_object_key))
+    )
   );
 
   return records.map((record, index) => ({
@@ -573,7 +693,7 @@ export async function listAgentVersionsWithConfigs(teamUUID: string) {
     .map((entry) => entry.value)
     .sort((left, right) => left.created_at - right.created_at);
   const configs = await Promise.all(
-    records.map((record) => readObjectJson<AgentConfig>(record.config_object_key))
+    records.map((record) => readRequiredAgentConfig(record.config_object_key))
   );
 
   return records.map((record, index) => ({
@@ -598,16 +718,19 @@ export async function createAgentVersion(
   const objectKey = getVersionObjectKey(teamUUID, data.agentUUID, data.version);
 
   await uploadObjectJson(objectKey, data.config);
-  await agentVersionStore.set(getAgentVersionKey(data.agentUUID, data.version), {
-    team_uuid: teamUUID,
-    uuid: data.uuid,
-    agent_uuid: data.agentUUID,
-    version: data.version,
-    config_object_key: objectKey,
-    created_by: data.createdBy ?? '',
-    note: data.note ?? '',
-    created_at: now
-  });
+  await agentVersionStore.set(
+    getAgentVersionKey(data.agentUUID, data.version),
+    {
+      team_uuid: teamUUID,
+      uuid: data.uuid,
+      agent_uuid: data.agentUUID,
+      version: data.version,
+      config_object_key: objectKey,
+      created_by: data.createdBy ?? '',
+      note: data.note ?? '',
+      created_at: now
+    }
+  );
 
   return {
     uuid: data.uuid,
@@ -646,7 +769,9 @@ export async function deleteAgentVersionsByAgentUUID(
   teamUUID: string
 ) {
   const entries = await listTeamAgentVersionEntries(teamUUID);
-  const targets = entries.filter((entry) => entry.value.agent_uuid === agentUUID);
+  const targets = entries.filter(
+    (entry) => entry.value.agent_uuid === agentUUID
+  );
 
   await Promise.all(
     targets.map((entry) =>
@@ -655,14 +780,19 @@ export async function deleteAgentVersionsByAgentUUID(
   );
   await Promise.all(
     targets.map((entry) =>
-      agentVersionStore.delete(getAgentVersionKey(entry.value.agent_uuid, entry.value.version))
+      agentVersionStore.delete(
+        getAgentVersionKey(entry.value.agent_uuid, entry.value.version)
+      )
     )
   );
 }
 
 export async function deleteAgentByUUID(uuid: string, teamUUID: string) {
   const record = await getRequiredStoredAgentByUUID(uuid, teamUUID);
-  const bindings = await listAgentSkillBindingEntriesByAgentUUID(uuid, teamUUID);
+  const [bindings, knowledgeBindings] = await Promise.all([
+    listAgentSkillBindingEntriesByAgentUUID(uuid, teamUUID),
+    listAgentKnowledgeBindingEntriesByAgentUUID(uuid, teamUUID)
+  ]);
 
   if (record.draft_object_key) {
     await deleteObject(record.draft_object_key).catch(() => undefined);
@@ -671,6 +801,13 @@ export async function deleteAgentByUUID(uuid: string, teamUUID: string) {
   await Promise.all(
     bindings.map((binding) =>
       agentSkillBindingStore.delete(getAgentSkillBindingKey(binding.value.uuid))
+    )
+  );
+  await Promise.all(
+    knowledgeBindings.map((binding) =>
+      agentKnowledgeBindingStore.delete(
+        getAgentKnowledgeBindingKey(binding.value.uuid)
+      )
     )
   );
   await agentStore.delete(getAgentKey(uuid));
@@ -684,7 +821,10 @@ export async function findAgentsByWorkspaceUUID(
 
   return entries
     .map((entry) => entry.value)
-    .filter((record) => normalizeWorkspaceUUID(record.workspace_uuid) === workspaceUUID)
+    .filter(
+      (record) =>
+        normalizeWorkspaceUUID(record.workspace_uuid) === workspaceUUID
+    )
     .map((record) => ({
       uuid: record.uuid,
       name: record.name
@@ -699,7 +839,9 @@ export async function findAgentsBySkillUUID(
     listAgentSkillBindingEntriesBySkillUUID(skillUUID, teamUUID),
     listTeamAgentEntries(teamUUID)
   ]);
-  const boundAgentUUIDs = new Set(bindings.map((binding) => binding.value.agent_uuid));
+  const boundAgentUUIDs = new Set(
+    bindings.map((binding) => binding.value.agent_uuid)
+  );
 
   return entries
     .map((entry) => entry.value)
@@ -710,10 +852,33 @@ export async function findAgentsBySkillUUID(
     }));
 }
 
+export async function findAgentsByKnowledgeSourceUUID(
+  knowledgeSourceUUID: string,
+  teamUUID: string
+): Promise<Array<{ uuid: string; name: string }>> {
+  const [bindings, entries] = await Promise.all([
+    listAgentKnowledgeBindingEntriesByKnowledgeSourceUUID(
+      knowledgeSourceUUID,
+      teamUUID
+    ),
+    listTeamAgentEntries(teamUUID)
+  ]);
+  const agentUUIDs = new Set(
+    bindings.map((binding) => binding.value.agent_uuid)
+  );
+
+  return entries
+    .map((entry) => entry.value)
+    .filter((record) => agentUUIDs.has(record.uuid))
+    .map((record) => ({ uuid: record.uuid, name: record.name }));
+}
+
 export async function findAgentsByUUIDs(
   uuids: string[],
   teamUUID: string
-): Promise<Array<{ uuid: string; name: string; currentVersion: number | null }>> {
+): Promise<
+  Array<{ uuid: string; name: string; currentVersion: number | null }>
+> {
   if (uuids.length === 0) {
     return [];
   }
@@ -754,7 +919,10 @@ export async function findDispatchAgentsByUUIDs(
             uuid: record.uuid,
             name: record.name,
             currentVersion: normalizeCurrentVersion(record.current_version),
-            executor: normalizeExecutor(record.executor_uuid, record.executor_name)
+            executor: normalizeExecutor(
+              record.executor_uuid,
+              record.executor_name
+            )
           }
         ]
       : []

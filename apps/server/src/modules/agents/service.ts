@@ -1,5 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import type { AgentConfig, AgentDraft, AgentSummary } from '@ones-ai-workflow/shared';
+import type {
+  AgentConfig,
+  AgentDraft,
+  AgentSummary
+} from '@ones-ai-workflow/shared';
 import type {
   AgentPromptPreviewDTO,
   CreateAgentDTO,
@@ -20,13 +24,18 @@ import {
   findLatestAgentVersion,
   listAgents,
   publishAgentVersion,
+  replaceAgentKnowledgeBindings,
   updateAgentMetadata,
   updateAgentDraftConfig
 } from './repository.js';
-import { listAllWorkflowNodes, listWorkflows } from '../workflows/repository.js';
+import {
+  listAllWorkflowNodes,
+  listWorkflows
+} from '../workflows/repository.js';
 import { findAgentWorkspaceByUUID } from '../agent-workspaces/repository.js';
 import { listWorkspaceCredentialsByWorkspaceUUID } from '../agent-workspaces/credentials-repository.js';
 import { findSkillsByUUIDs } from '../skills/repository.js';
+import { findKnowledgeSourcesByUUIDs } from '../knowledge-sources/repository.js';
 import type { RefObject } from '@ones-ai-workflow/shared';
 import { buildAgentPrompt } from './prompt-render.js';
 
@@ -72,6 +81,13 @@ export class AgentSkillBindingNotFoundError extends Error {
   }
 }
 
+export class AgentKnowledgeBindingNotFoundError extends Error {
+  constructor(uuid: string) {
+    super(`Knowledge source not found: ${uuid}`);
+    this.name = 'AgentKnowledgeBindingNotFoundError';
+  }
+}
+
 function normalizeExecutorBinding(
   executorUUID: string | null | undefined,
   executorName: string | null | undefined
@@ -89,7 +105,9 @@ function normalizeExecutorBinding(
   };
 }
 
-export async function getAgentSummaries(teamUUID: string): Promise<AgentSummary[]> {
+export async function getAgentSummaries(
+  teamUUID: string
+): Promise<AgentSummary[]> {
   return listAgents(teamUUID);
 }
 
@@ -164,8 +182,13 @@ export async function duplicateAgentRecord(
   const copiedConfig =
     sourceAgent.draftConfig ??
     (sourceAgent.currentVersion !== null
-      ? (await findAgentVersion(sourceAgent.uuid, sourceAgent.currentVersion, teamUUID))
-          ?.config ?? null
+      ? ((
+          await findAgentVersion(
+            sourceAgent.uuid,
+            sourceAgent.currentVersion,
+            teamUUID
+          )
+        )?.config ?? null)
       : null);
   const nextUUID = randomUUID();
   const nextAgent = await createAgent(
@@ -199,7 +222,8 @@ export async function getAgentDraft(
   const draftConfig = agent.draftConfig;
   const publishedConfig =
     agent.currentVersion !== null
-      ? (await findAgentVersion(uuid, agent.currentVersion, teamUUID))?.config ?? null
+      ? ((await findAgentVersion(uuid, agent.currentVersion, teamUUID))
+          ?.config ?? null)
       : null;
 
   if (draftConfig) {
@@ -254,7 +278,16 @@ export async function saveAgentDraft(
     throw new AgentNotFoundError(uuid);
   }
 
-  const updatedAgent = await updateAgentDraftConfig(uuid, payload.config, teamUUID);
+  await assertAgentKnowledgeSourcesExist(
+    payload.config.knowledgeSourceUUIDs,
+    teamUUID
+  );
+
+  const updatedAgent = await updateAgentDraftConfig(
+    uuid,
+    payload.config,
+    teamUUID
+  );
 
   return {
     uuid: updatedAgent.uuid,
@@ -279,6 +312,11 @@ export async function publishAgentDraft(
     throw new AgentDraftNotFoundError(uuid);
   }
 
+  await assertAgentKnowledgeSourcesExist(
+    draftConfig.knowledgeSourceUUIDs,
+    teamUUID
+  );
+
   const latestVersion = await findLatestAgentVersion(uuid, teamUUID);
   const nextVersion = (latestVersion?.version ?? 0) + 1;
   await createAgentVersion(
@@ -293,6 +331,11 @@ export async function publishAgentDraft(
     teamUUID
   );
   await publishAgentVersion(uuid, nextVersion, teamUUID);
+  await replaceAgentKnowledgeBindings(
+    uuid,
+    draftConfig.knowledgeSourceUUIDs,
+    teamUUID
+  );
 
   return {
     uuid,
@@ -329,7 +372,10 @@ export async function previewAgentPrompt(
   };
 }
 
-export async function removeAgent(uuid: string, teamUUID: string): Promise<void> {
+export async function removeAgent(
+  uuid: string,
+  teamUUID: string
+): Promise<void> {
   const agent = await findAgentByUUID(uuid, teamUUID);
 
   if (!agent) {
@@ -340,14 +386,17 @@ export async function removeAgent(uuid: string, teamUUID: string): Promise<void>
     listAllWorkflowNodes(teamUUID),
     listWorkflows(teamUUID)
   ]);
-  const workflowMap = new Map(workflows.map((workflow) => [workflow.uuid, workflow.name]));
-  const referencingNode = workflowNodes.find((workflowNode) =>
-    workflowNode.agentUUID === uuid
+  const workflowMap = new Map(
+    workflows.map((workflow) => [workflow.uuid, workflow.name])
+  );
+  const referencingNode = workflowNodes.find(
+    (workflowNode) => workflowNode.agentUUID === uuid
   );
 
   if (referencingNode) {
     const workflowName =
-      workflowMap.get(referencingNode.workflowUUID) ?? referencingNode.workflowUUID;
+      workflowMap.get(referencingNode.workflowUUID) ??
+      referencingNode.workflowUUID;
     throw new AgentInUseError(
       `Agent is referenced by workflow ${workflowName}`
     );
@@ -390,9 +439,33 @@ async function assertAgentBindingsExist(
 
   const skills = await findSkillsByUUIDs(skillUUIDs, teamUUID);
   const existingSkillUUIDs = new Set(skills.map((skill) => skill.uuid));
-  const missingSkillUUID = skillUUIDs.find((skillUUID) => !existingSkillUUIDs.has(skillUUID));
+  const missingSkillUUID = skillUUIDs.find(
+    (skillUUID) => !existingSkillUUIDs.has(skillUUID)
+  );
 
   if (missingSkillUUID) {
     throw new AgentSkillBindingNotFoundError(missingSkillUUID);
+  }
+}
+
+async function assertAgentKnowledgeSourcesExist(
+  knowledgeSourceUUIDs: string[],
+  teamUUID: string
+): Promise<void> {
+  if (knowledgeSourceUUIDs.length === 0) {
+    return;
+  }
+
+  const knowledgeSources = await findKnowledgeSourcesByUUIDs(
+    knowledgeSourceUUIDs,
+    teamUUID
+  );
+  const existingUUIDs = new Set(knowledgeSources.map((source) => source.uuid));
+  const missingUUID = knowledgeSourceUUIDs.find(
+    (uuid) => !existingUUIDs.has(uuid)
+  );
+
+  if (missingUUID) {
+    throw new AgentKnowledgeBindingNotFoundError(missingUUID);
   }
 }

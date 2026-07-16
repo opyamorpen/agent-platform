@@ -1,5 +1,5 @@
 import { OnesRequestError, OnesResponseError } from '../errors.js';
-import { requestJson } from '../shared/http.js';
+import { requestJson, requestRaw } from '../shared/http.js';
 import type { OnesHttpRequest } from '../shared/http.js';
 import type { OnesPageInfo } from '../types.js';
 import {
@@ -24,7 +24,11 @@ import {
   onesOpenApiOneSqlEnvelopeSchema,
   onesOpenApiPageInfoSchema,
   onesOpenApiProjectsEnvelopeSchema,
-  onesOpenApiUsersEnvelopeSchema
+  onesOpenApiUsersEnvelopeSchema,
+  onesOpenApiWikiPageEnvelopeSchema,
+  onesOpenApiWikiPageMutationSchema,
+  onesOpenApiWikiPagesEnvelopeSchema,
+  onesOpenApiWikiSpacesEnvelopeSchema
 } from './schemas.js';
 import type {
   OnesOpenApiClientOptions,
@@ -59,8 +63,123 @@ import type {
   OnesOpenApiSendIssueCommentRequest,
   OnesOpenApiUploadIssueAttachmentRequest,
   OnesOpenApiUser,
-  OnesOpenApiUpdateIssueRequest
+  OnesOpenApiUpdateIssueRequest,
+  OnesOpenApiAskWikiRequest,
+  OnesOpenApiCopilotAnswer,
+  OnesOpenApiCreateWikiPageRequest,
+  OnesOpenApiUpdateWikiPageRequest,
+  OnesOpenApiWikiPage,
+  OnesOpenApiWikiReference,
+  OnesOpenApiWikiSpace
 } from './types.js';
+
+function flattenWikiPages(value: unknown): OnesOpenApiWikiPage[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const pages: OnesOpenApiWikiPage[] = [];
+  const queue = [...value];
+
+  while (queue.length > 0) {
+    const candidate = queue.shift();
+    const parsed =
+      onesOpenApiWikiPageEnvelopeSchema.shape.data.safeParse(candidate);
+
+    if (!parsed.success || !parsed.data) {
+      continue;
+    }
+
+    pages.push(parsed.data);
+
+    if (candidate && typeof candidate === 'object') {
+      const children = (candidate as { children?: unknown }).children;
+      if (Array.isArray(children)) {
+        queue.push(...children);
+      }
+    }
+  }
+
+  return pages;
+}
+
+function parseCopilotSse(text: string): OnesOpenApiCopilotAnswer {
+  let answer: OnesOpenApiCopilotAnswer | null = null;
+
+  for (const block of text.split(/\r?\n\r?\n/u)) {
+    const data = block
+      .split(/\r?\n/u)
+      .filter((line) => line.startsWith('data:'))
+      .map((line) => line.slice(5).trim())
+      .join('\n');
+
+    if (!data || data === '[DONE]') {
+      continue;
+    }
+
+    let event: unknown;
+    try {
+      event = JSON.parse(data);
+    } catch {
+      continue;
+    }
+
+    if (!event || typeof event !== 'object') {
+      continue;
+    }
+
+    const record = event as Record<string, unknown>;
+    if (record.type === 'error' || record.errorCode || record.code) {
+      throw new OnesResponseError(
+        `ONES Copilot failed: ${String(record.errorMsg ?? record.message ?? 'unknown error')}`,
+        String(record.errorCode ?? record.code ?? 'COPILOT_ERROR')
+      );
+    }
+
+    if (record.type === 'generationEnd') {
+      const references = Array.isArray(record.references)
+        ? record.references.flatMap((reference): OnesOpenApiWikiReference[] => {
+            if (!reference || typeof reference !== 'object') {
+              return [];
+            }
+
+            const item = reference as Record<string, unknown>;
+            if (
+              (item.contentType !== 'page' &&
+                item.contentType !== 'media' &&
+                item.contentType !== 'attachment') ||
+              typeof item.itemID !== 'string'
+            ) {
+              return [];
+            }
+
+            return [
+              {
+                contentType: item.contentType,
+                itemID: item.itemID,
+                fileName:
+                  typeof item.fileName === 'string' ? item.fileName : undefined
+              }
+            ];
+          })
+        : [];
+
+      answer = {
+        content: typeof record.content === 'string' ? record.content : '',
+        references
+      };
+    }
+  }
+
+  if (!answer) {
+    throw new OnesResponseError(
+      'ONES Copilot response did not include generationEnd',
+      'COPILOT_INVALID_RESPONSE'
+    );
+  }
+
+  return answer;
+}
 
 function normalizePageInfo(
   payload: unknown,
@@ -295,6 +414,23 @@ export class OnesOpenApiClient {
 
       const refreshedConfig = await this.getConfig(true);
       return await requestJson(buildRequest(refreshedConfig));
+    }
+  }
+
+  private async requestRaw(
+    buildRequest: (config: OnesOpenApiConfig) => OnesHttpRequest
+  ): Promise<Response> {
+    const config = await this.getConfig();
+
+    try {
+      return await requestRaw(buildRequest(config));
+    } catch (error) {
+      if (!this.options.resolveConfig || !this.isNotActiveRequestError(error)) {
+        throw error;
+      }
+
+      const refreshedConfig = await this.getConfig(true);
+      return requestRaw(buildRequest(refreshedConfig));
     }
   }
 
@@ -1000,5 +1136,171 @@ export class OnesOpenApiClient {
       list: list.map((user): OnesOpenApiUser => normalizeUser(user)),
       pageInfo
     };
+  }
+
+  async listWikiSpaces(): Promise<OnesOpenApiWikiSpace[]> {
+    const payload = onesOpenApiWikiSpacesEnvelopeSchema.parse(
+      await this.requestJson((config) => ({
+        baseUrl: config.baseUrl,
+        path: '/openapi/v2/wiki/spaces',
+        searchParams: { teamID: config.teamId },
+        headers: {
+          accept: 'application/json',
+          authorization: `Bearer ${config.accessToken}`
+        }
+      }))
+    );
+
+    assertOpenApiSuccess(
+      payload.result,
+      payload.errorCode,
+      payload.errorMsg,
+      payload.errorData,
+      'listWikiSpaces'
+    );
+
+    return payload.data?.spaces ?? [];
+  }
+
+  async listWikiPages(spaceID: string): Promise<OnesOpenApiWikiPage[]> {
+    const payload = onesOpenApiWikiPagesEnvelopeSchema.parse(
+      await this.requestJson((config) => ({
+        baseUrl: config.baseUrl,
+        path: `/openapi/v2/wiki/spaces/${encodeURIComponent(spaceID)}/pages`,
+        searchParams: { teamID: config.teamId, archived: false },
+        headers: {
+          accept: 'application/json',
+          authorization: `Bearer ${config.accessToken}`
+        }
+      }))
+    );
+
+    assertOpenApiSuccess(
+      payload.result,
+      payload.errorCode,
+      payload.errorMsg,
+      payload.errorData,
+      'listWikiPages'
+    );
+
+    const data = payload.data;
+    return flattenWikiPages(Array.isArray(data) ? data : (data?.pages ?? []));
+  }
+
+  async getWikiPage(pageID: string): Promise<OnesOpenApiWikiPage> {
+    const payload = onesOpenApiWikiPageEnvelopeSchema.parse(
+      await this.requestJson((config) => ({
+        baseUrl: config.baseUrl,
+        path: `/openapi/v2/wiki/pages/${encodeURIComponent(pageID)}`,
+        searchParams: { teamID: config.teamId },
+        headers: {
+          accept: 'application/json',
+          authorization: `Bearer ${config.accessToken}`
+        }
+      }))
+    );
+
+    assertOpenApiSuccess(
+      payload.result,
+      payload.errorCode,
+      payload.errorMsg,
+      payload.errorData,
+      'getWikiPage'
+    );
+
+    if (!payload.data) {
+      throw new OnesResponseError(
+        `Wiki page not found: ${pageID}`,
+        'WIKI_PAGE_NOT_FOUND'
+      );
+    }
+
+    return payload.data as OnesOpenApiWikiPage;
+  }
+
+  async askWiki(
+    request: OnesOpenApiAskWikiRequest
+  ): Promise<OnesOpenApiCopilotAnswer> {
+    const response = await this.requestRaw((config) => ({
+      baseUrl: config.baseUrl,
+      path: '/openapi/v2/wiki/ask',
+      method: 'POST',
+      searchParams: { teamID: config.teamId },
+      headers: {
+        accept: 'text/event-stream',
+        authorization: `Bearer ${config.accessToken}`
+      },
+      body: {
+        scopeType: request.scopeType,
+        scopeID: request.scopeID,
+        query: request.query,
+        language: request.language,
+        generateRelatedQuestions: false,
+        config: {
+          expandQuery: request.expandQuery ?? true,
+          enableCache: request.enableCache ?? true
+        }
+      },
+      signal: request.signal
+    }));
+
+    return parseCopilotSse(await response.text());
+  }
+
+  async createWikiPage(
+    request: OnesOpenApiCreateWikiPageRequest
+  ): Promise<OnesOpenApiWikiPage> {
+    const formData = new FormData();
+    formData.append('parentPageID', request.parentPageID);
+    formData.append('title', request.title);
+    formData.append('content', request.content);
+
+    const payload = onesOpenApiWikiPageMutationSchema.parse(
+      await this.requestJson((config) => ({
+        baseUrl: config.baseUrl,
+        path: '/openapi/v2/wiki/pages',
+        method: 'POST',
+        searchParams: { teamID: config.teamId },
+        headers: {
+          accept: 'application/json',
+          authorization: `Bearer ${config.accessToken}`
+        },
+        body: formData
+      }))
+    );
+
+    if (!payload.data) {
+      throw new OnesResponseError('Create Wiki page returned no page data');
+    }
+
+    return payload.data as OnesOpenApiWikiPage;
+  }
+
+  async updateWikiPage(
+    pageID: string,
+    request: OnesOpenApiUpdateWikiPageRequest
+  ): Promise<void> {
+    const payload = await this.requestJson((config) => ({
+      baseUrl: config.baseUrl,
+      path: `/openapi/v2/wiki/pages/${encodeURIComponent(pageID)}`,
+      method: 'POST',
+      searchParams: { teamID: config.teamId },
+      headers: {
+        accept: 'application/json',
+        authorization: `Bearer ${config.accessToken}`
+      },
+      body: request
+    }));
+
+    if (payload && typeof payload === 'object') {
+      const record = payload as Record<string, unknown>;
+      assertOpenApiSuccess(
+        typeof record.result === 'string' ? record.result : undefined,
+        typeof record.errorCode === 'string' ? record.errorCode : undefined,
+        typeof record.errorMsg === 'string' ? record.errorMsg : undefined,
+        record.errorData,
+        'updateWikiPage'
+      );
+    }
   }
 }

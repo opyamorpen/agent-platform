@@ -10,7 +10,10 @@ import {
   listIssueTypes,
   listProjects
 } from '../../ones/ref-object.js';
-import type { OnesUserSummary } from '@ones-ai-workflow/shared';
+import type {
+  OnesUserSummary,
+  WikiSpaceSummary
+} from '@ones-ai-workflow/shared';
 
 export async function getOnesFields(context: OnesWebContext) {
   return listFields(context);
@@ -67,7 +70,23 @@ export async function searchOnesUsers(
     cursor?: string;
   }
 ): Promise<OnesUserSummary[]> {
-  const result = await (await createOnesOpenApiClient(context)).searchUsers(request);
+  const result = await (
+    await createOnesOpenApiClient(context)
+  ).searchUsers(request);
 
   return mapSearchableOnesUsers(result.list);
+}
+
+export async function getOnesWikiSpaces(
+  context: OnesWebContext
+): Promise<WikiSpaceSummary[]> {
+  const spaces = await (
+    await createOnesOpenApiClient(context)
+  ).listWikiSpaces();
+  return spaces.map((space) => ({
+    uuid: space.id,
+    name: space.title,
+    description: space.description,
+    homePageUUID: space.homePageID
+  }));
 }

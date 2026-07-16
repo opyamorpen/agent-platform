@@ -17,6 +17,7 @@ import { skillsRoutes } from '../modules/skills/routes.js';
 import { workflowsRoutes } from '../modules/workflows/routes.js';
 import { aiModelConfigRoutes } from '../modules/ai-model-config/routes.js';
 import { skillGenerationRoutes } from '../modules/skill-generation/routes.js';
+import { knowledgeSourcesRoutes } from '../modules/knowledge-sources/routes.js';
 
 export function registerRoutes(app: Hono): void {
   app.get('/health', (c) =>
@@ -56,6 +57,7 @@ export function registerRoutes(app: Hono): void {
   app.route('/api/members', membersRoutes);
   app.route('/api/ai-model-config', aiModelConfigRoutes);
   app.route('/api/skill-generation-sessions', skillGenerationRoutes);
+  app.route('/api/knowledge-sources', knowledgeSourcesRoutes);
 
   app.notFound((c) =>
     c.json(failure('Route not found', 'common.route_not_found'), 404)

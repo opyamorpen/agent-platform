@@ -16,46 +16,39 @@ export function SiteHeader() {
     "/settings/agent-clients": t("header.titles.agentClients"),
     "/settings/agent-workspaces": t("header.titles.agentWorkspaces"),
     "/settings/skills": t("header.titles.agentSkills"),
+    "/settings/knowledge-sources": t("header.titles.agentKnowledge"),
     "/settings/ai-model-config": t("header.titles.aiModelConfig"),
   }
   const descriptionMap: Record<string, string> = {
-    "/settings/issues":
-      t("header.descriptions.workflowExecution"),
-    "/settings/workflows":
-      t("header.descriptions.workflowDesign"),
-    "/settings/agents":
-      t("header.descriptions.agentConfig"),
-    "/settings/agent-workspaces":
-      t("header.descriptions.agentWorkspaces"),
-    "/settings/skills":
-      t("header.descriptions.agentSkills"),
+    "/settings/issues": t("header.descriptions.workflowExecution"),
+    "/settings/workflows": t("header.descriptions.workflowDesign"),
+    "/settings/agents": t("header.descriptions.agentConfig"),
+    "/settings/agent-workspaces": t("header.descriptions.agentWorkspaces"),
+    "/settings/skills": t("header.descriptions.agentSkills"),
+    "/settings/knowledge-sources": t("header.descriptions.agentKnowledge"),
   }
 
   const title =
     overrideTitle ??
-    (
-      pathname.startsWith("/settings/agent-clients/")
-        ? t("header.titles.agentClients")
-        : pathname.startsWith("/settings/agent-workspaces/")
-          ? t("header.titles.agentWorkspaces")
-          :
-      pathname.startsWith("/settings/agents/")
-        ? t("header.titles.agentConfig")
-        : pathname.startsWith("/settings/issues/")
-          ? t("header.titles.workflowExecution")
-          : pathname.startsWith("/settings/workflows/")
-            ? t("header.titles.workflowDesign")
-            : pathname.startsWith("/settings/skills/")
+    (pathname.startsWith("/settings/agent-clients/")
+      ? t("header.titles.agentClients")
+      : pathname.startsWith("/settings/agent-workspaces/")
+        ? t("header.titles.agentWorkspaces")
+        : pathname.startsWith("/settings/agents/")
+          ? t("header.titles.agentConfig")
+          : pathname.startsWith("/settings/issues/")
+            ? t("header.titles.workflowExecution")
+            : pathname.startsWith("/settings/workflows/")
+              ? t("header.titles.workflowDesign")
+              : pathname.startsWith("/settings/skills/")
                 ? t("header.titles.agentSkills")
-          : titleMap[pathname] ?? t("header.titles.dashboard")
-    )
+                : (titleMap[pathname] ?? t("header.titles.dashboard")))
 
-  const description =
-    descriptionMap[pathname] ?? null
+  const description = descriptionMap[pathname] ?? null
 
   return (
     <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
-      <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center px-4 lg:px-6">
+      <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 px-4 lg:px-6">
         <div className="flex min-w-0 items-center gap-1 lg:gap-2">
           <SidebarTrigger className="-ml-1" />
           <Separator
@@ -63,20 +56,16 @@ export function SiteHeader() {
             className="mx-2 !self-center data-[orientation=vertical]:!h-4"
           />
           <div className="flex min-w-0 items-center gap-3">
-            <h1 className="shrink-0 text-base font-medium">
-              {title}
-            </h1>
+            <h1 className="min-w-0 truncate text-base font-medium">{title}</h1>
             {description ? (
-              <p className="truncate text-xs text-muted-foreground">
+              <p className="hidden truncate text-xs text-muted-foreground lg:block">
                 {description}
               </p>
             ) : null}
           </div>
         </div>
         {center ? (
-          <div className="flex items-center justify-center">
-            {center}
-          </div>
+          <div className="flex items-center justify-center">{center}</div>
         ) : null}
         {actions ? (
           <div className="ml-auto flex items-center justify-end gap-2">

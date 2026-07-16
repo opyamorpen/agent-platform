@@ -2,7 +2,7 @@
   "app": {
     "id": "app_onesaiworkflow01",
     "name": "ones-ai-workflow",
-    "version": "v0.1.18",
+    "version": "v0.1.19",
     "desc": "ONES hosted AI workflow management app with external agent workers.",
     "auth": {
       "type": "jwt"
@@ -19,12 +19,12 @@
         "read:project:issue-comment",
         "write:project:issue-comment",
         "read:project:issue-attachment",
-        "write:project:issue-attachment"
+        "write:project:issue-attachment",
+        "read:wiki:space",
+        "read:wiki:page",
+        "write:wiki:page"
       ],
-      "type": [
-        "user",
-        "app"
-      ]
+      "type": ["user", "app"]
     },
     "lifecycle_callback": {
       "install": "/install_cb",
@@ -270,6 +270,126 @@
             {
               "name": "idx_skill_uuid",
               "range_attribute": "skill_uuid"
+            }
+          ]
+        },
+        {
+          "name": "knowledge_source",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "description": {
+              "type": "string",
+              "length": 2048,
+              "required": true
+            },
+            "space_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "space_name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "home_page_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "status": {
+              "type": "string",
+              "length": 32,
+              "required": true
+            },
+            "last_successful_query_at": {
+              "type": "integer",
+              "required": true
+            },
+            "last_error": {
+              "type": "string",
+              "length": 1024,
+              "required": true
+            },
+            "created_by": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            },
+            "updated_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            },
+            {
+              "name": "idx_space_uuid",
+              "range_attribute": "space_uuid"
+            }
+          ]
+        },
+        {
+          "name": "agent_knowledge_binding",
+          "attributes": {
+            "team_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "agent_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "knowledge_source_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "created_at": {
+              "type": "integer",
+              "required": true
+            }
+          },
+          "indexes": [
+            {
+              "name": "idx_team_uuid",
+              "range_attribute": "team_uuid"
+            },
+            {
+              "name": "idx_agent_uuid",
+              "range_attribute": "agent_uuid"
+            },
+            {
+              "name": "idx_knowledge_source_uuid",
+              "range_attribute": "knowledge_source_uuid"
             }
           ]
         },
@@ -1244,9 +1364,6 @@
     "healthcheck": {
       "path": "/health_check"
     },
-    "command": [
-      "node",
-      "apps/server/dist/index.cjs"
-    ]
+    "command": ["node", "apps/server/dist/index.cjs"]
   }
 }

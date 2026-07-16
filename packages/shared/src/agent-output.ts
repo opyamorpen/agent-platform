@@ -1,13 +1,14 @@
-import type { AgentOutputField } from './types.js';
+import type { AgentOutputField, AgentOutputSetValueField } from './types.js';
 
 const ISSUE_COMMENT_FIELD_UUID = 'field057';
 const ISSUE_ATTACHMENT_FIELD_UUID = 'field047';
 
 type ObjectSubFieldConfig = {
-  mode: AgentOutputField['mode'];
-  field: AgentOutputField['field'];
-  description: AgentOutputField['description'];
-  subFields: AgentOutputField['subFields'];
+  kind?: 'issue_field';
+  mode: 'set_value';
+  field: AgentOutputSetValueField['field'];
+  description: string;
+  subFields: AgentOutputSetValueField[];
 };
 
 type ParsedFieldWriteMode = 'set' | 'append' | null;
@@ -120,7 +121,10 @@ function isReferenceValueType(valueType: string): boolean {
 }
 
 function isCommentObjectField(field: AgentOutputField['field']): boolean {
-  return field.uuid === ISSUE_COMMENT_FIELD_UUID || field.referenceObjectType === 'comment';
+  return (
+    field.uuid === ISSUE_COMMENT_FIELD_UUID ||
+    field.referenceObjectType === 'comment'
+  );
 }
 
 function isAttachmentObjectField(field: AgentOutputField['field']): boolean {
@@ -131,6 +135,10 @@ function isAttachmentObjectField(field: AgentOutputField['field']): boolean {
 }
 
 function supportsFieldWriteMode(field: AgentOutputField): boolean {
+  if (field.kind === 'wiki_page') {
+    return false;
+  }
+
   return (
     field.field.valueType === 'multi_reference_object' &&
     !isCommentObjectField(field.field) &&
@@ -139,14 +147,24 @@ function supportsFieldWriteMode(field: AgentOutputField): boolean {
 }
 
 function usesObjectOutput(field: AgentOutputField): boolean {
+  if (field.kind === 'wiki_page') {
+    return false;
+  }
+
   return (
-    (isReferenceValueType(field.field.valueType) ||
-      isCommentObjectField(field.field) ||
-      isAttachmentObjectField(field.field))
+    isReferenceValueType(field.field.valueType) ||
+    isCommentObjectField(field.field) ||
+    isAttachmentObjectField(field.field)
   );
 }
 
-function getAllowedSubFields(field: AgentOutputField): Map<string, ObjectSubFieldConfig> {
+function getAllowedSubFields(
+  field: AgentOutputField
+): Map<string, ObjectSubFieldConfig> {
+  if (field.kind === 'wiki_page') {
+    return new Map();
+  }
+
   if (isCommentObjectField(field.field)) {
     return new Map([
       [
@@ -186,7 +204,9 @@ function getAllowedSubFields(field: AgentOutputField): Map<string, ObjectSubFiel
   }
 
   return new Map(
-    field.subFields.map((subField) => [subField.field.uuid.trim(), subField] as const)
+    field.subFields.map(
+      (subField) => [subField.field.uuid.trim(), subField] as const
+    )
   );
 }
 
@@ -194,7 +214,8 @@ function parseObjectType(
   source: string,
   fallbackObjectType: string | null
 ): string {
-  const objectType = parseXmlTagContent(source, 'object-type') ?? fallbackObjectType;
+  const objectType =
+    parseXmlTagContent(source, 'object-type') ?? fallbackObjectType;
 
   if (!objectType) {
     throw new Error('Missing <object-type> in <object> block');
@@ -277,55 +298,59 @@ function parseObjectCollection(
     throw new Error(`Missing <objects> for ${contextLabel}`);
   }
 
-  const objects = collectXmlTagContents(objectsContent, 'object').map((objectBlock) => {
-    const fieldsBounds = findXmlTagBounds(objectBlock, 'fields');
-    const objectHeaderContent =
-      fieldsBounds === null
-        ? objectBlock
-        : objectBlock.slice(0, fieldsBounds.outerStart).trim();
-    const objectType = parseObjectType(
-      objectHeaderContent,
-      fieldConfig.field.referenceObjectType ?? null
-    );
-    const rawObjectWriteMode = parseXmlTagContent(
-      objectHeaderContent,
-      'object-write-mode'
-    );
-    const objectWriteMode: 'create' | 'update' | null =
-      rawObjectWriteMode === 'create' || rawObjectWriteMode === 'update'
-        ? rawObjectWriteMode
-        : null;
-    const objectUUID = parseXmlTagContent(objectHeaderContent, 'object-uuid');
-    const objectName = parseXmlTagContent(objectHeaderContent, 'object-name');
-    const fieldsContent = fieldsBounds?.innerContent ?? null;
-    const requiresFields = getAllowedSubFields(fieldConfig).size > 0;
-    const isAttachmentObject = isAttachmentObjectField(fieldConfig.field);
+  const objects = collectXmlTagContents(objectsContent, 'object').map(
+    (objectBlock) => {
+      const fieldsBounds = findXmlTagBounds(objectBlock, 'fields');
+      const objectHeaderContent =
+        fieldsBounds === null
+          ? objectBlock
+          : objectBlock.slice(0, fieldsBounds.outerStart).trim();
+      const objectType = parseObjectType(
+        objectHeaderContent,
+        fieldConfig.field.referenceObjectType ?? null
+      );
+      const rawObjectWriteMode = parseXmlTagContent(
+        objectHeaderContent,
+        'object-write-mode'
+      );
+      const objectWriteMode: 'create' | 'update' | null =
+        rawObjectWriteMode === 'create' || rawObjectWriteMode === 'update'
+          ? rawObjectWriteMode
+          : null;
+      const objectUUID = parseXmlTagContent(objectHeaderContent, 'object-uuid');
+      const objectName = parseXmlTagContent(objectHeaderContent, 'object-name');
+      const fieldsContent = fieldsBounds?.innerContent ?? null;
+      const requiresFields = getAllowedSubFields(fieldConfig).size > 0;
+      const isAttachmentObject = isAttachmentObjectField(fieldConfig.field);
 
-    if (
-      requiresFields &&
-      fieldsContent === null &&
-      (!isAttachmentObject || (!objectUUID && !objectName))
-    ) {
-      throw new Error(`Missing <fields> in <object> for ${contextLabel}`);
+      if (
+        requiresFields &&
+        fieldsContent === null &&
+        (!isAttachmentObject || (!objectUUID && !objectName))
+      ) {
+        throw new Error(`Missing <fields> in <object> for ${contextLabel}`);
+      }
+
+      return {
+        objectType,
+        objectWriteMode,
+        objectUUID: objectUUID || null,
+        objectName: objectName || null,
+        fields:
+          fieldsContent === null
+            ? {}
+            : parseObjectFields(fieldsContent, fieldConfig)
+      };
     }
-
-    return {
-      objectType,
-      objectWriteMode,
-      objectUUID: objectUUID || null,
-      objectName: objectName || null,
-      fields:
-        fieldsContent === null
-          ? {}
-          : parseObjectFields(fieldsContent, fieldConfig)
-    };
-  });
+  );
 
   if (
     fieldConfig.field.valueType === 'single_reference_object' &&
     objects.length > 1
   ) {
-    throw new Error(`Field "${fieldConfig.field.uuid}" expects at most one <object>`);
+    throw new Error(
+      `Field "${fieldConfig.field.uuid}" expects at most one <object>`
+    );
   }
 
   return objects;
@@ -371,8 +396,70 @@ export function parseAgentOutputString(
 
     seenFieldUUIDPaths.add(fieldUUIDPath);
 
+    if (field.kind === 'wiki_page') {
+      const actionBlock = parseXmlTagContent(outputBlock, 'wiki-action');
+      if (actionBlock === null) {
+        throw new Error(
+          `Missing <wiki-action> for output field "${fieldUUIDPath}"`
+        );
+      }
+
+      const rawAction = parseXmlTagContent(actionBlock, 'action');
+      if (
+        rawAction !== 'create' &&
+        rawAction !== 'replace' &&
+        rawAction !== 'append'
+      ) {
+        throw new Error(
+          `Output field "${fieldUUIDPath}" has invalid Wiki action "${rawAction ?? ''}"`
+        );
+      }
+
+      const targetPageUUID =
+        parseXmlTagContent(actionBlock, 'target-page-uuid') || null;
+      const targetPageName =
+        parseXmlTagContent(actionBlock, 'target-page-name') || null;
+      const parentPageUUID =
+        parseXmlTagContent(actionBlock, 'parent-page-uuid') || null;
+      const spaceUUID = parseXmlTagContent(actionBlock, 'space-uuid') || null;
+      const title = parseXmlTagContent(actionBlock, 'title') || null;
+      const markdownValue = parseXmlTagContent(actionBlock, 'markdown');
+      const markdown =
+        markdownValue === null ? '' : unwrapCdataIfPresent(markdownValue);
+
+      if (rawAction === 'create') {
+        if ((!parentPageUUID && !spaceUUID) || !title || !markdown.trim()) {
+          throw new Error(
+            `Wiki create output "${fieldUUIDPath}" requires parent-page-uuid or space-uuid, title, and markdown`
+          );
+        }
+      } else {
+        if ((!targetPageUUID && !targetPageName) || !markdown.trim()) {
+          throw new Error(
+            `Wiki ${rawAction} output "${fieldUUIDPath}" requires a target page and markdown`
+          );
+        }
+      }
+
+      result.push({
+        mode: 'wiki_page',
+        fieldUUIDPath,
+        action: rawAction,
+        targetPageUUID,
+        targetPageName,
+        parentPageUUID,
+        spaceUUID,
+        title,
+        markdown
+      });
+      continue;
+    }
+
     if (usesObjectOutput(field)) {
-      const rawFieldWriteMode = parseXmlTagContent(outputBlock, 'field-write-mode');
+      const rawFieldWriteMode = parseXmlTagContent(
+        outputBlock,
+        'field-write-mode'
+      );
       const fieldWriteMode: ParsedFieldWriteMode =
         rawFieldWriteMode === 'set' || rawFieldWriteMode === 'append'
           ? rawFieldWriteMode
@@ -394,7 +481,11 @@ export function parseAgentOutputString(
         mode: 'object_values',
         fieldUUIDPath,
         fieldWriteMode,
-        objects: parseObjectCollection(outputBlock, field, `output "${fieldUUIDPath}"`)
+        objects: parseObjectCollection(
+          outputBlock,
+          field,
+          `output "${fieldUUIDPath}"`
+        )
       });
       continue;
     }
@@ -402,7 +493,9 @@ export function parseAgentOutputString(
     const content = parseXmlTagContent(outputBlock, 'set-value');
 
     if (content === null) {
-      throw new Error(`Missing <set-value> for output field "${fieldUUIDPath}"`);
+      throw new Error(
+        `Missing <set-value> for output field "${fieldUUIDPath}"`
+      );
     }
 
     result.push({
@@ -437,6 +530,18 @@ export interface ParsedAgentOutputObject {
   fields: Record<string, ParsedAgentObjectFieldValue>;
 }
 
+export interface ParsedAgentWikiPageOutput {
+  mode: 'wiki_page';
+  fieldUUIDPath: string;
+  action: 'create' | 'replace' | 'append';
+  targetPageUUID: string | null;
+  targetPageName: string | null;
+  parentPageUUID: string | null;
+  spaceUUID: string | null;
+  title: string | null;
+  markdown: string;
+}
+
 export type ParsedAgentObjectFieldValue = string | ParsedAgentOutputObject[];
 
 export interface ParsedAgentObjectValuesOutput {
@@ -448,4 +553,5 @@ export interface ParsedAgentObjectValuesOutput {
 
 export type ParsedAgentOutput =
   | ParsedAgentSetValueOutput
-  | ParsedAgentObjectValuesOutput;
+  | ParsedAgentObjectValuesOutput
+  | ParsedAgentWikiPageOutput;

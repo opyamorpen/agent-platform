@@ -7,6 +7,7 @@ import {
   listOnesIssueStatusesHandler,
   listOnesIssueTypesHandler,
   listOnesProjectsHandler,
+  listOnesWikiSpacesHandler,
   searchOnesUsersHandler
 } from './controller.js';
 
@@ -22,4 +23,5 @@ onesRoutes.get('/fields', listOnesFieldsHandler);
 onesRoutes.get('/projects', listOnesProjectsHandler);
 onesRoutes.get('/issue-types', listOnesIssueTypesHandler);
 onesRoutes.get('/issue-statuses', listOnesIssueStatusesHandler);
+onesRoutes.get('/wiki/spaces', listOnesWikiSpacesHandler);
 onesRoutes.get('/users/search', searchOnesUsersHandler);

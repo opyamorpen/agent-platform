@@ -1,9 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import {
-  parseAgentOutputString
-} from '@ones-ai-workflow/shared';
+import { parseAgentOutputString } from '@ones-ai-workflow/shared';
 import type {
   AgentConfig,
+  AgentInput,
   AgentInputField,
   AgentOutputField,
   AgentOutputSetValueField,
@@ -14,6 +13,7 @@ import type {
   AgentClientTask,
   AgentClientTaskReport,
   IssueExecutionStatus,
+  ParsedAgentWikiPageOutput,
   RefObject
 } from '@ones-ai-workflow/shared';
 import { findAgentByUUID, findAgentVersion } from '../agents/repository.js';
@@ -89,6 +89,12 @@ import {
   updateAgentClientDisplay,
   upsertAgentClientConnectionRequest
 } from './repository.js';
+import { buildAgentWikiRuntimeContext } from './wiki-context.js';
+import {
+  applyWikiWritePlan,
+  buildWikiWritePlan,
+  type WikiWritePlan
+} from './wiki-output.js';
 
 type WorkflowNodeMap = Map<string, WorkflowNodeRecord>;
 type AgentConfigCache = Map<string, AgentConfig | null>;
@@ -170,6 +176,7 @@ type OutputWritePlan = {
   issueComments: ScopedIssueComment[];
   issueAttachments: ScopedIssueAttachment[];
   statusFieldValues: ScopedStatusFieldValue[];
+  wikiWrites: WikiWritePlan[];
 };
 type ParsedAgentSetValueOutput = {
   mode: 'set_value';
@@ -192,7 +199,8 @@ type ParsedAgentObjectValuesOutput = {
 };
 type ParsedAgentOutputItem =
   | ParsedAgentSetValueOutput
-  | ParsedAgentObjectValuesOutput;
+  | ParsedAgentObjectValuesOutput
+  | ParsedAgentWikiPageOutput;
 type ParsedTaskExecuteResult = {
   outputs: ParsedAgentOutputItem[];
 };
@@ -244,7 +252,13 @@ const MULTI_REFERENCE_OBJECT_VALUE_TYPE = 'multi_reference_object';
 const AGENT_CLIENT_OFFLINE_THRESHOLD_MS = 10_000;
 const TASK_STARTED_COMMENT_FETCH_LIMIT = 100;
 const logger = getLogger('agent-client-exchange');
-type OutputWriteStage = 'creates' | 'fields' | 'comments' | 'attachments' | 'statuses';
+type OutputWriteStage =
+  | 'creates'
+  | 'fields'
+  | 'comments'
+  | 'attachments'
+  | 'wiki'
+  | 'statuses';
 
 type IssueTriggerSnapshot = {
   statusUUID: string;
@@ -273,7 +287,10 @@ function isCommentOutputField(field: {
   fieldUUID: string;
   fieldReferenceObjectType: string | null;
 }): boolean {
-  return isCommentField(field.fieldUUID) || field.fieldReferenceObjectType === COMMENT_OBJECT_TYPE;
+  return (
+    isCommentField(field.fieldUUID) ||
+    field.fieldReferenceObjectType === COMMENT_OBJECT_TYPE
+  );
 }
 
 function isAttachmentField(field: {
@@ -313,17 +330,20 @@ function getAgentClientStatus(
     : 'offline';
 }
 
-function toAgentClient(record: {
-  hostname: string;
-  version: string;
-  connectionStatus: AgentClient['connectionStatus'];
-  uuid: string;
-  name: string;
-  requestedAt: Date;
-  approvedAt: Date | null;
-  revokedAt: Date | null;
-  lastExchangeAt: Date | null;
-}, now: Date = new Date()): AgentClient {
+function toAgentClient(
+  record: {
+    hostname: string;
+    version: string;
+    connectionStatus: AgentClient['connectionStatus'];
+    uuid: string;
+    name: string;
+    requestedAt: Date;
+    approvedAt: Date | null;
+    revokedAt: Date | null;
+    lastExchangeAt: Date | null;
+  },
+  now: Date = new Date()
+): AgentClient {
   return {
     uuid: record.uuid,
     name: record.name,
@@ -460,7 +480,9 @@ export async function getAgentClients(): Promise<AgentClient[]> {
   return agentClients.map((agentClient) => toAgentClient(agentClient, now));
 }
 
-export async function approveAgentClientConnection(uuid: string): Promise<AgentClient> {
+export async function approveAgentClientConnection(
+  uuid: string
+): Promise<AgentClient> {
   const agentClient = await approveAgentClient({
     uuid,
     approvedAt: new Date()
@@ -473,7 +495,9 @@ export async function approveAgentClientConnection(uuid: string): Promise<AgentC
   return toAgentClient(agentClient);
 }
 
-export async function revokeAgentClientConnection(uuid: string): Promise<AgentClient> {
+export async function revokeAgentClientConnection(
+  uuid: string
+): Promise<AgentClient> {
   const agentClient = await revokeAgentClient(uuid, new Date());
 
   if (!agentClient) {
@@ -552,7 +576,9 @@ export function normalizeExecutePayloadValue(value: unknown): unknown {
   }
 
   if (Array.isArray(value) && value.every((item) => isRefObject(item))) {
-    return value.map((item) => `- ${formatRefObjectForPrompt(item)}`).join('\n');
+    return value
+      .map((item) => `- ${formatRefObjectForPrompt(item)}`)
+      .join('\n');
   }
 
   return value;
@@ -587,7 +613,10 @@ export function getTaskExecuteOptionMetadata(agentConfig: AgentConfig) {
             })
           ) {
             attachmentOutputPaths.push(
-              buildAttachmentUploadOutputName(output.field.uuid, subField.field.uuid)
+              buildAttachmentUploadOutputName(
+                output.field.uuid,
+                subField.field.uuid
+              )
             );
           }
         }
@@ -601,7 +630,11 @@ export function getTaskExecuteOptionMetadata(agentConfig: AgentConfig) {
 function getTaskAttachmentUploads(
   executeOption: unknown
 ): AttachmentOutputRecord[] {
-  if (!executeOption || typeof executeOption !== 'object' || Array.isArray(executeOption)) {
+  if (
+    !executeOption ||
+    typeof executeOption !== 'object' ||
+    Array.isArray(executeOption)
+  ) {
     return [];
   }
 
@@ -621,13 +654,15 @@ function normalizeAttachmentOutputRecords(
     (attachmentOutput): attachmentOutput is AttachmentOutputRecord =>
       typeof attachmentOutput === 'object' &&
       attachmentOutput !== null &&
-      typeof (attachmentOutput as { outputName?: unknown }).outputName === 'string' &&
+      typeof (attachmentOutput as { outputName?: unknown }).outputName ===
+        'string' &&
       Array.isArray((attachmentOutput as { uploads?: unknown }).uploads) &&
       (attachmentOutput as { uploads: unknown[] }).uploads.every(
         (upload) =>
           typeof upload === 'object' &&
           upload !== null &&
-          typeof (upload as { resourceToken?: unknown }).resourceToken === 'string' &&
+          typeof (upload as { resourceToken?: unknown }).resourceToken ===
+            'string' &&
           typeof (upload as { fileName?: unknown }).fileName === 'string' &&
           typeof (upload as { localPath?: unknown }).localPath === 'string'
       )
@@ -658,7 +693,7 @@ async function loadAgentConfig(
 }
 
 function getAgentInputFieldPath(
-  input: AgentInputField,
+  input: AgentInput,
   subField?: AgentInputField
 ): {
   uuidPath: string;
@@ -701,11 +736,7 @@ function toReferenceUUIDList(value: unknown): string[] {
   }
 
   return Array.from(
-    new Set(
-      value
-        .map((item) => String(item ?? '').trim())
-        .filter(Boolean)
-    )
+    new Set(value.map((item) => String(item ?? '').trim()).filter(Boolean))
   );
 }
 
@@ -713,7 +744,9 @@ function buildAttachmentUploadOutputName(
   outputFieldUUIDPath: string,
   fieldUUID?: string
 ): string {
-  return fieldUUID ? `${outputFieldUUIDPath}.${fieldUUID}` : outputFieldUUIDPath;
+  return fieldUUID
+    ? `${outputFieldUUIDPath}.${fieldUUID}`
+    : outputFieldUUIDPath;
 }
 
 function consumeAttachmentUploadsForOutput(
@@ -804,7 +837,9 @@ async function loadIssueFieldValue(
   );
 
   if (!fieldValues) {
-    throw new Error(`ONES issue not found when loading field value: ${issueUUID}`);
+    throw new Error(
+      `ONES issue not found when loading field value: ${issueUUID}`
+    );
   }
 
   const value = fieldValues[field.uuid] ?? null;
@@ -884,7 +919,7 @@ async function buildNestedAgentInputContextFields(
 }
 
 async function buildAgentInputContextField(
-  input: AgentInputField,
+  input: AgentInput,
   rootValue: unknown,
   onesContext: OnesOpenApiContext,
   cache: Map<string, unknown>
@@ -926,30 +961,37 @@ async function buildAgentInputContextField(
           ? []
           : null
         : input.field.valueType === SINGLE_REFERENCE_OBJECT_VALUE_TYPE
-          ? refObjects[0] ?? null
+          ? (refObjects[0] ?? null)
           : refObjects
   };
 }
 
 async function buildInputContext(
   issueUUID: string,
-  inputs: AgentInputField[],
+  inputs: AgentInput[],
   onesContext: OnesOpenApiContext
 ) {
   const rootFields = Array.from(
     new Map(
-      inputs.map((input) => [
-        input.field.uuid,
-        {
-          uuid: input.field.uuid,
-          alias: input.field.uuid,
-          valueType: input.field.valueType,
-          referenceObjectType: input.field.referenceObjectType
-        }
-      ] as const)
+      inputs.map(
+        (input) =>
+          [
+            input.field.uuid,
+            {
+              uuid: input.field.uuid,
+              alias: input.field.uuid,
+              valueType: input.field.valueType,
+              referenceObjectType: input.field.referenceObjectType
+            }
+          ] as const
+      )
     ).values()
   );
-  const rootFieldValues = await getIssueFieldValues(issueUUID, rootFields, onesContext);
+  const rootFieldValues = await getIssueFieldValues(
+    issueUUID,
+    rootFields,
+    onesContext
+  );
   const rootIssue = await getIssue(issueUUID, onesContext);
 
   if (!rootFieldValues || !rootIssue) {
@@ -990,7 +1032,12 @@ async function buildInputContext(
         );
       }
 
-      return buildAgentInputContextField(input, rootValue, onesContext, valueCache);
+      return buildAgentInputContextField(
+        input,
+        rootValue,
+        onesContext,
+        valueCache
+      );
     })
   );
   const inputContextXml = buildAgentInputContextXml({
@@ -1010,19 +1057,27 @@ async function getParentIssueRef(
   issueUUID: string,
   onesContext: OnesOpenApiContext
 ): Promise<RefObject | null> {
-  const parentFieldValues = await getIssueFieldValues(issueUUID, [
-    {
-      uuid: PARENT_ISSUE_FIELD_UUID,
-      alias: 'parent',
-      valueType: SINGLE_REFERENCE_OBJECT_VALUE_TYPE
-    }
-  ], onesContext);
+  const parentFieldValues = await getIssueFieldValues(
+    issueUUID,
+    [
+      {
+        uuid: PARENT_ISSUE_FIELD_UUID,
+        alias: 'parent',
+        valueType: SINGLE_REFERENCE_OBJECT_VALUE_TYPE
+      }
+    ],
+    onesContext
+  );
 
   if (!parentFieldValues) {
-    throw new Error(`ONES issue not found when resolving parent issue: ${issueUUID}`);
+    throw new Error(
+      `ONES issue not found when resolving parent issue: ${issueUUID}`
+    );
   }
 
-  return isRefObject(parentFieldValues.parent) ? parentFieldValues.parent : null;
+  return isRefObject(parentFieldValues.parent)
+    ? parentFieldValues.parent
+    : null;
 }
 
 function appendLogMessage(logs: string, message: string): string {
@@ -1047,7 +1102,11 @@ export function hasTaskCommentSinceQueuedAt(
 ): boolean {
   const normalizedText = expectedText.trim();
 
-  if (!normalizedText || !(queuedAt instanceof Date) || Number.isNaN(queuedAt.getTime())) {
+  if (
+    !normalizedText ||
+    !(queuedAt instanceof Date) ||
+    Number.isNaN(queuedAt.getTime())
+  ) {
     return false;
   }
 
@@ -1102,7 +1161,10 @@ function parseOnesCommentTimestamp(value?: string): number {
   return Date.parse(normalizedValue);
 }
 
-function summarizeForLog(value: string | undefined, limit = 500): string | undefined {
+function summarizeForLog(
+  value: string | undefined,
+  limit = 500
+): string | undefined {
   const normalizedValue = value?.trim();
 
   if (!normalizedValue) {
@@ -1114,7 +1176,10 @@ function summarizeForLog(value: string | undefined, limit = 500): string | undef
     : `${normalizedValue.slice(0, limit)}...`;
 }
 
-function summarizeUnknownForLog(value: unknown, limit = 500): string | undefined {
+function summarizeUnknownForLog(
+  value: unknown,
+  limit = 500
+): string | undefined {
   if (typeof value === 'string') {
     return summarizeForLog(value, limit);
   }
@@ -1227,7 +1292,8 @@ function formatPrepareExecuteResultContext(
 }
 
 function buildPrepareExecuteResultFailureMessage(error: unknown): string {
-  const baseMessage = '[system] failed to prepare execute result for ONES write-back';
+  const baseMessage =
+    '[system] failed to prepare execute result for ONES write-back';
   const preparedError = findNestedError(
     error,
     (candidate): candidate is PrepareExecuteResultError =>
@@ -1235,11 +1301,13 @@ function buildPrepareExecuteResultFailureMessage(error: unknown): string {
   );
   const requestError = findNestedError(
     error,
-    (candidate): candidate is OnesRequestError => candidate instanceof OnesRequestError
+    (candidate): candidate is OnesRequestError =>
+      candidate instanceof OnesRequestError
   );
   const responseError = findNestedError(
     error,
-    (candidate): candidate is OnesResponseError => candidate instanceof OnesResponseError
+    (candidate): candidate is OnesResponseError =>
+      candidate instanceof OnesResponseError
   );
   const parts = preparedError
     ? formatPrepareExecuteResultContext(preparedError.context)
@@ -1251,7 +1319,8 @@ function buildPrepareExecuteResultFailureMessage(error: unknown): string {
     parts.push(`ONES code=${responseError.code}`);
   }
 
-  const detailPrefix = parts.length > 0 ? `${baseMessage} (${parts.join(', ')})` : baseMessage;
+  const detailPrefix =
+    parts.length > 0 ? `${baseMessage} (${parts.join(', ')})` : baseMessage;
   const message = error instanceof Error ? error.message : String(error);
 
   return `${detailPrefix}: ${message}`;
@@ -1280,7 +1349,9 @@ function buildOutputWriteErrorContext(error: unknown): Record<string, unknown> {
   };
 }
 
-function buildPrepareExecuteResultErrorContext(error: unknown): Record<string, unknown> {
+function buildPrepareExecuteResultErrorContext(
+  error: unknown
+): Record<string, unknown> {
   const preparedError = findNestedError(
     error,
     (candidate): candidate is PrepareExecuteResultError =>
@@ -1288,11 +1359,13 @@ function buildPrepareExecuteResultErrorContext(error: unknown): Record<string, u
   );
   const requestError = findNestedError(
     error,
-    (candidate): candidate is OnesRequestError => candidate instanceof OnesRequestError
+    (candidate): candidate is OnesRequestError =>
+      candidate instanceof OnesRequestError
   );
   const responseError = findNestedError(
     error,
-    (candidate): candidate is OnesResponseError => candidate instanceof OnesResponseError
+    (candidate): candidate is OnesResponseError =>
+      candidate instanceof OnesResponseError
   );
 
   return {
@@ -1377,7 +1450,9 @@ function getAgentOutputFieldUUIDPath(output: AgentOutputField): string {
   return output.field.uuid;
 }
 
-function getAgentOutputSetValueEntryPath(fieldChain: AgentOutputSetValueField[]) {
+function getAgentOutputSetValueEntryPath(
+  fieldChain: AgentOutputSetValueField[]
+) {
   return fieldChain.map((field) => field.field.uuid).join('.');
 }
 
@@ -1528,7 +1603,11 @@ async function buildOutputFieldValueForWrite(
   fieldWriteMode: ReferenceFieldWriteMode,
   onesContext: OnesOpenApiContext
 ): Promise<unknown> {
-  const resolvedValue = await toIssueOutputFieldValue(field, rawValue, onesContext);
+  const resolvedValue = await toIssueOutputFieldValue(
+    field,
+    rawValue,
+    onesContext
+  );
 
   if (
     field.fieldValueType !== MULTI_REFERENCE_OBJECT_VALUE_TYPE ||
@@ -1558,7 +1637,9 @@ async function buildOutputFieldValueForWrite(
 
   const resolvedItems = Array.isArray(resolvedValue)
     ? resolvedValue
-    : resolvedValue === null || resolvedValue === undefined || resolvedValue === ''
+    : resolvedValue === null ||
+        resolvedValue === undefined ||
+        resolvedValue === ''
       ? []
       : [resolvedValue];
 
@@ -1588,7 +1669,9 @@ function getIssueReferenceFieldValueType(
     valueType !== SINGLE_REFERENCE_OBJECT_VALUE_TYPE &&
     valueType !== MULTI_REFERENCE_OBJECT_VALUE_TYPE
   ) {
-    throw new Error(`Unsupported issue reference field value type: ${valueType}`);
+    throw new Error(
+      `Unsupported issue reference field value type: ${valueType}`
+    );
   }
 
   return valueType;
@@ -1632,8 +1715,12 @@ function getAttachmentOutputLocalPath(
   return localPath.trim();
 }
 
-function hasAttachmentOutputLocalPath(objectValue: ParsedAgentOutputObject): boolean {
-  return typeof objectValue.fields[ATTACHMENT_LOCAL_PATH_FIELD_UUID] === 'string';
+function hasAttachmentOutputLocalPath(
+  objectValue: ParsedAgentOutputObject
+): boolean {
+  return (
+    typeof objectValue.fields[ATTACHMENT_LOCAL_PATH_FIELD_UUID] === 'string'
+  );
 }
 
 function getCommentOutputText(
@@ -1746,14 +1833,23 @@ async function buildIssueObjectFieldValues(
         );
       }
 
-      if (isAttachmentField(targetField) && isParsedObjectFieldValueArray(rawValue)) {
-        const uploadObjects = rawValue.filter((item) => hasAttachmentOutputLocalPath(item));
+      if (
+        isAttachmentField(targetField) &&
+        isParsedObjectFieldValueArray(rawValue)
+      ) {
+        const uploadObjects = rawValue.filter((item) =>
+          hasAttachmentOutputLocalPath(item)
+        );
         const referenceObjects = rawValue.filter(
           (item) => !hasAttachmentOutputLocalPath(item)
         );
         const referenceValue =
           referenceObjects.length > 0
-            ? await toIssueOutputFieldValue(targetField, referenceObjects, onesContext)
+            ? await toIssueOutputFieldValue(
+                targetField,
+                referenceObjects,
+                onesContext
+              )
             : targetField.fieldValueType === SINGLE_REFERENCE_OBJECT_VALUE_TYPE
               ? ''
               : [];
@@ -1839,17 +1935,15 @@ export async function buildIssueOutputWritePlan(
       issueFieldValues: [],
       issueComments: [],
       issueAttachments: [],
-      statusFieldValues: []
+      statusFieldValues: [],
+      wikiWrites: []
     };
   }
 
   const parsedOutputsByFieldUUIDPath = new Map(
     executeResults.map((output) => [output.fieldUUIDPath, output] as const)
   );
-  const attachmentUploadsByOutputName = new Map<
-    string,
-    AttachmentUpload[]
-  >(
+  const attachmentUploadsByOutputName = new Map<string, AttachmentUpload[]>(
     normalizeAttachmentOutputRecords(
       attachmentUploads ?? getTaskAttachmentUploads(task.executeOption)
     ).map((attachmentOutput) => [
@@ -1864,7 +1958,9 @@ export async function buildIssueOutputWritePlan(
   const statusFieldValues: ScopedStatusFieldValue[] = [];
   const createRefObjectPlans: CreateRefObjectPlan[] = [];
   const deferredIssueReferenceWrites: DeferredIssueReferenceWrite[] = [];
-  const deferredIssueAttachmentFieldWrites: DeferredIssueAttachmentFieldWrite[] = [];
+  const deferredIssueAttachmentFieldWrites: DeferredIssueAttachmentFieldWrite[] =
+    [];
+  const wikiWrites: WikiWritePlan[] = [];
 
   for (const output of agentConfig.outputs) {
     let currentOutputAlias = getAgentOutputFieldUUIDPath(output);
@@ -1875,10 +1971,32 @@ export async function buildIssueOutputWritePlan(
 
     try {
       if (!parsedOutput) {
-        throw new Error(`Missing execute result for output "${outputFieldUUIDPath}"`);
+        throw new Error(
+          `Missing execute result for output "${outputFieldUUIDPath}"`
+        );
       }
 
       currentParsedOutput = parsedOutput;
+
+      if (output.kind === 'wiki_page') {
+        if (parsedOutput.mode !== 'wiki_page') {
+          throw new Error(
+            `Output "${outputFieldUUIDPath}" must use <wiki-action>`
+          );
+        }
+
+        wikiWrites.push(
+          await buildWikiWritePlan({
+            output: parsedOutput,
+            field: output,
+            executeOption: task.executeOption,
+            knowledgeSourceUUIDs: agentConfig.knowledgeSourceUUIDs,
+            onesContext
+          })
+        );
+        continue;
+      }
+
       const targetField = toFieldValueMetadata({
         fieldUUID: output.field.uuid,
         fieldName: output.field.name,
@@ -1888,7 +2006,9 @@ export async function buildIssueOutputWritePlan(
 
       if (!isObjectOutputField(output)) {
         if (parsedOutput.mode !== 'set_value') {
-          throw new Error(`Output "${outputFieldUUIDPath}" must use <set-value>`);
+          throw new Error(
+            `Output "${outputFieldUUIDPath}" must use <set-value>`
+          );
         }
 
         const rawValue = (parsedOutput as ParsedAgentSetValueOutput).value;
@@ -2088,7 +2208,9 @@ export async function buildIssueOutputWritePlan(
           outputFieldUUIDPath,
           targetIssueUUID: task.issueExecution.dispatchedIssueUUID,
           targetFieldUUID: output.field.uuid,
-          targetFieldValueType: getIssueReferenceFieldValueType(output.field.valueType),
+          targetFieldValueType: getIssueReferenceFieldValueType(
+            output.field.valueType
+          ),
           fieldWriteMode,
           fieldValues
         });
@@ -2110,14 +2232,19 @@ export async function buildIssueOutputWritePlan(
           outputFieldUUIDPath,
           targetIssueUUID: task.issueExecution.dispatchedIssueUUID,
           targetFieldUUID: output.field.uuid,
-          targetFieldValueType: getIssueReferenceFieldValueType(output.field.valueType),
+          targetFieldValueType: getIssueReferenceFieldValueType(
+            output.field.valueType
+          ),
           fieldWriteMode,
           updatedIssueUUIDs
         });
       }
     } catch (error) {
       throw withPrepareExecuteResultContext(error, {
-        phase: output.subFields.length > 0 ? 'build_create_issue_plan' : 'build_output_write_plan',
+        phase:
+          output.subFields.length > 0
+            ? 'build_create_issue_plan'
+            : 'build_output_write_plan',
         outputAlias: currentOutputAlias,
         fieldUUID: output.field.uuid,
         fieldValueType: output.field.valueType,
@@ -2125,7 +2252,13 @@ export async function buildIssueOutputWritePlan(
           currentParsedOutput
             ? currentParsedOutput.mode === 'set_value'
               ? currentParsedOutput.value
-              : currentParsedOutput.objects
+              : currentParsedOutput.mode === 'object_values'
+                ? currentParsedOutput.objects
+                : {
+                    action: currentParsedOutput.action,
+                    targetPageUUID: currentParsedOutput.targetPageUUID,
+                    targetPageName: currentParsedOutput.targetPageName
+                  }
             : null
         )
       });
@@ -2147,12 +2280,14 @@ export async function buildIssueOutputWritePlan(
     issueFieldValues,
     issueComments,
     issueAttachments,
-    statusFieldValues
+    statusFieldValues,
+    wikiWrites
   };
 }
 
 function parseReferenceNames(rawValue: unknown): string[] {
-  const stringValue = typeof rawValue === 'string' ? rawValue : String(rawValue ?? '');
+  const stringValue =
+    typeof rawValue === 'string' ? rawValue : String(rawValue ?? '');
 
   return Array.from(
     new Set(
@@ -2203,7 +2338,9 @@ function extractFieldOptionDisplayNameFromValue(value: unknown): string {
   return '';
 }
 
-function extractFieldOptionDisplayName(option: Record<string, unknown>): string {
+function extractFieldOptionDisplayName(
+  option: Record<string, unknown>
+): string {
   return extractFieldOptionDisplayNameFromValue(option);
 }
 
@@ -2229,7 +2366,8 @@ function extractUserCandidateNames(user: {
   staffID?: string;
 }): string[] {
   return [user.name, user.email, user.staffID].filter(
-    (value): value is string => typeof value === 'string' && value.trim().length > 0
+    (value): value is string =>
+      typeof value === 'string' && value.trim().length > 0
   );
 }
 
@@ -2262,7 +2400,8 @@ export function findExactUserMatches<
 
   return users.filter((user) =>
     extractUserCandidateNames(user).some(
-      (candidate) => normalizeReferenceCandidateName(candidate) === normalizedInput
+      (candidate) =>
+        normalizeReferenceCandidateName(candidate) === normalizedInput
     )
   );
 }
@@ -2390,7 +2529,9 @@ async function resolveReferenceFieldObjectUUID(
 
       throw new Error(
         `Output field "${field.fieldName}" cannot resolve user "${objectName}"${
-          candidateNames.length > 0 ? `, candidates: ${candidateNames.join(', ')}` : ''
+          candidateNames.length > 0
+            ? `, candidates: ${candidateNames.join(', ')}`
+            : ''
         }`
       );
     }
@@ -2435,7 +2576,9 @@ async function resolveReferenceFieldObjectUUID(
 
     throw new Error(
       `Output field "${field.fieldName}" cannot resolve reference "${objectName}"${
-        candidateNames.length > 0 ? `, candidates: ${candidateNames.join(', ')}` : ''
+        candidateNames.length > 0
+          ? `, candidates: ${candidateNames.join(', ')}`
+          : ''
       }`
     );
   }
@@ -2493,7 +2636,10 @@ async function resolveReferenceFieldValue(
     }
   }
 
-  if (field.fieldValueType === MULTI_REFERENCE_OBJECT_VALUE_TYPE && names.length === 0) {
+  if (
+    field.fieldValueType === MULTI_REFERENCE_OBJECT_VALUE_TYPE &&
+    names.length === 0
+  ) {
     return [];
   }
 
@@ -2606,7 +2752,8 @@ async function toIssueOutputFieldValue(
   rawValue: unknown,
   onesContext: OnesOpenApiContext
 ): Promise<unknown> {
-  const stringValue = typeof rawValue === 'string' ? rawValue : String(rawValue ?? '');
+  const stringValue =
+    typeof rawValue === 'string' ? rawValue : String(rawValue ?? '');
 
   if (
     field.fieldValueType === SINGLE_REFERENCE_OBJECT_VALUE_TYPE ||
@@ -2688,7 +2835,8 @@ async function prepareTaskReport(
     issueFieldValues: [],
     issueComments: [],
     issueAttachments: [],
-    statusFieldValues: []
+    statusFieldValues: [],
+    wikiWrites: []
   };
   const onesContext = getExecutorOnesContext(task, teamUUID);
 
@@ -2747,7 +2895,9 @@ async function prepareTaskReport(
     executeResult,
     outputWritePlan,
     startedAt: report.startedAt ? new Date(report.startedAt) : task.startedAt,
-    finishedAt: report.finishedAt ? new Date(report.finishedAt) : task.finishedAt
+    finishedAt: report.finishedAt
+      ? new Date(report.finishedAt)
+      : task.finishedAt
   };
 }
 
@@ -2776,7 +2926,9 @@ async function getIssueTriggerSnapshot(
   const assignee = values?.assignee;
 
   if (!isRefObject(status) || !isRefObject(assignee)) {
-    throw new Error('Failed to read issue trigger snapshot after task execution');
+    throw new Error(
+      'Failed to read issue trigger snapshot after task execution'
+    );
   }
 
   return {
@@ -2793,17 +2945,25 @@ async function writeTaskOutputsToIssue(
     return;
   }
 
-  const scopedFieldValuesByIssueUUID = new Map<string, ScopedIssueFieldValue[]>();
+  const scopedFieldValuesByIssueUUID = new Map<
+    string,
+    ScopedIssueFieldValue[]
+  >();
 
   for (const fieldValue of outputFieldValues) {
     const currentScopedFieldValues =
       scopedFieldValuesByIssueUUID.get(fieldValue.issueUUID) ?? [];
     currentScopedFieldValues.push(fieldValue);
-    scopedFieldValuesByIssueUUID.set(fieldValue.issueUUID, currentScopedFieldValues);
+    scopedFieldValuesByIssueUUID.set(
+      fieldValue.issueUUID,
+      currentScopedFieldValues
+    );
   }
 
-  for (const [targetIssueUUID, scopedFieldValues] of scopedFieldValuesByIssueUUID.entries()) {
-
+  for (const [
+    targetIssueUUID,
+    scopedFieldValues
+  ] of scopedFieldValuesByIssueUUID.entries()) {
     if (scopedFieldValues.length === 0) {
       continue;
     }
@@ -2991,9 +3151,7 @@ async function uploadStagedAttachmentToIssue(
   }
 }
 
-export function buildCreateIssueRequest(
-  plan: CreateRefObjectPlan
-): {
+export function buildCreateIssueRequest(plan: CreateRefObjectPlan): {
   projectID: string;
   issueTypeID: string;
   title: string;
@@ -3060,15 +3218,21 @@ export function buildCreateIssueRequest(
   }
 
   if (!projectID) {
-    throw new Error(`Create "${plan.outputFieldUUIDPath}" is missing project field`);
+    throw new Error(
+      `Create "${plan.outputFieldUUIDPath}" is missing project field`
+    );
   }
 
   if (!issueTypeID) {
-    throw new Error(`Create "${plan.outputFieldUUIDPath}" is missing issue type field`);
+    throw new Error(
+      `Create "${plan.outputFieldUUIDPath}" is missing issue type field`
+    );
   }
 
   if (!title) {
-    throw new Error(`Create "${plan.outputFieldUUIDPath}" is missing title field`);
+    throw new Error(
+      `Create "${plan.outputFieldUUIDPath}" is missing title field`
+    );
   }
 
   return {
@@ -3146,13 +3310,15 @@ async function buildDeferredIssueReferenceFieldValues(
         deferredWrite.targetFieldValueType,
         [
           ...deferredWrite.updatedIssueUUIDs,
-          ...(createdIssueUUIDsByOutputPath.get(deferredWrite.outputFieldUUIDPath) ?? [])
+          ...(createdIssueUUIDsByOutputPath.get(
+            deferredWrite.outputFieldUUIDPath
+          ) ?? [])
         ],
         deferredWrite.fieldWriteMode,
         onesContext
       ),
       outputFieldUUIDPath: deferredWrite.outputFieldUUIDPath
-      }))
+    }))
   );
 }
 
@@ -3243,7 +3409,9 @@ async function transitionIssueStatusesIfNeeded(
 
     const issueStatuses = await listIssueStatuses(onesContext);
     const matchedStatuses = targetStatusUUID
-      ? issueStatuses.filter((issueStatus) => issueStatus.id === targetStatusUUID)
+      ? issueStatuses.filter(
+          (issueStatus) => issueStatus.id === targetStatusUUID
+        )
       : issueStatuses.filter(
           (issueStatus) =>
             normalizeReferenceCandidateName(issueStatus.name) ===
@@ -3367,7 +3535,9 @@ async function refreshIssueExecutionAggregate(
   const workflowNode = workflowNodeMap.get(issueExecution.workflowNodeUUID);
 
   if (!workflowNode) {
-    throw new InvalidAgentClientTaskReportError(issueExecution.workflowNodeUUID);
+    throw new InvalidAgentClientTaskReportError(
+      issueExecution.workflowNodeUUID
+    );
   }
 
   const status = getExecutionStatus(issueExecution);
@@ -3384,7 +3554,7 @@ async function refreshIssueExecutionAggregate(
       status,
       blockReason:
         status === 'blocked'
-          ? blockReasonOverride ?? issueExecution.blockReason ?? 'blocked'
+          ? (blockReasonOverride ?? issueExecution.blockReason ?? 'blocked')
           : null,
       currentAgentUUID,
       startedAt,
@@ -3525,6 +3695,13 @@ async function applyTaskReport(
         finalLogs,
         '[system] wrote execute result to ONES attachments'
       );
+      outputWriteStage = 'wiki';
+      for (const wikiWrite of preparedReport.outputWritePlan.wikiWrites) {
+        finalLogs = appendLogMessage(
+          finalLogs,
+          await applyWikiWritePlan(wikiWrite, onesContext)
+        );
+      }
       outputWriteStage = 'statuses';
 
       const transitionLogs = await transitionIssueStatusesIfNeeded(
@@ -3545,25 +3722,37 @@ async function applyTaskReport(
         );
       }
     } catch (error) {
-      logger.error('[agent-client-exchange] failed to write task outputs to ONES', {
-        taskUUID: preparedReport.taskUUID,
-        issueExecutionUUID: preparedReport.issueExecutionUUID,
-        dispatchedIssueUUID: preparedReport.dispatchedIssueUUID,
-        executorUUID: preparedReport.executorUUID,
-        clientUUID: client.uuid,
-        stage: outputWriteStage,
-        createIssueCount: preparedReport.outputWritePlan.createRefObjectPlans.length,
-        fieldValueCount: preparedReport.outputWritePlan.issueFieldValues.length,
-        commentCount: preparedReport.outputWritePlan.issueComments.length,
-        attachmentGroupCount: preparedReport.outputWritePlan.issueAttachments.length,
-        attachmentFileCount: preparedReport.outputWritePlan.issueAttachments.reduce(
-          (count, issueAttachment) => count + issueAttachment.uploads.length,
-          0
-        ),
-        statusCount: preparedReport.outputWritePlan.statusFieldValues.length,
-        ...buildOutputWriteErrorContext(error)
-      });
-      finalStatus = 'failure';
+      logger.error(
+        '[agent-client-exchange] failed to write task outputs to ONES',
+        {
+          taskUUID: preparedReport.taskUUID,
+          issueExecutionUUID: preparedReport.issueExecutionUUID,
+          dispatchedIssueUUID: preparedReport.dispatchedIssueUUID,
+          executorUUID: preparedReport.executorUUID,
+          clientUUID: client.uuid,
+          stage: outputWriteStage,
+          createIssueCount:
+            preparedReport.outputWritePlan.createRefObjectPlans.length,
+          fieldValueCount:
+            preparedReport.outputWritePlan.issueFieldValues.length,
+          commentCount: preparedReport.outputWritePlan.issueComments.length,
+          attachmentGroupCount:
+            preparedReport.outputWritePlan.issueAttachments.length,
+          attachmentFileCount:
+            preparedReport.outputWritePlan.issueAttachments.reduce(
+              (count, issueAttachment) =>
+                count + issueAttachment.uploads.length,
+              0
+            ),
+          wikiWriteCount: preparedReport.outputWritePlan.wikiWrites.length,
+          statusCount: preparedReport.outputWritePlan.statusFieldValues.length,
+          ...buildOutputWriteErrorContext(error)
+        }
+      );
+      finalStatus = outputWriteStage === 'wiki' ? 'blocked' : 'failure';
+      if (outputWriteStage === 'wiki') {
+        finalBlockReason = 'wiki_write_failed';
+      }
       finalLogs = appendLogMessage(
         finalLogs,
         buildOutputWriteFailureMessage(outputWriteStage, error)
@@ -3605,7 +3794,9 @@ async function applyTaskReport(
       usageInputTokens: report.usage?.inputTokens ?? 0,
       usageOutputTokens: report.usage?.outputTokens ?? 0,
       queuedAt:
-        finalStatus === 'queued' ? task.queuedAt ?? exchangeAt : task.queuedAt,
+        finalStatus === 'queued'
+          ? (task.queuedAt ?? exchangeAt)
+          : task.queuedAt,
       lastReportedAt: exchangeAt,
       startedAt: preparedReport.startedAt,
       finishedAt: preparedReport.finishedAt
@@ -3638,7 +3829,9 @@ export function selectNextDispatchableTask(
     return null;
   }
 
-  return latestAgentExecution.status === 'created' ? latestAgentExecution : null;
+  return latestAgentExecution.status === 'created'
+    ? latestAgentExecution
+    : null;
 }
 
 async function resolveAgentTaskBindings(
@@ -3668,7 +3861,10 @@ async function resolveAgentTaskBindings(
   let readableEnvKeys: string[] = [];
 
   if (agent.workspaceUUID) {
-    const workspace = await findAgentWorkspaceByUUID(agent.workspaceUUID, teamUUID);
+    const workspace = await findAgentWorkspaceByUUID(
+      agent.workspaceUUID,
+      teamUUID
+    );
     const credentials = await listWorkspaceCredentialsByWorkspaceUUID(
       agent.workspaceUUID,
       teamUUID
@@ -3702,7 +3898,9 @@ async function resolveAgentTaskBindings(
 }
 
 function toAgentClientTask(
-  task: IssueAgentExecutionHistoryRecord | IssueAgentExecutionHistoryWithExecutionRecord,
+  task:
+    | IssueAgentExecutionHistoryRecord
+    | IssueAgentExecutionHistoryWithExecutionRecord,
   bindings: AgentTaskBindings
 ): AgentClientTask {
   return {
@@ -3801,6 +3999,8 @@ async function dispatchTasks(
 
     let executePayload: Record<string, unknown>;
     let inputContextXml: string;
+    let wikiInputsXml = '<wiki-inputs />';
+    let knowledgeContextXml = '<knowledge-context />';
 
     try {
       const onesContext = getExecutorOnesContext(nextTask, teamUUID);
@@ -3811,6 +4011,27 @@ async function dispatchTasks(
       );
       executePayload = inputContext.executePayload;
       inputContextXml = inputContext.inputContextXml;
+      const issue = await getIssue(
+        issueExecution.dispatchedIssueUUID,
+        onesContext
+      );
+      const wikiContext = await buildAgentWikiRuntimeContext({
+        issueUUID: issueExecution.dispatchedIssueUUID,
+        issueName: issue?.name?.trim() || issueExecution.dispatchedIssueUUID,
+        taskPrompt: agentConfig.prompt,
+        inputSummary: JSON.stringify(executePayload).slice(0, 4000),
+        inputs: agentConfig.inputs,
+        knowledgeSourceUUIDs: agentConfig.knowledgeSourceUUIDs,
+        onesContext
+      });
+      wikiInputsXml = wikiContext.wikiInputsXml;
+      knowledgeContextXml = wikiContext.knowledgeContextXml;
+      Object.assign(executeOption, {
+        wikiContext: {
+          inputPages: wikiContext.inputPages,
+          knowledgeSources: wikiContext.knowledgeSources
+        }
+      });
     } catch (error) {
       logger.error(
         '[agent-client-exchange] skip task dispatch because execute payload build failed',
@@ -3821,19 +4042,45 @@ async function dispatchTasks(
           error: error instanceof Error ? error.message : String(error)
         }
       );
+      await updateIssueAgentExecutionHistory(
+        {
+          uuid: nextTask.uuid,
+          status: 'blocked',
+          logs: appendLogMessage(
+            nextTask.logs,
+            `[system] blocked while preparing Wiki or input context: ${error instanceof Error ? error.message : String(error)}`
+          ),
+          executeResult: toJsonObject(
+            typeof nextTask.executeResult === 'object' &&
+              nextTask.executeResult !== null &&
+              !Array.isArray(nextTask.executeResult)
+              ? (nextTask.executeResult as Record<string, unknown>)
+              : {}
+          ),
+          executeClientUUID: client.uuid,
+          executeClientName: client.name,
+          finishedAt: exchangeAt
+        },
+        teamUUID
+      );
+      await refreshIssueExecutionAggregate(
+        issueExecution.uuid,
+        workflowNodeMap,
+        'wiki_or_input_context_error',
+        teamUUID
+      );
       continue;
     }
 
     let prompt: string;
 
     try {
-      prompt = buildAgentPrompt(
-        agentConfig,
-        {
-          inputContextXml,
-          readableEnvKeys: bindings.readableEnvKeys
-        }
-      );
+      prompt = buildAgentPrompt(agentConfig, {
+        inputContextXml,
+        wikiInputsXml,
+        knowledgeContextXml,
+        readableEnvKeys: bindings.readableEnvKeys
+      });
     } catch (error) {
       logger.error(
         '[agent-client-exchange] skip task dispatch because prompt render failed',
@@ -3929,7 +4176,9 @@ export async function reportAgentClientTasks(
   const agentConfigCache: AgentConfigCache = new Map();
 
   for (const report of request.reports) {
-    const teamUUID = await findIssueAgentExecutionHistoryTeamUUID(report.taskUUID);
+    const teamUUID = await findIssueAgentExecutionHistoryTeamUUID(
+      report.taskUUID
+    );
 
     if (!teamUUID) {
       throw new InvalidAgentClientTaskReportError(report.taskUUID);
@@ -3987,7 +4236,10 @@ export async function claimAgentClientTasks(
       break;
     }
 
-    const workflowNodeMap = await getWorkflowNodeMap(teamUUID, workflowNodeMapCache);
+    const workflowNodeMap = await getWorkflowNodeMap(
+      teamUUID,
+      workflowNodeMapCache
+    );
     const remainingSlots = request.availableSlots - tasks.length;
     const teamTasks = await dispatchTasks(
       remainingSlots,
@@ -4014,7 +4266,9 @@ export async function getAgentClientTaskRuntimeEnv(
   const teamUUID = await findIssueAgentExecutionHistoryTeamUUID(taskUUID);
 
   if (!teamUUID) {
-    throw new AgentClientInvalidAttachmentUploadError(`Invalid task: ${taskUUID}`);
+    throw new AgentClientInvalidAttachmentUploadError(
+      `Invalid task: ${taskUUID}`
+    );
   }
 
   const task = await findIssueAgentExecutionHistoryByUUID(taskUUID, teamUUID);
@@ -4051,7 +4305,9 @@ export async function stageAgentClientTaskAttachments(
     type: string;
     arrayBuffer(): Promise<ArrayBuffer>;
   }>
-): Promise<{ uploads: { resourceToken: string; fileName: string; localPath: string }[] }> {
+): Promise<{
+  uploads: { resourceToken: string; fileName: string; localPath: string }[];
+}> {
   if (files.length === 0) {
     throw new AgentClientInvalidAttachmentUploadError(
       'At least one attachment file is required'
@@ -4061,7 +4317,9 @@ export async function stageAgentClientTaskAttachments(
   const teamUUID = await findIssueAgentExecutionHistoryTeamUUID(taskUUID);
 
   if (!teamUUID) {
-    throw new AgentClientInvalidAttachmentUploadError(`Invalid task: ${taskUUID}`);
+    throw new AgentClientInvalidAttachmentUploadError(
+      `Invalid task: ${taskUUID}`
+    );
   }
 
   const task = await findIssueAgentExecutionHistoryByUUID(taskUUID, teamUUID);

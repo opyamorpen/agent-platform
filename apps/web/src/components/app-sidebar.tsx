@@ -10,7 +10,17 @@ import {
   SidebarFooter,
   SidebarHeader,
 } from "@/components/ui/sidebar"
-import { Settings2Icon, BotIcon, WorkflowIcon, TicketIcon, PackageIcon, FolderIcon, UsersIcon, SparklesIcon } from "lucide-react"
+import {
+  Settings2Icon,
+  BotIcon,
+  WorkflowIcon,
+  TicketIcon,
+  PackageIcon,
+  FolderIcon,
+  UsersIcon,
+  SparklesIcon,
+  BookOpenIcon,
+} from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -39,6 +49,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         name: t("navigation.items.agentSkills"),
         url: "/settings/skills",
         icon: <PackageIcon />,
+      },
+      {
+        name: t("navigation.items.agentKnowledge"),
+        url: "/settings/knowledge-sources",
+        icon: <BookOpenIcon />,
       },
       {
         name: t("navigation.items.agentWorkspaces"),
@@ -71,10 +86,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavTeamSwitcher />
       </SidebarHeader>
       <SidebarContent>
-        <NavDocuments label={t("navigation.groups.aiWorkflow")} items={data.workflow} />
-        <NavDocuments label={t("navigation.groups.agentDesign")} items={data.agentDesign} />
+        <NavDocuments
+          label={t("navigation.groups.aiWorkflow")}
+          items={data.workflow}
+        />
+        <NavDocuments
+          label={t("navigation.groups.agentDesign")}
+          items={data.agentDesign}
+        />
         {isAdmin ? (
-          <NavDocuments label={t("navigation.groups.adminSettings")} items={data.adminSettings} />
+          <NavDocuments
+            label={t("navigation.groups.adminSettings")}
+            items={data.adminSettings}
+          />
         ) : null}
       </SidebarContent>
       <SidebarFooter>

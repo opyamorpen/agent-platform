@@ -4,6 +4,7 @@ import type {
   AgentConfig,
   AgentDraft,
   AgentFieldMeta,
+  AgentInput,
   AgentInputField,
   AgentOutputField,
   AgentSummary,
@@ -11,6 +12,7 @@ import type {
   ApiError,
   ApiSuccess,
   OnesUserSummary,
+  KnowledgeSource,
   SkillSummary
 } from '@ones-ai-workflow/shared';
 import { getApiErrorMessage, getErrorMessage } from '@/lib/api-error';
@@ -101,7 +103,7 @@ type OnesField = {
   readonly: boolean;
 };
 type OnesFieldsResponse = ApiSuccess<OnesField[]> | ApiError;
-type SelectedAgentInputField = AgentInputField;
+type SelectedAgentInputField = AgentInput;
 type SelectedAgentOutputField = AgentOutputField;
 type ExecutorOption = {
   value: string;
@@ -120,7 +122,8 @@ const DEFAULT_CONFIG: AgentConfig = {
   description: '',
   prompt: '',
   inputs: [],
-  outputs: []
+  outputs: [],
+  knowledgeSourceUUIDs: []
 };
 
 const STEP_ORDER: StepKey[] = ['basic', 'inputs', 'outputs', 'prompt'];
@@ -194,6 +197,15 @@ function canInputFieldConfigureSubFields(
   return field?.referenceObjectType === 'issue';
 }
 
+function isWikiPageField(
+  field: { referenceObjectType: string | null } | undefined
+): boolean {
+  return (
+    field?.referenceObjectType === 'wiki_page' ||
+    field?.referenceObjectType === 'wiki'
+  );
+}
+
 function getInputFieldKey(field: SelectedAgentInputField): string {
   return field.field.uuid;
 }
@@ -230,11 +242,29 @@ function getInputSubFieldDescriptionPreview(
     .join('\n');
 }
 
-function cloneInputField(field: SelectedAgentInputField): SelectedAgentInputField {
+function cloneInputField(
+  field: SelectedAgentInputField
+): SelectedAgentInputField {
+  if (field.kind === 'wiki_page') {
+    return {
+      ...field,
+      field: { ...field.field },
+      subFields: []
+    };
+  }
+
   return {
     ...field,
     field: { ...field.field },
-    subFields: field.subFields.map(cloneInputField)
+    subFields: field.subFields.map((subField) => ({
+      ...subField,
+      field: { ...subField.field },
+      subFields: subField.subFields.map((nestedField) => ({
+        ...nestedField,
+        field: { ...nestedField.field },
+        subFields: []
+      }))
+    }))
   };
 }
 
@@ -341,6 +371,12 @@ function getOutputFieldSummaryPreview(
   field: SelectedAgentOutputField,
   t: (key: string) => string
 ): string {
+  if (field.kind === 'wiki_page') {
+    return (
+      field.description.trim() ||
+      t('pages.agentDetail.fields.preview.noDescription')
+    );
+  }
   return getOutputSetValueDescriptionPreview(field, t);
 }
 
@@ -375,6 +411,13 @@ function cloneOutputSetValueField(
 function cloneOutputField(
   field: SelectedAgentOutputField
 ): SelectedAgentOutputField {
+  if (field.kind === 'wiki_page') {
+    return {
+      ...field,
+      field: { ...field.field },
+      subFields: []
+    };
+  }
   return cloneOutputSetValueField(field);
 }
 
@@ -479,7 +522,9 @@ function InputFieldListEditor({
 
   function handleOpenEditingDialog(index: number) {
     setEditingFieldIndex(index);
-    setEditingFieldDraft(cloneInputField(fields[index] as SelectedAgentInputField));
+    setEditingFieldDraft(
+      cloneInputField(fields[index] as SelectedAgentInputField)
+    );
     setSelectedSubFieldUUID(undefined);
   }
 
@@ -557,7 +602,9 @@ function InputFieldListEditor({
                   <TableHead className="px-4">
                     {t('pages.agentDetail.fields.table.name')}
                   </TableHead>
-                  <TableHead>{t('pages.agentDetail.fields.table.description')}</TableHead>
+                  <TableHead>
+                    {t('pages.agentDetail.fields.table.description')}
+                  </TableHead>
                   <TableHead className="pr-4 text-right">
                     {t('pages.agentDetail.fields.table.actions')}
                   </TableHead>
@@ -573,7 +620,9 @@ function InputFieldListEditor({
                   return (
                     <TableRow key={fieldUUIDPath}>
                       <TableCell className="px-4 align-top">
-                        <div className="py-1 font-medium">{field.field.name}</div>
+                        <div className="py-1 font-medium">
+                          {field.field.name}
+                        </div>
                       </TableCell>
                       <TableCell className="align-top">
                         {canEditSubFields ? (
@@ -609,7 +658,9 @@ function InputFieldListEditor({
                                 description: event.target.value
                               })
                             }
-                            placeholder={t('pages.agentDetail.fields.inputDescriptionPlaceholder')}
+                            placeholder={t(
+                              'pages.agentDetail.fields.inputDescriptionPlaceholder'
+                            )}
                             className="min-h-24"
                             disabled={isDisabled}
                           />
@@ -624,9 +675,12 @@ function InputFieldListEditor({
                             className="shrink-0"
                             onClick={() => onMoveUp(fieldUUIDPath)}
                             disabled={isDisabled || index === 0}
-                            aria-label={t('pages.agentDetail.fields.moveUpAria', {
-                              name: field.field.name
-                            })}
+                            aria-label={t(
+                              'pages.agentDetail.fields.moveUpAria',
+                              {
+                                name: field.field.name
+                              }
+                            )}
                           >
                             <ChevronUpIcon />
                           </Button>
@@ -637,9 +691,12 @@ function InputFieldListEditor({
                             className="shrink-0"
                             onClick={() => onMoveDown(fieldUUIDPath)}
                             disabled={isDisabled || index === fields.length - 1}
-                            aria-label={t('pages.agentDetail.fields.moveDownAria', {
-                              name: field.field.name
-                            })}
+                            aria-label={t(
+                              'pages.agentDetail.fields.moveDownAria',
+                              {
+                                name: field.field.name
+                              }
+                            )}
                           >
                             <ChevronDownIcon />
                           </Button>
@@ -693,12 +750,15 @@ function InputFieldListEditor({
                           value={selectedSubFieldUUID}
                           onValueChange={setSelectedSubFieldUUID}
                           onAdd={handleAddEditingSubField}
-                          addButtonLabel={t('pages.agentDetail.fields.addField')}
+                          addButtonLabel={t(
+                            'pages.agentDetail.fields.addField'
+                          )}
                           isDisabled={isDisabled}
                           isLoading={isLoadingAvailableFields}
                           hasError={Boolean(availableFieldsErrorMessage)}
                           portalContainer={
-                            editingPickerContentElement ?? editingDialogContentElement
+                            editingPickerContentElement ??
+                            editingDialogContentElement
                           }
                           searchSelectClassName="w-full sm:w-[300px]"
                         />
@@ -721,7 +781,9 @@ function InputFieldListEditor({
                                   {t('pages.agentDetail.fields.table.name')}
                                 </TableHead>
                                 <TableHead>
-                                  {t('pages.agentDetail.fields.table.description')}
+                                  {t(
+                                    'pages.agentDetail.fields.table.description'
+                                  )}
                                 </TableHead>
                                 <TableHead className="pr-4 text-right">
                                   {t('pages.agentDetail.fields.table.actions')}
@@ -730,10 +792,11 @@ function InputFieldListEditor({
                             </TableHeader>
                             <TableBody>
                               {editingField.subFields.map((subField) => {
-                                const subFieldUUIDPath = getInputSubFieldUUIDPath(
-                                  editingField,
-                                  subField
-                                );
+                                const subFieldUUIDPath =
+                                  getInputSubFieldUUIDPath(
+                                    editingField,
+                                    subField
+                                  );
 
                                 return (
                                   <TableRow key={subFieldUUIDPath}>
@@ -754,20 +817,24 @@ function InputFieldListEditor({
                                       <Textarea
                                         value={subField.description}
                                         onChange={(event) =>
-                                          updateEditingField((currentField) => ({
-                                            ...currentField,
-                                            subFields: currentField.subFields.map(
-                                              (currentSubField) =>
-                                                currentSubField.field.uuid ===
-                                                subField.field.uuid
-                                                  ? {
-                                                      ...currentSubField,
-                                                      description:
-                                                        event.target.value
-                                                    }
-                                                  : currentSubField
-                                            )
-                                          }))
+                                          updateEditingField(
+                                            (currentField) => ({
+                                              ...currentField,
+                                              subFields:
+                                                currentField.subFields.map(
+                                                  (currentSubField) =>
+                                                    currentSubField.field
+                                                      .uuid ===
+                                                    subField.field.uuid
+                                                      ? {
+                                                          ...currentSubField,
+                                                          description:
+                                                            event.target.value
+                                                        }
+                                                      : currentSubField
+                                                )
+                                            })
+                                          )
                                         }
                                         placeholder={t(
                                           'pages.agentDetail.fields.inputSubFieldDescriptionPlaceholder'
@@ -784,15 +851,18 @@ function InputFieldListEditor({
                                           size="icon"
                                           className="shrink-0"
                                           onClick={() =>
-                                            updateEditingField((currentField) => ({
-                                              ...currentField,
-                                              subFields:
-                                                currentField.subFields.filter(
-                                                  (currentSubField) =>
-                                                    currentSubField.field.uuid !==
-                                                    subField.field.uuid
-                                                )
-                                            }))
+                                            updateEditingField(
+                                              (currentField) => ({
+                                                ...currentField,
+                                                subFields:
+                                                  currentField.subFields.filter(
+                                                    (currentSubField) =>
+                                                      currentSubField.field
+                                                        .uuid !==
+                                                      subField.field.uuid
+                                                  )
+                                              })
+                                            )
                                           }
                                           disabled={isDisabled}
                                         >
@@ -861,7 +931,10 @@ function OutputFieldListEditor({
   onRemove: (fieldUUID: string) => void;
   onMoveUp: (fieldUUID: string) => void;
   onMoveDown: (fieldUUID: string) => void;
-  onChangeField: (fieldUUID: string, nextField: SelectedAgentOutputField) => void;
+  onChangeField: (
+    fieldUUID: string,
+    nextField: SelectedAgentOutputField
+  ) => void;
   isLoadingAvailableFields: boolean;
   availableFieldsErrorMessage: string | null;
   isDisabled?: boolean;
@@ -894,7 +967,9 @@ function OutputFieldListEditor({
     [availableFields]
   );
   const editingField = editingFieldDraft ?? undefined;
-  const editingFieldUUID = editingField ? getOutputFieldKey(editingField) : null;
+  const editingFieldUUID = editingField
+    ? getOutputFieldKey(editingField)
+    : null;
   const allowSubFieldSelection = canOutputFieldConfigureSubFields(
     editingField?.field
   );
@@ -935,7 +1010,9 @@ function OutputFieldListEditor({
 
   function handleOpenEditingDialog(index: number) {
     setEditingFieldIndex(index);
-    setEditingFieldDraft(cloneOutputField(fields[index] as SelectedAgentOutputField));
+    setEditingFieldDraft(
+      cloneOutputField(fields[index] as SelectedAgentOutputField)
+    );
     setSelectedSubFieldUUID(undefined);
   }
 
@@ -962,6 +1039,10 @@ function OutputFieldListEditor({
     }
 
     updateEditingField((currentField) => {
+      if (currentField.kind === 'wiki_page') {
+        return currentField;
+      }
+
       return {
         ...currentField,
         subFields: [
@@ -1016,7 +1097,9 @@ function OutputFieldListEditor({
                   <TableHead className="px-4">
                     {t('pages.agentDetail.fields.table.name')}
                   </TableHead>
-                  <TableHead>{t('pages.agentDetail.fields.table.description')}</TableHead>
+                  <TableHead>
+                    {t('pages.agentDetail.fields.table.description')}
+                  </TableHead>
                   <TableHead className="pr-4 text-right">
                     {t('pages.agentDetail.fields.table.actions')}
                   </TableHead>
@@ -1032,7 +1115,9 @@ function OutputFieldListEditor({
                   return (
                     <TableRow key={fieldUUID}>
                       <TableCell className="px-4 align-top">
-                        <div className="py-1 font-medium">{field.field.name}</div>
+                        <div className="py-1 font-medium">
+                          {field.field.name}
+                        </div>
                       </TableCell>
                       <TableCell className="align-top">
                         <div className="space-y-3">
@@ -1092,9 +1177,12 @@ function OutputFieldListEditor({
                             className="shrink-0"
                             onClick={() => onMoveUp(fieldUUID)}
                             disabled={isDisabled || index === 0}
-                            aria-label={t('pages.agentDetail.fields.moveUpAria', {
-                              name: field.field.name
-                            })}
+                            aria-label={t(
+                              'pages.agentDetail.fields.moveUpAria',
+                              {
+                                name: field.field.name
+                              }
+                            )}
                           >
                             <ChevronUpIcon />
                           </Button>
@@ -1105,9 +1193,12 @@ function OutputFieldListEditor({
                             className="shrink-0"
                             onClick={() => onMoveDown(fieldUUID)}
                             disabled={isDisabled || index === fields.length - 1}
-                            aria-label={t('pages.agentDetail.fields.moveDownAria', {
-                              name: field.field.name
-                            })}
+                            aria-label={t(
+                              'pages.agentDetail.fields.moveDownAria',
+                              {
+                                name: field.field.name
+                              }
+                            )}
                           >
                             <ChevronDownIcon />
                           </Button>
@@ -1151,11 +1242,13 @@ function OutputFieldListEditor({
                   {getEditInternalFieldSummaryTitle(editingField.field.name, t)}
                 </DialogTitle>
                 <DialogDescription>
-                  {t('pages.agentDetail.fields.outputSubFieldDialogDescription')}
+                  {t(
+                    'pages.agentDetail.fields.outputSubFieldDialogDescription'
+                  )}
                 </DialogDescription>
               </DialogHeader>
               <div className="flex min-h-0 flex-col gap-4 overflow-hidden">
-                {allowSubFieldSelection ? (
+                {allowSubFieldSelection && editingField.kind !== 'wiki_page' ? (
                   <>
                     <div ref={setEditingPickerContentElement}>
                       <FieldPickerToolbar
@@ -1168,7 +1261,8 @@ function OutputFieldListEditor({
                         isLoading={isLoadingAvailableFields}
                         hasError={Boolean(availableFieldsErrorMessage)}
                         portalContainer={
-                          editingPickerContentElement ?? editingDialogContentElement
+                          editingPickerContentElement ??
+                          editingDialogContentElement
                         }
                         searchSelectClassName="w-full sm:w-[300px]"
                       />
@@ -1191,7 +1285,9 @@ function OutputFieldListEditor({
                                 {t('pages.agentDetail.fields.table.name')}
                               </TableHead>
                               <TableHead>
-                                {t('pages.agentDetail.fields.table.description')}
+                                {t(
+                                  'pages.agentDetail.fields.table.description'
+                                )}
                               </TableHead>
                               <TableHead className="pr-4 text-right">
                                 {t('pages.agentDetail.fields.table.actions')}
@@ -1255,14 +1351,18 @@ function OutputFieldListEditor({
                                         size="icon"
                                         className="shrink-0"
                                         onClick={() =>
-                                          updateEditingField((currentField) => ({
-                                            ...currentField,
-                                            subFields: currentField.subFields.filter(
-                                              (currentSubField) =>
-                                                currentSubField.field.uuid !==
-                                                subField.field.uuid
-                                            )
-                                          }))
+                                          updateEditingField(
+                                            (currentField) => ({
+                                              ...currentField,
+                                              subFields:
+                                                currentField.subFields.filter(
+                                                  (currentSubField) =>
+                                                    currentSubField.field
+                                                      .uuid !==
+                                                    subField.field.uuid
+                                                )
+                                            })
+                                          )
                                         }
                                         disabled={isDisabled}
                                       >
@@ -1310,7 +1410,8 @@ function OutputFieldListEditor({
 
 export function AgentDetailPage() {
   const { t, i18n } = useTranslation();
-  const locale = resolveLocale(i18n.resolvedLanguage ?? i18n.language) ?? DEFAULT_LOCALE;
+  const locale =
+    resolveLocale(i18n.resolvedLanguage ?? i18n.language) ?? DEFAULT_LOCALE;
   const { uuid } = useParams();
   const { setActions, setCenter, setTitle } = useHeaderActions();
   const [activeStep, setActiveStep] = useState<StepKey>('basic');
@@ -1321,6 +1422,9 @@ export function AgentDetailPage() {
   >(null);
   const [workspaces, setWorkspaces] = useState<AgentWorkspace[]>([]);
   const [skills, setSkills] = useState<SkillSummary[]>([]);
+  const [knowledgeSources, setKnowledgeSources] = useState<KnowledgeSource[]>(
+    []
+  );
   const [isLoadingResources, setIsLoadingResources] = useState(true);
   const [resourceErrorMessage, setResourceErrorMessage] = useState<
     string | null
@@ -1336,6 +1440,9 @@ export function AgentDetailPage() {
   const [description, setDescription] = useState('');
   const [workspaceUUID, setWorkspaceUUID] = useState('');
   const [skillUUIDs, setSkillUUIDs] = useState<string[]>([]);
+  const [knowledgeSourceUUIDs, setKnowledgeSourceUUIDs] = useState<string[]>(
+    []
+  );
   const [executorUUID, setExecutorUUID] = useState('');
   const [executorName, setExecutorName] = useState('');
   const [basicConfigError, setBasicConfigError] = useState<string | null>(null);
@@ -1380,11 +1487,12 @@ export function AgentDetailPage() {
     setDescription(nextConfig.description ?? '');
     setInputs(nextConfig.inputs ?? []);
     setOutputs(nextConfig.outputs ?? []);
+    setKnowledgeSourceUUIDs(nextConfig.knowledgeSourceUUIDs ?? []);
     setPrompt(nextConfig.prompt);
   }
 
   function applyDraft(draft: AgentDraft) {
-    setAgentName(draft.name);
+    setAgentName(typeof draft.name === 'string' ? draft.name : '');
     setWorkspaceUUID(draft.workspaceUUID ?? '');
     setSkillUUIDs(draft.skillUUIDs ?? []);
     setExecutorUUID(draft.executor?.uuid ?? '');
@@ -1397,9 +1505,10 @@ export function AgentDetailPage() {
       description,
       prompt,
       inputs,
-      outputs
+      outputs,
+      knowledgeSourceUUIDs
     }),
-    [description, inputs, outputs, prompt]
+    [description, inputs, knowledgeSourceUUIDs, outputs, prompt]
   );
 
   const currentEditorSignature = useMemo(
@@ -1429,10 +1538,11 @@ export function AgentDetailPage() {
       name: agentName.trim(),
       description,
       skillUUIDs,
+      knowledgeSourceUUIDs,
       inputs,
       outputs
     }),
-    [agentName, description, inputs, outputs, skillUUIDs]
+    [agentName, description, inputs, knowledgeSourceUUIDs, outputs, skillUUIDs]
   );
 
   useEffect(() => {
@@ -1666,10 +1776,12 @@ export function AgentDetailPage() {
       setResourceErrorMessage(null);
 
       try {
-        const [workspacesResponse, skillsResponse] = await Promise.all([
-          fetch('/api/agent-workspaces'),
-          fetch('/api/skills')
-        ]);
+        const [workspacesResponse, skillsResponse, knowledgeResponse] =
+          await Promise.all([
+            fetch('/api/agent-workspaces'),
+            fetch('/api/skills'),
+            fetch('/api/knowledge-sources')
+          ]);
         const workspacesPayload =
           (await workspacesResponse.json()) as AgentResourcesResponse<
             AgentWorkspace[]
@@ -1677,6 +1789,10 @@ export function AgentDetailPage() {
         const skillsPayload =
           (await skillsResponse.json()) as AgentResourcesResponse<
             SkillSummary[]
+          >;
+        const knowledgePayload =
+          (await knowledgeResponse.json()) as AgentResourcesResponse<
+            KnowledgeSource[]
           >;
 
         if (!workspacesResponse.ok || !workspacesPayload.success) {
@@ -1703,11 +1819,25 @@ export function AgentDetailPage() {
           );
         }
 
+        if (!knowledgeResponse.ok || !knowledgePayload.success) {
+          throw new Error(
+            knowledgePayload.success
+              ? t('pages.agentDetail.knowledgeSourcesLoadFailed')
+              : getApiErrorMessage(
+                  knowledgePayload,
+                  t,
+                  'pages.agentDetail.knowledgeSourcesLoadFailed'
+                )
+          );
+        }
+
         setWorkspaces(workspacesPayload.data);
         setSkills(skillsPayload.data);
+        setKnowledgeSources(knowledgePayload.data);
       } catch (error) {
         setWorkspaces([]);
-       setSkills([]);
+        setSkills([]);
+        setKnowledgeSources([]);
         setResourceErrorMessage(
           getErrorMessage(error, t, 'pages.agentDetail.resourcesLoadFailed')
         );
@@ -1738,7 +1868,11 @@ export function AgentDetailPage() {
           throw new Error(
             payload.success
               ? t('pages.agentDetail.draftLoadFailed')
-              : getApiErrorMessage(payload, t, 'pages.agentDetail.draftLoadFailed')
+              : getApiErrorMessage(
+                  payload,
+                  t,
+                  'pages.agentDetail.draftLoadFailed'
+                )
           );
         }
 
@@ -1777,7 +1911,7 @@ export function AgentDetailPage() {
   }, [t, uuid]);
 
   useEffect(() => {
-    setTitle(agentName.trim() || null);
+    setTitle((agentName ?? '').trim() || null);
 
     return () => {
       setTitle(null);
@@ -1862,9 +1996,7 @@ export function AgentDetailPage() {
 
   function handleRemoveInputField(fieldUUIDPath: string) {
     setInputs((currentFields) =>
-      currentFields.filter(
-        (field) => getInputFieldKey(field) !== fieldUUIDPath
-      )
+      currentFields.filter((field) => getInputFieldKey(field) !== fieldUUIDPath)
     );
   }
 
@@ -1920,6 +2052,7 @@ export function AgentDetailPage() {
     }
 
     const nextField: SelectedAgentInputField = {
+      ...(isWikiPageField(selectedField) ? { kind: 'wiki_page' as const } : {}),
       field: toAgentFieldMeta(selectedField),
       description: '',
       subFields: []
@@ -1955,10 +2088,7 @@ export function AgentDetailPage() {
     );
   }
 
-  function handleMoveOutputField(
-    fieldUUID: string,
-    direction: 'up' | 'down'
-  ) {
+  function handleMoveOutputField(fieldUUID: string, direction: 'up' | 'down') {
     updateOutputFieldList((fields) => {
       const currentIndex = fields.findIndex(
         (field) => getOutputFieldKey(field) === fieldUUID
@@ -1995,12 +2125,20 @@ export function AgentDetailPage() {
       return;
     }
 
-    const nextField: SelectedAgentOutputField = {
-      mode: 'set_value',
-      field: toAgentFieldMeta(selectedField),
-      description: '',
-      subFields: []
-    };
+    const nextField: SelectedAgentOutputField = isWikiPageField(selectedField)
+      ? {
+          kind: 'wiki_page',
+          mode: 'wiki_page',
+          field: toAgentFieldMeta(selectedField),
+          description: '',
+          subFields: []
+        }
+      : {
+          mode: 'set_value',
+          field: toAgentFieldMeta(selectedField),
+          description: '',
+          subFields: []
+        };
 
     if (outputs.some((field) => field.field.uuid === nextField.field.uuid)) {
       toast.error(
@@ -2008,6 +2146,14 @@ export function AgentDetailPage() {
           name: nextField.field.name
         })
       );
+      return;
+    }
+
+    if (
+      nextField.kind === 'wiki_page' &&
+      outputs.some((field) => field.kind === 'wiki_page')
+    ) {
+      toast.error(t('pages.agentDetail.onlyOneWikiOutput'));
       return;
     }
 
@@ -2183,8 +2329,7 @@ export function AgentDetailPage() {
     [activeStep, handleSilentSave]
   );
 
-  const isLastStep =
-    STEP_ORDER.indexOf(activeStep) === STEP_ORDER.length - 1;
+  const isLastStep = STEP_ORDER.indexOf(activeStep) === STEP_ORDER.length - 1;
 
   const handleStartEditing = useCallback(() => {
     setEditBaselineSignature(currentEditorSignature);
@@ -2199,6 +2344,7 @@ export function AgentDetailPage() {
           variant="outline"
           onClick={() => setIsPreviewOpen(true)}
           disabled={isLoadingDraft}
+          className="hidden sm:inline-flex"
         >
           {t('pages.agentDetail.actions.previewPrompt')}
         </Button>
@@ -2207,9 +2353,13 @@ export function AgentDetailPage() {
           variant="outline"
           onClick={() => goToAdjacentStep('previous')}
           disabled={isBusy || STEP_ORDER.indexOf(activeStep) === 0}
+          aria-label={t('pages.agentDetail.actions.previousStep')}
+          className="px-2 sm:px-4"
         >
           <ChevronLeftIcon />
-          {t('pages.agentDetail.actions.previousStep')}
+          <span className="hidden sm:inline">
+            {t('pages.agentDetail.actions.previousStep')}
+          </span>
         </Button>
         {!isLastStep ? (
           <Button
@@ -2217,8 +2367,12 @@ export function AgentDetailPage() {
             variant="outline"
             onClick={() => goToAdjacentStep('next')}
             disabled={isBusy}
+            aria-label={t('pages.agentDetail.actions.nextStep')}
+            className="px-2 sm:px-4"
           >
-            {t('pages.agentDetail.actions.nextStep')}
+            <span className="hidden sm:inline">
+              {t('pages.agentDetail.actions.nextStep')}
+            </span>
             <ChevronRightIcon />
           </Button>
         ) : null}
@@ -2258,7 +2412,7 @@ export function AgentDetailPage() {
 
   const headerCenter = useMemo(
     () => (
-      <div className="flex items-center gap-1">
+      <div className="hidden items-center gap-1 md:flex">
         {stepItems.map((step, index) => (
           <button
             key={step.key}
@@ -2298,6 +2452,23 @@ export function AgentDetailPage() {
   return (
     <div className="@container/main flex flex-1 flex-col gap-2">
       <div className="relative flex flex-1 flex-col gap-4 overflow-auto px-4 py-4 lg:px-6 md:py-6">
+        <div className="flex gap-1 overflow-x-auto pb-1 md:hidden">
+          {stepItems.map((step, index) => (
+            <button
+              key={step.key}
+              type="button"
+              onClick={() => handleStepSwitch(step.key)}
+              className={cn(
+                'shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                activeStep === step.key
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {index + 1}. {step.title}
+            </button>
+          ))}
+        </div>
         {draftErrorMessage ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             {draftErrorMessage}
@@ -2379,7 +2550,9 @@ export function AgentDetailPage() {
                           setExecutorName(selectedOption?.executorName ?? '');
                         }}
                         onInputValueChange={setExecutorSearchKeyword}
-                        placeholder={t('pages.agentDetail.basic.executorPlaceholder')}
+                        placeholder={t(
+                          'pages.agentDetail.basic.executorPlaceholder'
+                        )}
                         emptyText={
                           isSearchingExecutors
                             ? t('pages.agentDetail.basic.executorSearchLoading')
@@ -2394,7 +2567,9 @@ export function AgentDetailPage() {
                       />
                       <FieldHelpTooltip
                         label={t('pages.agentDetail.basic.executorHelpLabel')}
-                        content={t('pages.agentDetail.basic.executorHelpContent')}
+                        content={t(
+                          'pages.agentDetail.basic.executorHelpContent'
+                        )}
                       />
                     </div>
                   </FieldContent>
@@ -2418,7 +2593,9 @@ export function AgentDetailPage() {
                         onValueChange={(value) => setWorkspaceUUID(value ?? '')}
                         placeholder={
                           isLoadingResources
-                            ? t('pages.agentDetail.basic.workspacePlaceholderLoading')
+                            ? t(
+                                'pages.agentDetail.basic.workspacePlaceholderLoading'
+                              )
                             : t('pages.agentDetail.basic.workspacePlaceholder')
                         }
                         emptyText={t('pages.agentDetail.basic.workspaceEmpty')}
@@ -2429,7 +2606,9 @@ export function AgentDetailPage() {
                       />
                       <FieldHelpTooltip
                         label={t('pages.agentDetail.basic.workspaceHelpLabel')}
-                        content={t('pages.agentDetail.basic.workspaceHelpContent')}
+                        content={t(
+                          'pages.agentDetail.basic.workspaceHelpContent'
+                        )}
                       />
                     </div>
                   </FieldContent>
@@ -2451,11 +2630,49 @@ export function AgentDetailPage() {
                       }))}
                       values={skillUUIDs}
                       onValuesChange={(nextValues) => setSkillUUIDs(nextValues)}
-                      placeholder={t('pages.agentDetail.basic.skillsPlaceholder')}
+                      placeholder={t(
+                        'pages.agentDetail.basic.skillsPlaceholder'
+                      )}
                       emptyText={t('pages.agentDetail.basic.skillsEmpty')}
                       disabled={isBusy || !isEditing}
                       portalContainer={basicConfigContentElement}
                     />
+                  </FieldContent>
+                </FormField>
+
+                <FormField
+                  orientation="vertical"
+                  className="gap-3 md:flex-row md:items-start md:gap-6"
+                >
+                  <FieldLabel className="md:w-24 md:shrink-0 md:justify-end md:pt-2 md:whitespace-nowrap">
+                    {t('pages.agentDetail.basic.knowledgeLabel')}
+                  </FieldLabel>
+                  <FieldContent className="gap-3 md:w-[420px] md:flex-none">
+                    <MultiSearchSelect
+                      options={knowledgeSources
+                        .filter((source) => source.status === 'active')
+                        .map((source) => ({
+                          value: source.uuid,
+                          label: source.name,
+                          keywords: [
+                            source.description,
+                            source.spaceName
+                          ].filter(Boolean)
+                        }))}
+                      values={knowledgeSourceUUIDs}
+                      onValuesChange={(nextValues) =>
+                        setKnowledgeSourceUUIDs(nextValues.slice(0, 5))
+                      }
+                      placeholder={t(
+                        'pages.agentDetail.basic.knowledgePlaceholder'
+                      )}
+                      emptyText={t('pages.agentDetail.basic.knowledgeEmpty')}
+                      disabled={isBusy || !isEditing}
+                      portalContainer={basicConfigContentElement}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t('pages.agentDetail.basic.knowledgeHelp')}
+                    </p>
                   </FieldContent>
                 </FormField>
               </div>
@@ -2467,90 +2684,89 @@ export function AgentDetailPage() {
               ) : null}
             </div>
           </section>
-          ) : null}
+        ) : null}
 
-          {activeStep === 'inputs' ? (
-            <InputFieldListEditor
-              availableFields={onesFields}
-              selectedFieldUUID={selectedInputFieldUUID}
-              onSelectedFieldUUIDChange={setSelectedInputFieldUUID}
-              onAddSelectedField={handleAddSelectedInputField}
-              fields={inputs}
-              onRemove={handleRemoveInputField}
-              onMoveUp={(fieldUUIDPath) =>
-                handleMoveInputField(fieldUUIDPath, 'up')
-              }
-              onMoveDown={(fieldUUIDPath) =>
-                handleMoveInputField(fieldUUIDPath, 'down')
-              }
-              onChangeField={handleChangeInputField}
-              isLoadingAvailableFields={isLoadingOnesFields}
-              availableFieldsErrorMessage={onesFieldsErrorMessage}
-              isDisabled={isBusy || !isEditing}
+        {activeStep === 'inputs' ? (
+          <InputFieldListEditor
+            availableFields={onesFields}
+            selectedFieldUUID={selectedInputFieldUUID}
+            onSelectedFieldUUIDChange={setSelectedInputFieldUUID}
+            onAddSelectedField={handleAddSelectedInputField}
+            fields={inputs}
+            onRemove={handleRemoveInputField}
+            onMoveUp={(fieldUUIDPath) =>
+              handleMoveInputField(fieldUUIDPath, 'up')
+            }
+            onMoveDown={(fieldUUIDPath) =>
+              handleMoveInputField(fieldUUIDPath, 'down')
+            }
+            onChangeField={handleChangeInputField}
+            isLoadingAvailableFields={isLoadingOnesFields}
+            availableFieldsErrorMessage={onesFieldsErrorMessage}
+            isDisabled={isBusy || !isEditing}
+          />
+        ) : null}
+
+        {activeStep === 'outputs' ? (
+          <OutputFieldListEditor
+            availableFields={onesFields}
+            selectedFieldUUID={selectedOutputFieldUUID}
+            onSelectedFieldUUIDChange={setSelectedOutputFieldUUID}
+            onAddSelectedField={handleAddSelectedOutputField}
+            fields={outputs}
+            onRemove={handleRemoveOutputField}
+            onMoveUp={(fieldUUIDPath) =>
+              handleMoveOutputField(fieldUUIDPath, 'up')
+            }
+            onMoveDown={(fieldUUIDPath) =>
+              handleMoveOutputField(fieldUUIDPath, 'down')
+            }
+            onChangeField={handleChangeOutputField}
+            isLoadingAvailableFields={isLoadingOnesFields}
+            availableFieldsErrorMessage={onesFieldsErrorMessage}
+            isDisabled={isBusy || !isEditing}
+          />
+        ) : null}
+
+        {activeStep === 'prompt' ? (
+          <section className="space-y-3">
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void handleGeneratePromptRecommendation()}
+                disabled={
+                  isBusy ||
+                  !isEditing ||
+                  isGeneratingRecommendation ||
+                  !isAIConfigured ||
+                  !agentName.trim()
+                }
+                title={
+                  !isAIConfigured
+                    ? t('pages.agentDetail.recommendation.notConfigured')
+                    : undefined
+                }
+              >
+                <SparklesIcon />
+                {isGeneratingRecommendation
+                  ? t('pages.agentDetail.recommendation.generating')
+                  : t('pages.agentDetail.recommendation.action')}
+              </Button>
+            </div>
+            <MdEditor
+              value={prompt}
+              onChange={(v) => setPrompt(v)}
+              placeholder={t('pages.agentDetail.prompt.placeholder')}
+              style={{ height: '288px' }}
+              preview={false}
+              language={locale}
+              disabled={isBusy || !isEditing}
+              theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
             />
-          ) : null}
-
-          {activeStep === 'outputs' ? (
-            <OutputFieldListEditor
-              availableFields={onesFields}
-              selectedFieldUUID={selectedOutputFieldUUID}
-              onSelectedFieldUUIDChange={setSelectedOutputFieldUUID}
-              onAddSelectedField={handleAddSelectedOutputField}
-              fields={outputs}
-              onRemove={handleRemoveOutputField}
-              onMoveUp={(fieldUUIDPath) =>
-                handleMoveOutputField(fieldUUIDPath, 'up')
-              }
-              onMoveDown={(fieldUUIDPath) =>
-                handleMoveOutputField(fieldUUIDPath, 'down')
-              }
-              onChangeField={handleChangeOutputField}
-              isLoadingAvailableFields={isLoadingOnesFields}
-              availableFieldsErrorMessage={onesFieldsErrorMessage}
-              isDisabled={isBusy || !isEditing}
-            />
-          ) : null}
-
-          {activeStep === 'prompt' ? (
-            <section className="space-y-3">
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void handleGeneratePromptRecommendation()}
-                  disabled={
-                    isBusy ||
-                    !isEditing ||
-                    isGeneratingRecommendation ||
-                    !isAIConfigured ||
-                    !agentName.trim()
-                  }
-                  title={
-                    !isAIConfigured
-                      ? t('pages.agentDetail.recommendation.notConfigured')
-                      : undefined
-                  }
-                >
-                  <SparklesIcon />
-                  {isGeneratingRecommendation
-                    ? t('pages.agentDetail.recommendation.generating')
-                    : t('pages.agentDetail.recommendation.action')}
-                </Button>
-              </div>
-              <MdEditor
-                value={prompt}
-                onChange={(v) => setPrompt(v)}
-                placeholder={t('pages.agentDetail.prompt.placeholder')}
-                style={{ height: '288px' }}
-                preview={false}
-                language={locale}
-                disabled={isBusy || !isEditing}
-                theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
-              />
-            </section>
-          ) : null}
-
+          </section>
+        ) : null}
       </div>
 
       <Sheet open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
@@ -2629,10 +2845,7 @@ export function AgentDetailPage() {
             )}
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={closePromptRecommendation}
-            >
+            <Button variant="outline" onClick={closePromptRecommendation}>
               {t('common.actions.cancel')}
             </Button>
             <Button
@@ -2656,7 +2869,9 @@ export function AgentDetailPage() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{t('pages.agentDetail.publishDialog.title')}</DialogTitle>
+            <DialogTitle>
+              {t('pages.agentDetail.publishDialog.title')}
+            </DialogTitle>
             <DialogDescription>
               {t('pages.agentDetail.publishDialog.description')}
             </DialogDescription>

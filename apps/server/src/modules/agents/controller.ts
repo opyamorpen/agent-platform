@@ -14,6 +14,7 @@ import {
   AgentConflictError,
   AgentDraftNotFoundError,
   AgentInUseError,
+  AgentKnowledgeBindingNotFoundError,
   AgentNotFoundError,
   AgentSkillBindingNotFoundError,
   AgentWorkspaceBindingNotFoundError,
@@ -72,7 +73,10 @@ export async function recommendAgentPromptHandler(c: Context) {
 
   if (!result.success) {
     return c.json(
-      failure('Invalid prompt recommendation payload', 'agents.invalid_prompt_recommendation_payload'),
+      failure(
+        'Invalid prompt recommendation payload',
+        'agents.invalid_prompt_recommendation_payload'
+      ),
       400
     );
   }
@@ -136,19 +140,28 @@ export async function duplicateAgentHandler(c: Context) {
   const result = duplicateAgentSchema.safeParse(body);
 
   if (!uuid) {
-    return c.json(failure('Agent uuid is required', 'agents.uuid_required'), 400);
+    return c.json(
+      failure('Agent uuid is required', 'agents.uuid_required'),
+      400
+    );
   }
 
   if (!result.success) {
     return c.json(
-      failure('Invalid agent duplicate payload', 'agents.invalid_duplicate_payload'),
+      failure(
+        'Invalid agent duplicate payload',
+        'agents.invalid_duplicate_payload'
+      ),
       400
     );
   }
 
   try {
     const { teamUUID } = await getWebSession(c.req);
-    return c.json(success(await duplicateAgentRecord(uuid, result.data, teamUUID)), 201);
+    return c.json(
+      success(await duplicateAgentRecord(uuid, result.data, teamUUID)),
+      201
+    );
   } catch (error) {
     if (error instanceof AgentNotFoundError) {
       return c.json(failure(error.message, 'agents.not_found'), 404);
@@ -164,7 +177,10 @@ export async function updateAgentHandler(c: Context) {
   const result = updateAgentSchema.safeParse(body);
 
   if (!uuid) {
-    return c.json(failure('Agent uuid is required', 'agents.uuid_required'), 400);
+    return c.json(
+      failure('Agent uuid is required', 'agents.uuid_required'),
+      400
+    );
   }
 
   if (!result.success) {
@@ -176,7 +192,9 @@ export async function updateAgentHandler(c: Context) {
 
   try {
     const { teamUUID } = await getWebSession(c.req);
-    return c.json(success(await updateAgentRecord(uuid, result.data, teamUUID)));
+    return c.json(
+      success(await updateAgentRecord(uuid, result.data, teamUUID))
+    );
   } catch (error) {
     if (error instanceof AgentWorkspaceBindingNotFoundError) {
       return c.json(
@@ -204,7 +222,10 @@ export async function getAgentDraftHandler(c: Context) {
   const uuid = c.req.param('uuid');
 
   if (!uuid) {
-    return c.json(failure('Agent uuid is required', 'agents.uuid_required'), 400);
+    return c.json(
+      failure('Agent uuid is required', 'agents.uuid_required'),
+      400
+    );
   }
 
   try {
@@ -225,7 +246,10 @@ export async function saveAgentDraftHandler(c: Context) {
   const result = saveAgentDraftSchema.safeParse(body);
 
   if (!uuid) {
-    return c.json(failure('Agent uuid is required', 'agents.uuid_required'), 400);
+    return c.json(
+      failure('Agent uuid is required', 'agents.uuid_required'),
+      400
+    );
   }
 
   if (!result.success) {
@@ -239,6 +263,13 @@ export async function saveAgentDraftHandler(c: Context) {
     const { teamUUID } = await getWebSession(c.req);
     return c.json(success(await saveAgentDraft(uuid, result.data, teamUUID)));
   } catch (error) {
+    if (error instanceof AgentKnowledgeBindingNotFoundError) {
+      return c.json(
+        failure(error.message, 'agents.knowledge_binding_not_found'),
+        404
+      );
+    }
+
     if (error instanceof AgentNotFoundError) {
       return c.json(failure(error.message, 'agents.not_found'), 404);
     }
@@ -253,7 +284,10 @@ export async function publishAgentDraftHandler(c: Context) {
   const result = publishAgentSchema.safeParse(body);
 
   if (!uuid) {
-    return c.json(failure('Agent uuid is required', 'agents.uuid_required'), 400);
+    return c.json(
+      failure('Agent uuid is required', 'agents.uuid_required'),
+      400
+    );
   }
 
   if (!result.success) {
@@ -268,8 +302,17 @@ export async function publishAgentDraftHandler(c: Context) {
 
   try {
     const { teamUUID } = await getWebSession(c.req);
-    return c.json(success(await publishAgentDraft(uuid, result.data, teamUUID)));
+    return c.json(
+      success(await publishAgentDraft(uuid, result.data, teamUUID))
+    );
   } catch (error) {
+    if (error instanceof AgentKnowledgeBindingNotFoundError) {
+      return c.json(
+        failure(error.message, 'agents.knowledge_binding_not_found'),
+        404
+      );
+    }
+
     if (error instanceof AgentNotFoundError) {
       return c.json(failure(error.message, 'agents.not_found'), 404);
     }
@@ -286,7 +329,10 @@ export async function deleteAgentHandler(c: Context) {
   const uuid = c.req.param('uuid');
 
   if (!uuid) {
-    return c.json(failure('Agent uuid is required', 'agents.uuid_required'), 400);
+    return c.json(
+      failure('Agent uuid is required', 'agents.uuid_required'),
+      400
+    );
   }
 
   try {

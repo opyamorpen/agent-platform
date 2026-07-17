@@ -25,6 +25,7 @@ import {
   normalizeExecutePayloadValue,
   selectConfiguredPostActionWorkflow,
   selectNextDispatchableTask,
+  shouldSendRevisionSummaryComment,
   shouldSendTaskStartedComment,
   shouldBlockAfterConsecutiveFailures
 } from '../src/modules/agent-clients/service.ts';
@@ -700,6 +701,41 @@ test('shouldSendTaskStartedComment only returns true for non-running to running 
   assert.equal(shouldSendTaskStartedComment('queued', 'running'), true);
   assert.equal(shouldSendTaskStartedComment('running', 'running'), false);
   assert.equal(shouldSendTaskStartedComment('running', 'success'), false);
+});
+
+test('shouldSendRevisionSummaryComment only allows successful revision runs', () => {
+  assert.equal(
+    shouldSendRevisionSummaryComment({
+      finalStatus: 'success',
+      revisionContextEnabled: true,
+      triggerReason: 'revision'
+    }),
+    true
+  );
+  assert.equal(
+    shouldSendRevisionSummaryComment({
+      finalStatus: 'success',
+      revisionContextEnabled: true,
+      triggerReason: 'initial'
+    }),
+    false
+  );
+  assert.equal(
+    shouldSendRevisionSummaryComment({
+      finalStatus: 'blocked',
+      revisionContextEnabled: true,
+      triggerReason: 'revision'
+    }),
+    false
+  );
+  assert.equal(
+    shouldSendRevisionSummaryComment({
+      finalStatus: 'failure',
+      revisionContextEnabled: true,
+      triggerReason: 'revision'
+    }),
+    false
+  );
 });
 
 test('canRetryIssueAgentExecution only allows failure and blocked', () => {

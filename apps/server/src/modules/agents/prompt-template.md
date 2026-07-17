@@ -99,6 +99,7 @@ Rules for writing the output:
 11. If you need to upload a new attachment for a top-level attachment output field, you must output an `attachment` object and provide its workspace-relative path in the `local_path` field.
 12. If you are filling attachments inside subfields of a created or updated issue object, you may either reuse an existing attachment through `object-uuid` or `object-name`, or upload a new workspace file using `local_path`. The system uploads new files first and then writes the attachment field back to the issue.
 13. Do not output free-form text outside the XML structure.
+14. If `<revision-context>` has mode `revision`, fill the fixed `<revision-summary>` block. Summarize what this run actually changed compared with the previous iteration; do not merely restate the review feedback. Keep the summary concise and list at most five concrete changes.
 
 ### @User Format
 

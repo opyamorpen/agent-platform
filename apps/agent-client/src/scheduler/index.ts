@@ -25,6 +25,11 @@ export type SchedulerOptions = {
   codexBaseUrl?: string;
   codexModel?: string;
   codexReasoningEffort?: ModelReasoningEffort;
+  hermesExecutable?: string;
+  hermesProfile?: string;
+  hermesModel?: string;
+  hermesProvider?: string;
+  hermesToolsets?: string;
 };
 
 export class Scheduler {
@@ -39,6 +44,11 @@ export class Scheduler {
   codexBaseUrl?: string;
   codexModel?: string;
   codexReasoningEffort?: ModelReasoningEffort;
+  hermesExecutable?: string;
+  hermesProfile?: string;
+  hermesModel?: string;
+  hermesProvider?: string;
+  hermesToolsets?: string;
   reloadPromise: Promise<void>;
   consecutiveErrors = 0;
   constructor(
@@ -62,6 +72,11 @@ export class Scheduler {
     this.codexBaseUrl = options.codexBaseUrl;
     this.codexModel = options.codexModel;
     this.codexReasoningEffort = options.codexReasoningEffort;
+    this.hermesExecutable = options.hermesExecutable;
+    this.hermesProfile = options.hermesProfile;
+    this.hermesModel = options.hermesModel;
+    this.hermesProvider = options.hermesProvider;
+    this.hermesToolsets = options.hermesToolsets;
     this.reloadPromise = this.taskStore.reload();
   }
   async run(): Promise<void> {
@@ -225,6 +240,7 @@ export class Scheduler {
     startLog: string
   ): void {
     const isCodexTask = this.defaultAgentType === 'codex';
+    const isHermesTask = this.defaultAgentType === 'hermes';
     const taskRun = new TaskRun({
       taskUUID: task.taskUUID,
       sourceWorkspaceUUID: task.sourceWorkspace?.uuid ?? null,
@@ -234,7 +250,15 @@ export class Scheduler {
       codexHomePath,
       codexApiKey: this.codexApiKey,
       codexBaseUrl: this.codexBaseUrl,
-      model: isCodexTask ? this.codexModel : undefined,
+      hermesExecutablePath: isHermesTask ? this.hermesExecutable : undefined,
+      hermesProfile: isHermesTask ? this.hermesProfile : undefined,
+      hermesProvider: isHermesTask ? this.hermesProvider : undefined,
+      hermesToolsets: isHermesTask ? this.hermesToolsets : undefined,
+      model: isCodexTask
+        ? this.codexModel
+        : isHermesTask
+          ? this.hermesModel
+          : undefined,
       modelReasoningEffort: isCodexTask
         ? this.codexReasoningEffort
         : undefined,

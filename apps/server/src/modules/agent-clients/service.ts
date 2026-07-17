@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { parseAgentOutputString } from '@ones-ai-workflow/shared';
+import {
+  parseAgentOutputString,
+  parseAgentRevisionSummary
+} from '@ones-ai-workflow/shared';
 import type {
   AgentConfig,
   AgentInput,
@@ -13,6 +16,7 @@ import type {
   AgentClientTask,
   AgentClientTaskReport,
   IssueExecutionStatus,
+  ParsedAgentRevisionSummary,
   ParsedAgentWikiPageOutput,
   RefObject
 } from '@ones-ai-workflow/shared';
@@ -78,8 +82,10 @@ import {
 import {
   buildRevisionRuntimeContext,
   loadAppliedWriteSnapshot,
-  RevisionContextBuildError
+  RevisionContextBuildError,
+  type AppliedWriteSnapshot
 } from '../executions/revision-context.js';
+import { buildRevisionSummaryComment } from '../executions/revision-summary.js';
 import {
   loadAgentClientTaskAttachment,
   stageAgentClientTaskAttachments as stageAgentClientTaskAttachmentsInStorage
@@ -208,6 +214,8 @@ type ParsedAgentOutputItem =
   | ParsedAgentWikiPageOutput;
 type ParsedTaskExecuteResult = {
   outputs: ParsedAgentOutputItem[];
+  revisionSummary: ParsedAgentRevisionSummary | null;
+  revisionSummaryWarning?: string;
 };
 type PreparedTaskReport = {
   taskUUID: string;
@@ -222,10 +230,15 @@ type PreparedTaskReport = {
   triggerAssigneeName: string;
   status: AgentClientTaskReport['status'];
   logs: string;
-  executeResult: Record<string, unknown>;
+  executeResult: ParsedTaskExecuteResult;
   outputWritePlan: OutputWritePlan;
   startedAt: Date | null;
   finishedAt: Date | null;
+};
+type AppliedWikiWriteSummary = {
+  action: WikiWritePlan['action'];
+  outputFieldUUIDPath: string;
+  pageTitle: string;
 };
 type AgentClientTaskReportRequest = {
   reports: AgentClientTaskReport[];
@@ -1168,6 +1181,127 @@ export function buildTaskBlockedComment(agentName: string): string {
   return `[${normalizedAgentName}] 执行阻塞，联系管理员处理。`;
 }
 
+function getRevisionFeedbackCommentCount(executeOption: unknown): number {
+  if (
+    !executeOption ||
+    typeof executeOption !== 'object' ||
+    Array.isArray(executeOption)
+  ) {
+    return 0;
+  }
+
+  const revisionContext = (executeOption as { revisionContext?: unknown })
+    .revisionContext;
+
+  if (
+    !revisionContext ||
+    typeof revisionContext !== 'object' ||
+    Array.isArray(revisionContext)
+  ) {
+    return 0;
+  }
+
+  const value = Number(
+    (revisionContext as { feedbackCommentCount?: unknown }).feedbackCommentCount
+  );
+  return Number.isFinite(value) && value > 0 ? Math.trunc(value) : 0;
+}
+
+function getOutputDisplayName(
+  outputFieldUUIDPath: string,
+  agentConfig: AgentConfig,
+  appliedWrites: AppliedWriteSnapshot[]
+): string {
+  const rootFieldUUID =
+    outputFieldUUIDPath.split('.')[0] ?? outputFieldUUIDPath;
+  return (
+    appliedWrites.find((write) => write.fieldUUID === rootFieldUUID)
+      ?.fieldName ||
+    agentConfig.outputs.find((output) => output.field.uuid === rootFieldUUID)
+      ?.field.name ||
+    rootFieldUUID
+  );
+}
+
+function buildRevisionActualWriteDescriptions(input: {
+  outputWritePlan: OutputWritePlan;
+  agentConfig: AgentConfig;
+  appliedWrites: AppliedWriteSnapshot[];
+  appliedWikiWrites: AppliedWikiWriteSummary[];
+  appliedStatusTransitions: string[];
+}): string[] {
+  const descriptions: string[] = [];
+  const createdOutputPaths = new Set<string>();
+  const push = (value: string) => {
+    if (value && !descriptions.includes(value)) {
+      descriptions.push(value);
+    }
+  };
+
+  const createCounts = new Map<string, number>();
+  for (const plan of input.outputWritePlan.createRefObjectPlans) {
+    createCounts.set(
+      plan.outputFieldUUIDPath,
+      (createCounts.get(plan.outputFieldUUIDPath) ?? 0) + 1
+    );
+  }
+  for (const [outputPath, count] of createCounts) {
+    createdOutputPaths.add(outputPath);
+    push(
+      `创建并关联「${getOutputDisplayName(outputPath, input.agentConfig, input.appliedWrites)}」${count} 个工作项`
+    );
+  }
+
+  for (const wikiWrite of input.appliedWikiWrites) {
+    const action =
+      wikiWrite.action === 'create'
+        ? '创建'
+        : wikiWrite.action === 'replace'
+          ? '替换'
+          : '追加';
+    push(
+      `${action} Wiki 页面「${wikiWrite.pageTitle}」并关联到「${getOutputDisplayName(wikiWrite.outputFieldUUIDPath, input.agentConfig, input.appliedWrites)}」`
+    );
+  }
+
+  const updatedOutputPaths = new Set([
+    ...input.outputWritePlan.issueFieldValues.map(
+      (write) => write.outputFieldUUIDPath
+    ),
+    ...input.outputWritePlan.deferredIssueReferenceWrites.map(
+      (write) => write.outputFieldUUIDPath
+    ),
+    ...input.outputWritePlan.deferredIssueAttachmentFieldWrites.map(
+      (write) => write.outputFieldUUIDPath
+    )
+  ]);
+  for (const outputPath of updatedOutputPaths) {
+    if (!createdOutputPaths.has(outputPath)) {
+      push(
+        `更新「${getOutputDisplayName(outputPath, input.agentConfig, input.appliedWrites)}」`
+      );
+    }
+  }
+
+  if (input.outputWritePlan.issueComments.length > 0) {
+    push(`新增 ${input.outputWritePlan.issueComments.length} 条评论`);
+  }
+
+  const attachmentCount = input.outputWritePlan.issueAttachments.reduce(
+    (count, output) => count + output.uploads.length,
+    0
+  );
+  if (attachmentCount > 0) {
+    push(`上传 ${attachmentCount} 个附件`);
+  }
+
+  for (const statusName of input.appliedStatusTransitions) {
+    push(`状态流转至「${statusName}」`);
+  }
+
+  return descriptions;
+}
+
 export function hasTaskCommentSinceQueuedAt(
   comments: readonly Pick<OnesOpenApiIssueComment, 'text' | 'createTime'>[],
   expectedText: string,
@@ -1208,6 +1342,18 @@ export function shouldSendTaskStartedComment(
   nextStatus: string
 ): boolean {
   return previousStatus !== 'running' && nextStatus === 'running';
+}
+
+export function shouldSendRevisionSummaryComment(input: {
+  finalStatus: string;
+  revisionContextEnabled: boolean;
+  triggerReason: string;
+}): boolean {
+  return (
+    input.finalStatus === 'success' &&
+    input.revisionContextEnabled &&
+    input.triggerReason === 'revision'
+  );
 }
 
 function parseOnesCommentTimestamp(value?: string): number {
@@ -1505,11 +1651,23 @@ async function parseTaskExecuteResult(
   }
 
   try {
+    let revisionSummary: ParsedAgentRevisionSummary | null = null;
+    let revisionSummaryWarning: string | undefined;
+
+    try {
+      revisionSummary = parseAgentRevisionSummary(executeResult);
+    } catch (error) {
+      revisionSummaryWarning =
+        error instanceof Error ? error.message : String(error);
+    }
+
     return {
       outputs: parseAgentOutputString(
         executeResult,
         agentConfig.outputs
-      ) as ParsedAgentOutputItem[]
+      ) as ParsedAgentOutputItem[],
+      revisionSummary,
+      ...(revisionSummaryWarning ? { revisionSummaryWarning } : {})
     };
   } catch (error) {
     throw withPrepareExecuteResultContext(error, {
@@ -2929,7 +3087,8 @@ async function prepareTaskReport(
   let status = report.status;
   let logs = report.logs;
   let executeResult: ParsedTaskExecuteResult = {
-    outputs: []
+    outputs: [],
+    revisionSummary: null
   };
   let outputWritePlan: OutputWritePlan = {
     createRefObjectPlans: [],
@@ -2951,6 +3110,12 @@ async function prepareTaskReport(
         agentConfigCache,
         teamUUID
       );
+      if (executeResult.revisionSummaryWarning) {
+        logs = appendLogMessage(
+          logs,
+          `[system] ignored invalid revision summary: ${executeResult.revisionSummaryWarning}`
+        );
+      }
       const issueOutputWritePlan = await buildIssueOutputWritePlan(
         task,
         executeResult.outputs,
@@ -3184,6 +3349,38 @@ async function maybeSendTaskLifecycleComment(
         error: error instanceof Error ? error.message : String(error)
       }
     );
+  }
+}
+
+async function maybeSendRevisionSummaryComment(
+  task: IssueAgentExecutionHistoryWithExecutionRecord,
+  text: string,
+  onesContext: OnesOpenApiContext
+): Promise<'sent' | 'duplicate' | 'failed'> {
+  const issueUUID = task.issueExecution.dispatchedIssueUUID;
+
+  try {
+    const comments = await listIssueComments(
+      issueUUID,
+      onesContext,
+      TASK_STARTED_COMMENT_FETCH_LIMIT
+    );
+
+    if (hasTaskCommentSinceQueuedAt(comments, text, task.queuedAt)) {
+      return 'duplicate';
+    }
+
+    await sendIssueComment(issueUUID, { text }, onesContext);
+    return 'sent';
+  } catch (error) {
+    logger.warn('[agent-client-exchange] failed to post revision summary', {
+      taskUUID: task.uuid,
+      issueExecutionUUID: task.issueExecutionUUID,
+      dispatchedIssueUUID: issueUUID,
+      agentUUID: task.agentUUID,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    return 'failed';
   }
 }
 
@@ -3483,12 +3680,13 @@ async function buildDeferredIssueAttachmentFieldValues(
 async function transitionIssueStatusesIfNeeded(
   statusFieldValues: ScopedStatusFieldValue[],
   onesContext: OnesOpenApiContext
-): Promise<string[]> {
+): Promise<{ logs: string[]; appliedTargetStatusNames: string[] }> {
   if (statusFieldValues.length === 0) {
-    return [];
+    return { logs: [], appliedTargetStatusNames: [] };
   }
 
   const transitionLogs: string[] = [];
+  const appliedTargetStatusNames: string[] = [];
 
   for (const statusFieldValue of statusFieldValues) {
     const targetStatusUUID = statusFieldValue.value.uuid?.trim() || '';
@@ -3569,17 +3767,22 @@ async function transitionIssueStatusesIfNeeded(
     transitionLogs.push(
       `[system] executed workflow "${matchedWorkflows[0].name}" for "${statusFieldValue.outputFieldUUIDPath}" to transition issue status from "${issue.status.name}" to "${targetStatusName}"`
     );
+    appliedTargetStatusNames.push(targetStatusName);
   }
 
-  return transitionLogs;
+  return {
+    logs: transitionLogs,
+    appliedTargetStatusNames
+  };
 }
 
 async function executeWorkflowNodePostActions(
   workflowNode: WorkflowNodeRecord,
   issueUUID: string,
   onesContext: OnesOpenApiContext
-): Promise<string[]> {
+): Promise<{ logs: string[]; appliedTargetStatusNames: string[] }> {
   const logs: string[] = [];
+  const appliedTargetStatusNames: string[] = [];
 
   for (const postAction of workflowNode.postActions) {
     if (postAction.type !== 'transition_issue_status') {
@@ -3613,9 +3816,13 @@ async function executeWorkflowNodePostActions(
     logs.push(
       `[system] executed workflow node post-action "${matchedWorkflow.name}" to transition issue status from "${issue.status.name}" to "${postAction.targetStatus.name}"`
     );
+    appliedTargetStatusNames.push(postAction.targetStatus.name);
   }
 
-  return logs;
+  return {
+    logs,
+    appliedTargetStatusNames
+  };
 }
 
 export function selectConfiguredPostActionWorkflow(
@@ -3808,6 +4015,8 @@ async function applyTaskReport(
   let finalStatus = preparedReport.status;
   let finalLogs = preparedReport.logs;
   let finalBlockReason: string | null = null;
+  const appliedWikiWrites: AppliedWikiWriteSummary[] = [];
+  const appliedStatusTransitions: string[] = [];
   const onesContext = getExecutorOnesContext(preparedReport, teamUUID);
   const workflowNode = workflowNodeMap.get(preparedReport.workflowNodeUUID);
 
@@ -3885,6 +4094,11 @@ async function applyTaskReport(
           wikiWrite,
           onesContext
         );
+        appliedWikiWrites.push({
+          action: wikiWrite.action,
+          outputFieldUUIDPath: wikiWrite.outputFieldUUIDPath,
+          pageTitle: appliedWikiWrite.pageTitle
+        });
         finalLogs = appendLogMessage(finalLogs, appliedWikiWrite.log);
         const existingWikiFieldValue =
           wikiWrite.outputFieldValueType === 'multi_reference_object'
@@ -3923,32 +4137,41 @@ async function applyTaskReport(
       }
       outputWriteStage = 'statuses';
 
-      const transitionLogs =
+      const transitionResult =
         workflowNode.postActions.length > 0
           ? preparedReport.outputWritePlan.statusFieldValues.length > 0
-            ? [
-                '[system] ignored agent-produced status outputs because the workflow node has a configured post-action'
-              ]
-            : []
+            ? {
+                logs: [
+                  '[system] ignored agent-produced status outputs because the workflow node has a configured post-action'
+                ],
+                appliedTargetStatusNames: []
+              }
+            : { logs: [], appliedTargetStatusNames: [] }
           : await transitionIssueStatusesIfNeeded(
               preparedReport.outputWritePlan.statusFieldValues,
               onesContext
             );
 
-      for (const transitionLog of transitionLogs) {
+      for (const transitionLog of transitionResult.logs) {
         finalLogs = appendLogMessage(finalLogs, transitionLog);
       }
+      appliedStatusTransitions.push(
+        ...transitionResult.appliedTargetStatusNames
+      );
 
       outputWriteStage = 'post_actions';
-      const postActionLogs = await executeWorkflowNodePostActions(
+      const postActionResult = await executeWorkflowNodePostActions(
         workflowNode,
         preparedReport.dispatchedIssueUUID,
         onesContext
       );
 
-      for (const postActionLog of postActionLogs) {
+      for (const postActionLog of postActionResult.logs) {
         finalLogs = appendLogMessage(finalLogs, postActionLog);
       }
+      appliedStatusTransitions.push(
+        ...postActionResult.appliedTargetStatusNames
+      );
 
       if (await shouldBlockSuccessfulTaskReport(preparedReport, onesContext)) {
         finalStatus = 'blocked';
@@ -4022,7 +4245,11 @@ async function applyTaskReport(
     throw new InvalidAgentClientTaskReportError(preparedReport.taskUUID);
   }
 
-  let executeResultToPersist = preparedReport.executeResult;
+  let executeResultToPersist: Record<string, unknown> = {
+    ...preparedReport.executeResult
+  };
+  let agentConfigForSummary: AgentConfig | null = null;
+  let appliedWrites: AppliedWriteSnapshot[] = [];
   if (finalStatus === 'success') {
     try {
       const agentConfig = await loadAgentConfig(
@@ -4032,13 +4259,15 @@ async function applyTaskReport(
         teamUUID
       );
       if (agentConfig) {
+        agentConfigForSummary = agentConfig;
+        appliedWrites = await loadAppliedWriteSnapshot(
+          preparedReport.dispatchedIssueUUID,
+          agentConfig.outputs,
+          onesContext
+        );
         executeResultToPersist = {
           ...preparedReport.executeResult,
-          appliedWrites: await loadAppliedWriteSnapshot(
-            preparedReport.dispatchedIssueUUID,
-            agentConfig.outputs,
-            onesContext
-          )
+          appliedWrites
         };
       }
     } catch (error) {
@@ -4047,6 +4276,51 @@ async function applyTaskReport(
         `[system] could not snapshot applied outputs for future revision context: ${error instanceof Error ? error.message : String(error)}`
       );
     }
+  }
+
+  if (
+    shouldSendRevisionSummaryComment({
+      finalStatus,
+      revisionContextEnabled: workflowNode.revisionContext.enabled,
+      triggerReason: task.issueExecution.triggerReason
+    })
+  ) {
+    const actualWrites = agentConfigForSummary
+      ? buildRevisionActualWriteDescriptions({
+          outputWritePlan: preparedReport.outputWritePlan,
+          agentConfig: agentConfigForSummary,
+          appliedWrites,
+          appliedWikiWrites,
+          appliedStatusTransitions
+        })
+      : [];
+    const revisionSummaryComment = buildRevisionSummaryComment({
+      agentName: task.agentName,
+      iteration: task.issueExecution.iteration,
+      feedbackCommentCount: getRevisionFeedbackCommentCount(task.executeOption),
+      revisionSummary: preparedReport.executeResult.revisionSummary ?? null,
+      actualWrites
+    });
+    const revisionSummaryCommentStatus = await maybeSendRevisionSummaryComment(
+      task,
+      revisionSummaryComment,
+      onesContext
+    );
+
+    executeResultToPersist = {
+      ...executeResultToPersist,
+      revisionSummaryComment: {
+        status: revisionSummaryCommentStatus
+      }
+    };
+    finalLogs = appendLogMessage(
+      finalLogs,
+      revisionSummaryCommentStatus === 'failed'
+        ? '[system] could not post revision summary comment; execution remains successful'
+        : revisionSummaryCommentStatus === 'duplicate'
+          ? '[system] skipped duplicate revision summary comment'
+          : '[system] posted revision summary comment'
+    );
   }
 
   const mergedLogs = mergeLogHistory(task.logs, finalLogs);

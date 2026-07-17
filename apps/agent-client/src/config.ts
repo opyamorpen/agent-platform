@@ -20,10 +20,16 @@ const defaultClientName = `${os.hostname()} agent client`;
 const defaultClientVersion = '0.1.0';
 const defaultCodexModel = 'gpt-5.4';
 const defaultCodexReasoningEffort = 'high';
+const defaultHermesExecutable = 'hermes';
 const SOURCE_WORKSPACES_DIRECTORY_NAME = 'source-workspaces';
 const SKILLS_DIRECTORY_NAME = 'skills';
 const defaultWorkingRoot = path.resolve(repoRoot, '.agent-client');
 const defaultCodexHome = path.join(os.homedir(), '.codex');
+const optionalTrimmedString = z
+  .string()
+  .trim()
+  .transform((value) => value || undefined)
+  .optional();
 
 const envSchema = z.object({
   AGENT_CLIENT_UUID: z.string().trim().min(1).default(defaultClientUUID),
@@ -39,7 +45,7 @@ const envSchema = z.object({
     .enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'off'])
     .default('info'),
   AGENT_CLIENT_DEFAULT_AGENT: z
-    .enum(['codex', 'claude'])
+    .enum(['codex', 'claude', 'hermes'])
     .default('codex'),
   AGENT_CLIENT_CODEX_HOMES: z.string().optional(),
   AGENT_CLIENT_CODEX_API_KEY: z.string().trim().optional(),
@@ -51,7 +57,16 @@ const envSchema = z.object({
     .default(defaultCodexModel),
   AGENT_CLIENT_CODEX_REASONING_EFFORT: z
     .enum(['minimal', 'low', 'medium', 'high', 'xhigh'])
-    .default(defaultCodexReasoningEffort)
+    .default(defaultCodexReasoningEffort),
+  AGENT_CLIENT_HERMES_EXECUTABLE: z
+    .string()
+    .trim()
+    .min(1)
+    .default(defaultHermesExecutable),
+  AGENT_CLIENT_HERMES_PROFILE: optionalTrimmedString,
+  AGENT_CLIENT_HERMES_MODEL: optionalTrimmedString,
+  AGENT_CLIENT_HERMES_PROVIDER: optionalTrimmedString,
+  AGENT_CLIENT_HERMES_TOOLSETS: optionalTrimmedString
 });
 
 const parsedEnv = envSchema.parse(process.env);
@@ -61,6 +76,15 @@ const hasCodexBaseUrl = Boolean(parsedEnv.AGENT_CLIENT_CODEX_BASE_URL);
 if (hasCodexApiKey !== hasCodexBaseUrl) {
   throw new Error(
     'AGENT_CLIENT_CODEX_API_KEY and AGENT_CLIENT_CODEX_BASE_URL must be configured together'
+  );
+}
+
+if (
+  parsedEnv.AGENT_CLIENT_HERMES_PROVIDER &&
+  !parsedEnv.AGENT_CLIENT_HERMES_MODEL
+) {
+  throw new Error(
+    'AGENT_CLIENT_HERMES_PROVIDER requires AGENT_CLIENT_HERMES_MODEL'
   );
 }
 
@@ -90,7 +114,12 @@ export const env = {
   codexUsesApiKey: hasCodexApiKey,
   codexModel: parsedEnv.AGENT_CLIENT_CODEX_MODEL,
   codexReasoningEffort:
-    parsedEnv.AGENT_CLIENT_CODEX_REASONING_EFFORT as ModelReasoningEffort
+    parsedEnv.AGENT_CLIENT_CODEX_REASONING_EFFORT as ModelReasoningEffort,
+  hermesExecutable: parsedEnv.AGENT_CLIENT_HERMES_EXECUTABLE,
+  hermesProfile: parsedEnv.AGENT_CLIENT_HERMES_PROFILE,
+  hermesModel: parsedEnv.AGENT_CLIENT_HERMES_MODEL,
+  hermesProvider: parsedEnv.AGENT_CLIENT_HERMES_PROVIDER,
+  hermesToolsets: parsedEnv.AGENT_CLIENT_HERMES_TOOLSETS
 } as const;
 
 function parseCodexHomes(

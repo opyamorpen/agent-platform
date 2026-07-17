@@ -10,6 +10,7 @@ import {
 import type { OnesOpenApiIssueComment } from '../../ones/open-api/types.js';
 import { createOnesOpenApiClient } from '../../ones/index.js';
 import type { IssueExecutionHistoryRecord } from './repository.js';
+import { isRevisionSummaryCommentText } from './revision-summary.js';
 
 const MAX_COMMENT_COUNT = 1000;
 const MAX_COMMENT_SCAN_BYTES = 1024 * 1024;
@@ -104,9 +105,12 @@ function parseOnesTimestamp(value?: string): number {
   return numericValue;
 }
 
-function isPluginLifecycleComment(comment: OnesOpenApiIssueComment): boolean {
+export function isPluginLifecycleComment(
+  comment: OnesOpenApiIssueComment
+): boolean {
   const text = comment.text.trim();
   return (
+    isRevisionSummaryCommentText(text) ||
     /^\[[^\]]+\] 已开始工作，稍后通知你结果。$/u.test(text) ||
     /^\[[^\]]+\] 执行阻塞，联系管理员处理。$/u.test(text)
   );

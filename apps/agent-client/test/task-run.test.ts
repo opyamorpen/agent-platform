@@ -95,6 +95,10 @@ test('TaskRun passes agent options into createAgentSession', async () => {
         env?: Record<string, string>;
         codexApiKey?: string;
         codexBaseUrl?: string;
+        hermesExecutablePath?: string;
+        hermesProfile?: string;
+        hermesProvider?: string;
+        hermesToolsets?: string;
         model?: string;
         modelReasoningEffort?: string;
       }
@@ -113,6 +117,10 @@ test('TaskRun passes agent options into createAgentSession', async () => {
       executeAgentType: 'claude',
       codexApiKey: 'agent-client-key',
       codexBaseUrl: 'https://api.openai.com/v1',
+      hermesExecutablePath: '/usr/local/bin/hermes',
+      hermesProfile: 'coder',
+      hermesProvider: 'deepseek',
+      hermesToolsets: 'terminal,filesystem',
       model: 'gpt-5.4',
       modelReasoningEffort: 'high'
     },
@@ -154,6 +162,10 @@ test('TaskRun passes agent options into createAgentSession', async () => {
   });
   assert.equal(capturedInput?.codexApiKey, 'agent-client-key');
   assert.equal(capturedInput?.codexBaseUrl, 'https://api.openai.com/v1');
+  assert.equal(capturedInput?.hermesExecutablePath, '/usr/local/bin/hermes');
+  assert.equal(capturedInput?.hermesProfile, 'coder');
+  assert.equal(capturedInput?.hermesProvider, 'deepseek');
+  assert.equal(capturedInput?.hermesToolsets, 'terminal,filesystem');
   assert.equal(capturedInput?.model, 'gpt-5.4');
   assert.equal(capturedInput?.modelReasoningEffort, 'high');
 });

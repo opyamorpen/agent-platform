@@ -2,6 +2,10 @@ import type { AgentOutputField, AgentOutputSetValueField } from './types.js';
 
 const ISSUE_COMMENT_FIELD_UUID = 'field057';
 const ISSUE_ATTACHMENT_FIELD_UUID = 'field047';
+const MAX_REVISION_SUMMARY_CHARS = 500;
+const MAX_REVISION_CHANGE_COUNT = 5;
+const MAX_REVISION_CHANGE_CHARS = 500;
+const MAX_REVISION_SUMMARY_BYTES = 4 * 1024;
 
 type ObjectSubFieldConfig = {
   kind?: 'issue_field';
@@ -520,6 +524,86 @@ export function parseAgentOutputString(
   }
 
   return result;
+}
+
+export interface ParsedAgentRevisionSummary {
+  summary: string;
+  changes: string[];
+}
+
+export function parseAgentRevisionSummary(
+  outputText: string
+): ParsedAgentRevisionSummary | null {
+  const outputsContent = parseXmlTagContent(outputText, 'outputs');
+
+  if (outputsContent === null) {
+    return null;
+  }
+
+  const summaryBlocks = collectXmlTagContents(
+    outputsContent,
+    'revision-summary'
+  );
+
+  if (summaryBlocks.length === 0) {
+    return null;
+  }
+
+  if (summaryBlocks.length > 1) {
+    throw new Error('Duplicated <revision-summary> block');
+  }
+
+  const summaryBlock = summaryBlocks[0] ?? '';
+  const summaryValue = parseXmlTagContent(summaryBlock, 'summary');
+  const summary =
+    summaryValue === null ? '' : unwrapCdataIfPresent(summaryValue).trim();
+
+  if (!summary) {
+    throw new Error('Revision summary requires a non-empty <summary>');
+  }
+
+  if (summary.length > MAX_REVISION_SUMMARY_CHARS) {
+    throw new Error(
+      `Revision summary exceeds ${MAX_REVISION_SUMMARY_CHARS} characters`
+    );
+  }
+
+  const changesContent = parseXmlTagContent(summaryBlock, 'changes');
+  const changes = changesContent
+    ? collectXmlTagContents(changesContent, 'change')
+        .map((change) => unwrapCdataIfPresent(change).trim())
+        .filter(Boolean)
+    : [];
+
+  if (changes.length > MAX_REVISION_CHANGE_COUNT) {
+    throw new Error(
+      `Revision summary exceeds ${MAX_REVISION_CHANGE_COUNT} changes`
+    );
+  }
+
+  const oversizedChange = changes.find(
+    (change) => change.length > MAX_REVISION_CHANGE_CHARS
+  );
+
+  if (oversizedChange) {
+    throw new Error(
+      `Revision summary change exceeds ${MAX_REVISION_CHANGE_CHARS} characters`
+    );
+  }
+
+  if (
+    new TextEncoder().encode([summary, ...changes].join('\n')).byteLength >
+    MAX_REVISION_SUMMARY_BYTES
+  ) {
+    throw new Error(
+      `Revision summary exceeds ${MAX_REVISION_SUMMARY_BYTES} bytes`
+    );
+  }
+
+  return {
+    summary,
+    changes
+  };
 }
 
 export interface ParsedAgentSetValueOutput {

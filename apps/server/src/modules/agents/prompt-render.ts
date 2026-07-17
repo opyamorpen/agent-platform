@@ -421,11 +421,27 @@ function renderReferenceFieldObjectTemplateLines(
   ];
 }
 
-function buildAgentOutputTemplateXml(fields: AgentOutputField[]): string {
+function buildAgentOutputTemplateXml(
+  fields: AgentOutputField[],
+  revisionMode: boolean
+): string {
+  const revisionSummaryLines = revisionMode
+    ? [
+        '  <!-- Required for revision runs. Describe actual changes made compared with the previous iteration; do not merely repeat the review feedback. -->',
+        '  <revision-summary>',
+        '    <summary><![CDATA[]]></summary>',
+        '    <changes>',
+        '      <change><![CDATA[]]></change>',
+        '    </changes>',
+        '  </revision-summary>'
+      ]
+    : [];
+
   return fields.length === 0
-    ? '<outputs>\n</outputs>'
+    ? ['<outputs>', ...revisionSummaryLines, '</outputs>'].join('\n')
     : [
         '<outputs>',
+        ...revisionSummaryLines,
         ...fields.flatMap((field) => {
           const description = sanitizeXmlCommentText(
             field.description.trim() || 'No field description provided'
@@ -528,6 +544,11 @@ export function buildAgentPrompt(
     readableEnvKeys?: string[];
   } = {}
 ): string {
+  const revisionContextXml =
+    options.revisionContextXml?.trim() ||
+    '<revision-context><mode>initial</mode></revision-context>';
+  const revisionMode = /<mode>\s*revision\s*<\/mode>/u.test(revisionContextXml);
+
   return AGENT_PROMPT_TEMPLATE.replace(
     READABLE_ENV_POLICY_BLOCK_PLACEHOLDER,
     buildReadableEnvPolicyBlock(
@@ -541,15 +562,14 @@ export function buildAgentPrompt(
           buildPreviewAgentInputContextXml(config.inputs),
         options.wikiInputsXml?.trim() || '<wiki-inputs />',
         options.knowledgeContextXml?.trim() || '<knowledge-context />',
-        options.revisionContextXml?.trim() ||
-          '<revision-context><mode>initial</mode></revision-context>'
+        revisionContextXml
       ]
         .join('\n\n')
         .trim()
     )
     .replace(
       OUTPUT_TEMPLATE_XML_PLACEHOLDER,
-      buildAgentOutputTemplateXml(config.outputs)
+      buildAgentOutputTemplateXml(config.outputs, revisionMode)
     )
     .replace(
       TASK_PROMPT_PLACEHOLDER,

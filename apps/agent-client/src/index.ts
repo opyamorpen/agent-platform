@@ -29,7 +29,12 @@ async function main() {
     codexUsesApiKey: env.codexUsesApiKey,
     codexBaseUrl: env.codexBaseUrl ?? null,
     codexModel: env.codexModel,
-    codexReasoningEffort: env.codexReasoningEffort
+    codexReasoningEffort: env.codexReasoningEffort,
+    hermesExecutable: env.hermesExecutable,
+    hermesProfile: env.hermesProfile ?? null,
+    hermesModel: env.hermesModel ?? null,
+    hermesProvider: env.hermesProvider ?? null,
+    hermesToolsets: env.hermesToolsets ?? null
   });
 
   const auth = new AuthService({
@@ -79,7 +84,12 @@ async function main() {
       codexApiKey: env.codexApiKey,
       codexBaseUrl: env.codexBaseUrl,
       codexModel: env.codexModel,
-      codexReasoningEffort: env.codexReasoningEffort
+      codexReasoningEffort: env.codexReasoningEffort,
+      hermesExecutable: env.hermesExecutable,
+      hermesProfile: env.hermesProfile,
+      hermesModel: env.hermesModel,
+      hermesProvider: env.hermesProvider,
+      hermesToolsets: env.hermesToolsets
     }
   );
 

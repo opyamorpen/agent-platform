@@ -77,6 +77,11 @@ The current agent-client supports these environment variables:
 - `AGENT_CLIENT_CODEX_BASE_URL`
 - `AGENT_CLIENT_CODEX_MODEL`
 - `AGENT_CLIENT_CODEX_REASONING_EFFORT`
+- `AGENT_CLIENT_HERMES_EXECUTABLE`
+- `AGENT_CLIENT_HERMES_PROFILE`
+- `AGENT_CLIENT_HERMES_MODEL`
+- `AGENT_CLIENT_HERMES_PROVIDER`
+- `AGENT_CLIENT_HERMES_TOOLSETS`
 
 The following directories are derived automatically from
 `AGENT_CLIENT_WORKING_ROOT`:
@@ -106,6 +111,38 @@ startup.
 `AGENT_CLIENT_CODEX_MODEL` defaults to `gpt-5.4`.
 `AGENT_CLIENT_CODEX_REASONING_EFFORT` defaults to `high`; supported values are
 `minimal`, `low`, `medium`, `high`, and `xhigh`.
+
+To run Hermes Agent, install Hermes Agent v0.18.2 or newer on the Agent Client
+host and complete its provider authentication first. The client uses Hermes'
+official scripted one-shot interface and does not execute a configurable shell
+command template:
+
+```bash
+AGENT_CLIENT_DEFAULT_AGENT=hermes
+AGENT_CLIENT_HERMES_EXECUTABLE=hermes
+AGENT_CLIENT_HERMES_PROFILE=default
+AGENT_CLIENT_HERMES_MODEL=deepseek-v4-flash
+AGENT_CLIENT_HERMES_PROVIDER=deepseek
+AGENT_CLIENT_HERMES_TOOLSETS=terminal,filesystem
+```
+
+Only `AGENT_CLIENT_HERMES_EXECUTABLE` is required and defaults to `hermes`.
+When profile, model, provider, or toolsets are omitted, Hermes uses its active
+profile configuration. `AGENT_CLIENT_HERMES_PROVIDER` requires
+`AGENT_CLIENT_HERMES_MODEL`, matching Hermes CLI validation.
+
+Hermes receives each task through `hermes -z` and returns only its final stdout
+response. The client reads Hermes' usage report for input/output token counts.
+Selected ONES task skills are loaded from the existing workspace
+`.agents/skills` mount and injected into the Hermes prompt, so no Hermes Profile
+configuration change is required. Hermes one-shot mode auto-bypasses command
+approvals; keep Agent Client workspaces isolated and do not add Hermes'
+`--worktree` option because the client already prepares an isolated workspace.
+
+The repository's default Agent Client container image does not currently bundle
+Hermes Agent. Use a derived base image with Hermes v0.18.2+ installed and mount
+its `HERMES_HOME`, or run the Agent Client directly on a host where `hermes` is
+already configured.
 
 For container deployments, also set:
 
@@ -271,7 +308,7 @@ Notes:
 - `AGENT_CLIENT_UUID` must be stable and unique per container.
 - `AGENT_CLIENT_SERVER_BASE_URL` should point to the server as reachable from
   inside Docker. The example uses `http://host.docker.internal:3001`.
-- `AGENT_CLIENT_DEFAULT_AGENT` may be `codex` or `claude`.
+- `AGENT_CLIENT_DEFAULT_AGENT` may be `codex`, `claude`, or `hermes`.
 - `AGENT_CLIENT_CONCURRENCY=1` is still the safest default.
 - If you want multiple Codex profiles, mount multiple directories and set
   `AGENT_CLIENT_CODEX_HOMES` to absolute container paths such as

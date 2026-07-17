@@ -13,7 +13,6 @@ import {
 } from '../src/task-server/index.ts';
 import {
   TaskRun,
-  type TaskRunCallback,
   type TaskRunInput
 } from '../src/task-run/index.ts';
 import type { TaskStore } from '../src/task-store/index.ts';
@@ -206,7 +205,7 @@ test('Scheduler skips codex home selection when default agent is claude', async 
 test('Scheduler does not pass Codex model options to Claude tasks', async () => {
   let capturedInput: TaskRunInput | undefined;
   const originalStart = TaskRun.prototype.start;
-  TaskRun.prototype.start = function (this: TaskRun, _callback: TaskRunCallback) {
+  TaskRun.prototype.start = function (this: TaskRun) {
     capturedInput = (this as unknown as { input: TaskRunInput }).input;
   };
 
@@ -232,6 +231,50 @@ test('Scheduler does not pass Codex model options to Claude tasks', async () => 
 
     assert.equal(capturedInput?.executeAgentType, 'claude');
     assert.equal(capturedInput?.model, undefined);
+    assert.equal(capturedInput?.modelReasoningEffort, undefined);
+  } finally {
+    TaskRun.prototype.start = originalStart;
+  }
+});
+
+test('Scheduler passes Hermes invocation options to Hermes tasks', async () => {
+  let capturedInput: TaskRunInput | undefined;
+  const originalStart = TaskRun.prototype.start;
+  TaskRun.prototype.start = function (this: TaskRun) {
+    capturedInput = (this as unknown as { input: TaskRunInput }).input;
+  };
+
+  try {
+    const scheduler = new Scheduler(
+      createAuthStub(),
+      createTaskStoreStub(),
+      createTaskServerStub(),
+      createWorkspaceStub(),
+      createSkillStub(),
+      createCodexHomeStub(),
+      'hermes',
+      {
+        codexModel: 'gpt-5.4',
+        codexReasoningEffort: 'high',
+        hermesExecutable: '/usr/local/bin/hermes',
+        hermesProfile: 'coder',
+        hermesModel: 'deepseek-v4-flash',
+        hermesProvider: 'deepseek',
+        hermesToolsets: 'terminal,filesystem'
+      }
+    );
+
+    await scheduler.reloadPromise;
+    await (scheduler as SchedulerWithInternals).startTask(
+      createTask('task-hermes-model')
+    );
+
+    assert.equal(capturedInput?.executeAgentType, 'hermes');
+    assert.equal(capturedInput?.hermesExecutablePath, '/usr/local/bin/hermes');
+    assert.equal(capturedInput?.hermesProfile, 'coder');
+    assert.equal(capturedInput?.model, 'deepseek-v4-flash');
+    assert.equal(capturedInput?.hermesProvider, 'deepseek');
+    assert.equal(capturedInput?.hermesToolsets, 'terminal,filesystem');
     assert.equal(capturedInput?.modelReasoningEffort, undefined);
   } finally {
     TaskRun.prototype.start = originalStart;

@@ -12,7 +12,7 @@ import { resolveCurrentInstallationInfo } from '../../lib/installation-info.js';
 import { buildOnesIssueURL } from '../../lib/ones-url.js';
 import type { OnesOpenApiContext } from '../../ones/context.js';
 import {
-  listAssignedIssues,
+  listWorkflowIssues,
   type ListAssignedIssuesFilter,
   type OnesIssue
 } from '../../ones/issue.js';
@@ -945,12 +945,11 @@ export async function pollWorkflowIssueExecutionsOnce(
 
   for (const [executorUUID, executorWorkflowNodes] of workflowNodesByExecutor) {
     const assignedIssueFilters = getAssignedIssueFilters(executorWorkflowNodes);
-    const issues = await listAssignedIssues(
+    const issues = await listWorkflowIssues(
       {
         teamUUID,
         userUUID: executorUUID
       },
-      [executorUUID],
       {
         filters: assignedIssueFilters,
         limit: ONES_ISSUE_LIMIT
@@ -966,10 +965,7 @@ export async function pollWorkflowIssueExecutionsOnce(
     });
 
     for (const issue of issues) {
-      const matchedNodes = getMatchingWorkflowNodes(
-        issue,
-        executorWorkflowNodes
-      );
+      const matchedNodes = getMatchingWorkflowNodes(issue, workflowNodes);
 
       if (matchedNodes.length === 0) {
         continue;
@@ -987,7 +983,13 @@ export async function pollWorkflowIssueExecutionsOnce(
         continue;
       }
 
-      await initializeIssueExecution(issue, matchedNodes[0], teamUUID);
+      const matchedNode = matchedNodes[0];
+
+      if (matchedNode.executor.uuid !== executorUUID) {
+        continue;
+      }
+
+      await initializeIssueExecution(issue, matchedNode, teamUUID);
     }
   }
 }

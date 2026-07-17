@@ -105,17 +105,10 @@ export interface ListAssignedIssuesOptions {
   limit?: number;
 }
 
-export function buildListAssignedIssuesQuery(
-  assigneeUUIDs: string[],
-  limit: number,
-  filters: ListAssignedIssuesFilter[] = []
-): string {
-  const normalizedAssigneeUUIDs = Array.from(
-    new Set(
-      assigneeUUIDs.map((assigneeUUID) => assigneeUUID.trim()).filter(Boolean)
-    )
-  );
-  const normalizedFilters = Array.from(
+function normalizeIssueFilters(
+  filters: ListAssignedIssuesFilter[]
+): ListAssignedIssuesFilter[] {
+  return Array.from(
     new Map(
       filters
         .map((filter) => ({
@@ -135,14 +128,14 @@ export function buildListAssignedIssuesQuery(
         ])
     ).values()
   );
+}
 
-  if (normalizedAssigneeUUIDs.length === 0) {
-    throw new Error('At least one assignee UUID is required');
-  }
-
-  const assigneeClause = normalizedAssigneeUUIDs
-    .map((assigneeUUID) => `'${escapeOneSqlString(assigneeUUID)}'`)
-    .join(', ');
+function buildIssueListQuery(
+  limit: number,
+  filters: ListAssignedIssuesFilter[],
+  assigneeUUIDs: string[] | null
+): string {
+  const normalizedFilters = normalizeIssueFilters(filters);
   const filterClause =
     normalizedFilters.length === 0
       ? null
@@ -158,6 +151,27 @@ export function buildListAssignedIssuesQuery(
               ].join(' ')
           )
           .join(' OR ');
+  const assigneeClause = assigneeUUIDs
+    ? Array.from(
+        new Set(
+          assigneeUUIDs
+            .map((assigneeUUID) => assigneeUUID.trim())
+            .filter(Boolean)
+        )
+      )
+        .map((assigneeUUID) => `'${escapeOneSqlString(assigneeUUID)}'`)
+        .join(', ')
+    : null;
+  const whereClauses = [
+    ...(assigneeClause
+      ? [`uid(${ISSUE_ASSIGNEE_FIELD_UUID}) IN (${assigneeClause})`]
+      : []),
+    ...(filterClause ? [`(${filterClause})`] : [])
+  ];
+
+  if (whereClauses.length === 0) {
+    throw new Error('At least one issue query condition is required');
+  }
 
   return [
     'SELECT',
@@ -175,12 +189,34 @@ export function buildListAssignedIssuesQuery(
       `${ISSUE_ASSIGNEE_FIELD_UUID}.name`
     ].join(', '),
     'FROM issue',
-    `WHERE uid(${ISSUE_ASSIGNEE_FIELD_UUID}) IN (${assigneeClause})`,
-    ...(filterClause ? [`AND (${filterClause})`] : []),
+    `WHERE ${whereClauses.join(' AND ')}`,
     "AND v$cursor > ''",
     `ORDER BY ${ISSUE_UPDATED_AT_FIELD_UUID} DESC`,
     `LIMIT ${ONESQL_CURSOR_OFFSET}, ${limit}`
   ].join(' ');
+}
+
+export function buildListAssignedIssuesQuery(
+  assigneeUUIDs: string[],
+  limit: number,
+  filters: ListAssignedIssuesFilter[] = []
+): string {
+  if (assigneeUUIDs.every((assigneeUUID) => !assigneeUUID.trim())) {
+    throw new Error('At least one assignee UUID is required');
+  }
+
+  return buildIssueListQuery(limit, filters, assigneeUUIDs);
+}
+
+export function buildListWorkflowIssuesQuery(
+  limit: number,
+  filters: ListAssignedIssuesFilter[]
+): string {
+  if (normalizeIssueFilters(filters).length === 0) {
+    throw new Error('At least one workflow issue filter is required');
+  }
+
+  return buildIssueListQuery(limit, filters, null);
 }
 
 function buildFindIssueByDisplayIdQuery(displayId: string): string {
@@ -857,6 +893,45 @@ export async function listAssignedIssues(
   const limit = options.limit ?? 200;
   const result = await (await createOnesOpenApiClient(context)).executeOneSQL(
     buildListAssignedIssuesQuery(assigneeUUIDs, limit, options.filters ?? [])
+  );
+
+  const issues = result.rows
+    .flatMap((row) => {
+      if (!row.item) {
+        return [];
+      }
+
+      const issue = toOnesIssue(row.item);
+
+      if (!issue) {
+        logger.error(
+          '[workflow-execution] skip invalid ONES issue payload',
+          row.item
+        );
+        return [];
+      }
+
+      return [issue];
+    })
+    .slice(0, limit);
+
+  if (result.rows.length > limit) {
+    logger.warn('[workflow-execution] ONES issue query result was truncated', {
+      requestedLimit: limit,
+      receivedCount: result.rows.length
+    });
+  }
+
+  return issues;
+}
+
+export async function listWorkflowIssues(
+  context: OnesOpenApiContext,
+  options: ListAssignedIssuesOptions
+): Promise<OnesIssue[]> {
+  const limit = options.limit ?? 200;
+  const result = await (await createOnesOpenApiClient(context)).executeOneSQL(
+    buildListWorkflowIssuesQuery(limit, options.filters ?? [])
   );
 
   const issues = result.rows

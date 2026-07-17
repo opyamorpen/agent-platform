@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildListAssignedIssuesQuery } from '../src/ones/issue.ts';
+import {
+  buildListAssignedIssuesQuery,
+  buildListWorkflowIssuesQuery
+} from '../src/ones/issue.ts';
 import {
   validateWorkflowNodeExecutorBindings,
   WorkflowNodeExecutorInvalidError
@@ -77,6 +80,29 @@ test('buildListAssignedIssuesQuery rejects empty assignee lists', () => {
   assert.throws(
     () => buildListAssignedIssuesQuery([], 20),
     /At least one assignee UUID is required/
+  );
+});
+
+test('buildListWorkflowIssuesQuery uses node filters without hidden assignee constraint', () => {
+  const query = buildListWorkflowIssuesQuery(20, [
+    {
+      projectUUID: 'project-1',
+      issueTypeUUID: 'type-1',
+      statusUUID: 'status-1'
+    }
+  ]);
+
+  assert.match(
+    query,
+    /WHERE \(\( uid\(field006\) = 'project-1' AND uid\(field007\) = 'type-1' AND uid\(field005\) = 'status-1' \)\)/
+  );
+  assert.doesNotMatch(query, /uid\(field004\) IN/);
+});
+
+test('buildListWorkflowIssuesQuery rejects empty workflow filters', () => {
+  assert.throws(
+    () => buildListWorkflowIssuesQuery(20, []),
+    /At least one workflow issue filter is required/
   );
 });
 

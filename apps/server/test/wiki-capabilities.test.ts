@@ -3,6 +3,7 @@ import test from 'node:test';
 import { parseAgentOutputString } from '@ones-ai-workflow/shared';
 import { agentConfigSchema } from '../src/modules/agents/dto.js';
 import { buildAgentPrompt } from '../src/modules/agents/prompt-render.js';
+import { buildWikiWritePlan } from '../src/modules/agent-clients/wiki-output.js';
 import {
   appendWikiMarkdown,
   markdownToCollaborationContent,
@@ -170,6 +171,44 @@ test('buildAgentPrompt renders Wiki input context and action schema', () => {
   assert.match(prompt, /<configured-write-target>/u);
   assert.match(prompt, /<space-uuid>space-output<\/space-uuid>/u);
   assert.doesNotMatch(prompt, /<parent-page-uuid><\/parent-page-uuid>/u);
+});
+
+test('revision Wiki output rejects duplicate create before calling ONES', async () => {
+  await assert.rejects(
+    () =>
+      buildWikiWritePlan({
+        output: {
+          mode: 'wiki_page',
+          fieldUUIDPath: 'fieldWiki',
+          action: 'create',
+          targetPageUUID: null,
+          targetPageName: null,
+          parentPageUUID: null,
+          spaceUUID: null,
+          title: '重复页面',
+          markdown: '正文'
+        },
+        field: wikiOutputField,
+        executeOption: {
+          wikiContext: { inputPages: [] },
+          revisionContext: {
+            currentWikiPages: [
+              {
+                fieldUUID: 'fieldWiki',
+                uuid: 'page-existing',
+                title: '已有页面',
+                spaceUUID: 'space-output',
+                updatedTime: 1,
+                refType: 'collaboration'
+              }
+            ]
+          }
+        },
+        knowledgeSourceUUIDs: [],
+        onesContext: { teamUUID: 'team-1', userUUID: 'user-1' }
+      }),
+    /must replace or append the existing page/u
+  );
 });
 
 test('collaboration Wiki content converts to Markdown and back', () => {

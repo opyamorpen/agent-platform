@@ -87,6 +87,7 @@ type ExecutableWorkflowNode = {
   status: RefObject;
   executor: RefObject;
   agents: DispatchAgentRecord[];
+  revisionContextEnabled: boolean;
 };
 
 async function loadExecutableWorkflowNodes(
@@ -113,9 +114,7 @@ async function loadExecutableWorkflowNodes(
     new Set(workflowNodes.map((node) => node.agentUUID).filter(Boolean))
   );
   const agents = await findDispatchAgentsByUUIDs(agentUUIDs, teamUUID);
-  const agentMap = new Map(
-    agents.map((agent) => [agent.uuid, agent] as const)
-  );
+  const agentMap = new Map(agents.map((agent) => [agent.uuid, agent] as const));
 
   return workflowNodes.flatMap((node) => {
     const workflow = workflowMap.get(node.workflowUUID);
@@ -123,13 +122,16 @@ async function loadExecutableWorkflowNodes(
 
     if (!workflow) {
       if (!referencedWorkflow) {
-        logger.error('[workflow-execution] skip node because workflow is missing', {
-          workflowUUID: node.workflowUUID,
-          workflowNodeUUID: node.uuid,
-          projectName: node.projectName,
-          issueTypeName: node.issueTypeName,
-          statusName: node.statusName
-        });
+        logger.error(
+          '[workflow-execution] skip node because workflow is missing',
+          {
+            workflowUUID: node.workflowUUID,
+            workflowNodeUUID: node.uuid,
+            projectName: node.projectName,
+            issueTypeName: node.issueTypeName,
+            statusName: node.statusName
+          }
+        );
       }
 
       return [];
@@ -181,7 +183,8 @@ async function loadExecutableWorkflowNodes(
           name: node.statusName
         },
         executor: nodeAgent.executor as RefObject,
-        agents: [nodeAgent]
+        agents: [nodeAgent],
+        revisionContextEnabled: node.revisionContext.enabled
       }
     ];
   });
@@ -338,11 +341,16 @@ function toIssueExecutionHistorySummary(
       uuid: record.workflowNodeUUID,
       name: record.workflowNodeName
     },
+    iteration: record.iteration,
+    triggerReason: record.triggerReason,
+    previousExecutionUUID: record.previousExecutionUUID,
     createdAt: record.createdAt.toISOString(),
     currentAgentUUID: record.currentAgentUUID,
     startedAt: record.startedAt?.toISOString() ?? null,
     finishedAt: record.finishedAt?.toISOString() ?? null,
-    agentExecutions: record.agentExecutions.map(toIssueAgentExecutionHistorySummary)
+    agentExecutions: record.agentExecutions.map(
+      toIssueAgentExecutionHistorySummary
+    )
   };
 }
 
@@ -437,7 +445,9 @@ async function refreshIssueExecutionAggregate(
   );
 
   if (!workflowNode) {
-    throw new IssueExecutionHistoryNotFoundError(issueExecution.workflowNodeUUID);
+    throw new IssueExecutionHistoryNotFoundError(
+      issueExecution.workflowNodeUUID
+    );
   }
 
   const status = getExecutionStatus(issueExecution);
@@ -453,7 +463,7 @@ async function refreshIssueExecutionAggregate(
       uuid: issueExecution.uuid,
       status,
       blockReason:
-        status === 'blocked' ? issueExecution.blockReason ?? 'blocked' : null,
+        status === 'blocked' ? (issueExecution.blockReason ?? 'blocked') : null,
       currentAgentUUID,
       startedAt,
       finishedAt
@@ -559,7 +569,10 @@ export async function getIssueAgentExecutionHistory(
   uuid: string,
   teamUUID: string
 ): Promise<IssueAgentExecutionHistory> {
-  const agentExecution = await findIssueAgentExecutionHistoryByUUID(uuid, teamUUID);
+  const agentExecution = await findIssueAgentExecutionHistoryByUUID(
+    uuid,
+    teamUUID
+  );
 
   if (!agentExecution) {
     throw new IssueAgentExecutionHistoryNotFoundError(uuid);
@@ -574,10 +587,8 @@ export async function deleteDispatchedIssueExecutionRecords(
 ): Promise<void> {
   await getDispatchedIssue(uuid, teamUUID);
 
-  const issueExecutions = await listIssueExecutionHistoriesByDispatchedIssueUUID(
-    uuid,
-    teamUUID
-  );
+  const issueExecutions =
+    await listIssueExecutionHistoriesByDispatchedIssueUUID(uuid, teamUUID);
 
   for (const issueExecution of issueExecutions) {
     await Promise.all(
@@ -595,7 +606,10 @@ export async function retryIssueAgentExecutionHistory(
   uuid: string,
   teamUUID: string
 ): Promise<IssueExecutionHistory['agentExecutions'][number]> {
-  const agentExecution = await findIssueAgentExecutionHistoryByUUID(uuid, teamUUID);
+  const agentExecution = await findIssueAgentExecutionHistoryByUUID(
+    uuid,
+    teamUUID
+  );
 
   if (!agentExecution) {
     throw new IssueAgentExecutionHistoryNotFoundError(uuid);
@@ -616,7 +630,9 @@ export async function retryIssueAgentExecutionHistory(
   );
 
   if (!issueExecution) {
-    throw new IssueExecutionHistoryNotFoundError(agentExecution.issueExecutionUUID);
+    throw new IssueExecutionHistoryNotFoundError(
+      agentExecution.issueExecutionUUID
+    );
   }
 
   if (!isLatestIssueAgentExecution(issueExecution, agentExecution.uuid)) {
@@ -661,9 +677,15 @@ export async function retryIssueAgentExecutionHistory(
     teamUUID
   );
 
-  await refreshIssueExecutionAggregate(agentExecution.issueExecutionUUID, teamUUID);
+  await refreshIssueExecutionAggregate(
+    agentExecution.issueExecutionUUID,
+    teamUUID
+  );
 
-  const retriedAgentExecution = await findIssueAgentExecutionHistoryByUUID(uuid, teamUUID);
+  const retriedAgentExecution = await findIssueAgentExecutionHistoryByUUID(
+    uuid,
+    teamUUID
+  );
 
   if (!retriedAgentExecution) {
     throw new IssueAgentExecutionHistoryNotFoundError(uuid);
@@ -695,16 +717,20 @@ async function initializeIssueExecution(
   );
 
   const activeExecution =
-    await findActiveIssueExecutionHistoryByDispatchedIssueUUID(issue.uuid, teamUUID);
+    await findActiveIssueExecutionHistoryByDispatchedIssueUUID(
+      issue.uuid,
+      teamUUID
+    );
 
   if (activeExecution) {
     return;
   }
 
-  const issueExecutions = await listIssueExecutionHistoriesByDispatchedIssueUUID(
-    issue.uuid,
-    teamUUID
-  );
+  const issueExecutions =
+    await listIssueExecutionHistoriesByDispatchedIssueUUID(
+      issue.uuid,
+      teamUUID
+    );
   const latestExecution = issueExecutions[0] ?? null;
 
   if (
@@ -753,10 +779,12 @@ async function initializeIssueExecution(
   }
 
   const agentVersions = await findAgentVersions(
-    [{
-      agentUUID: agent.uuid,
-      version: agent.currentVersion
-    }],
+    [
+      {
+        agentUUID: agent.uuid,
+        version: agent.currentVersion
+      }
+    ],
     teamUUID
   );
   const agentVersion = agentVersions.find(
@@ -778,6 +806,24 @@ async function initializeIssueExecution(
 
   const issueExecutionUUID = randomUUID();
   const dispatchedAt = new Date();
+  const previousSuccessfulExecution = workflowNode.revisionContextEnabled
+    ? (issueExecutions.find(
+        (execution) =>
+          execution.workflowNodeUUID === workflowNode.uuid &&
+          execution.status === 'success'
+      ) ?? null)
+    : null;
+  const successfulNodeExecutions = issueExecutions.filter(
+    (execution) =>
+      execution.workflowNodeUUID === workflowNode.uuid &&
+      execution.status === 'success'
+  );
+  const iteration = previousSuccessfulExecution
+    ? Math.max(
+        successfulNodeExecutions.length,
+        ...successfulNodeExecutions.map((execution) => execution.iteration)
+      ) + 1
+    : 1;
 
   await createIssueExecutionHistory(
     {
@@ -787,6 +833,9 @@ async function initializeIssueExecution(
       workflowName: workflowNode.workflow.name,
       workflowNodeUUID: workflowNode.uuid,
       workflowNodeName: workflowNode.status.name,
+      iteration,
+      triggerReason: previousSuccessfulExecution ? 'revision' : 'initial',
+      previousExecutionUUID: previousSuccessfulExecution?.uuid ?? null,
       triggerStatusUUID: issue.status.uuid,
       triggerStatusName: issue.status.name,
       triggerAssigneeUUID: issue.assignee.uuid,
@@ -798,24 +847,26 @@ async function initializeIssueExecution(
   );
 
   await createIssueAgentExecutionHistories(
-    [{
-      uuid: randomUUID(),
-      issueExecutionUUID,
-      agentUUID: agent.uuid,
-      agentName: agent.name,
-      agentVersion: agent.currentVersion,
-      executorUUID: (agent.executor as RefObject).uuid,
-      executorName: (agent.executor as RefObject).name,
-      prompt: agentVersion.config?.prompt ?? '',
-      executePayload: toJsonObject({}),
-      executeOption: toJsonObject({}),
-      executeResult: toJsonObject({}),
-      rawExecuteResult: '',
-      status: 'created',
-      logs: '',
-      executeClientUUID: null,
-      executeClientName: null
-    }],
+    [
+      {
+        uuid: randomUUID(),
+        issueExecutionUUID,
+        agentUUID: agent.uuid,
+        agentName: agent.name,
+        agentVersion: agent.currentVersion,
+        executorUUID: (agent.executor as RefObject).uuid,
+        executorName: (agent.executor as RefObject).name,
+        prompt: agentVersion.config?.prompt ?? '',
+        executePayload: toJsonObject({}),
+        executeOption: toJsonObject({}),
+        executeResult: toJsonObject({}),
+        rawExecuteResult: '',
+        status: 'created',
+        logs: '',
+        executeClientUUID: null,
+        executeClientName: null
+      }
+    ],
     teamUUID
   );
 
@@ -825,8 +876,7 @@ async function initializeIssueExecution(
       latestExecutionUUID: issueExecutionUUID,
       latestExecutionStatus: 'created',
       lastDispatchedAt: dispatchedAt
-    }
-    ,
+    },
     teamUUID
   );
 
@@ -848,9 +898,12 @@ export async function pollWorkflowIssueExecutionsOnce(
   const workflowNodes = await loadExecutableWorkflowNodes(teamUUID);
 
   if (workflowNodes.length === 0) {
-    logger.info('[workflow-execution] skip polling team because no executable workflow nodes found', {
-      teamUUID
-    });
+    logger.info(
+      '[workflow-execution] skip polling team because no executable workflow nodes found',
+      {
+        teamUUID
+      }
+    );
     return;
   }
 
@@ -892,7 +945,10 @@ export async function pollWorkflowIssueExecutionsOnce(
     });
 
     for (const issue of issues) {
-      const matchedNodes = getMatchingWorkflowNodes(issue, executorWorkflowNodes);
+      const matchedNodes = getMatchingWorkflowNodes(
+        issue,
+        executorWorkflowNodes
+      );
 
       if (matchedNodes.length === 0) {
         continue;

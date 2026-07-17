@@ -339,6 +339,9 @@ export const enUS = {
       },
       table: {
         agent: 'Agent',
+        iteration: 'Iteration',
+        initialIteration: 'Initial run',
+        revisionIteration: 'Revision {{count}}',
         executeClient: 'Execution client',
         status: 'Status',
         inputTokens: 'Input tokens',
@@ -940,6 +943,9 @@ export const enUS = {
         postAction: 'Success post-action',
         transitionTo: 'Transition to "{{status}}"',
         noPostAction: 'None',
+        revisionContext: 'Revision context',
+        revisionEnabled: 'Enabled',
+        revisionDisabled: 'Disabled',
         actions: 'Actions'
       },
       dialog: {
@@ -967,6 +973,10 @@ export const enUS = {
         agentEmpty: 'No matching agents',
         successTransitionLabel: 'Transition issue status after task success',
         successTransitionPlaceholder: 'Select the target status after success',
+        revisionContextLabel:
+          'Inherit prior results and review comments after rejection',
+        revisionContextHelp:
+          'When this node is triggered again, the agent reads prior results and new review comments. The task is blocked if no new feedback exists.',
         saving: 'Saving...',
         creating: 'Creating...'
       },

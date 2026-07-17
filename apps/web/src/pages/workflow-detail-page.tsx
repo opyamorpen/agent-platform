@@ -5,7 +5,7 @@ import type {
   ApiError,
   ApiSuccess,
   RefObject,
-  Workflow,
+  Workflow
 } from '@ones-ai-workflow/shared';
 import { getApiErrorMessage, getErrorMessage } from '@/lib/api-error';
 import {
@@ -16,7 +16,7 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialogTitle
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -26,13 +26,13 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog';
 import {
   Field as FormField,
   FieldContent,
   FieldError,
-  FieldLabel,
+  FieldLabel
 } from '@/components/ui/field';
 import { SearchSelect } from '@/components/ui/search-select';
 import {
@@ -41,7 +41,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
+  TableRow
 } from '@/components/ui/table';
 import { useHeaderActions } from '@/layouts/app-layout';
 import { PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react';
@@ -60,9 +60,14 @@ type CreateWorkflowNodePayload = {
     type: 'transition_issue_status';
     targetStatus: RefObject;
   }>;
+  revisionContext: {
+    enabled: boolean;
+  };
 };
 type WorkflowNodeDialogMode = 'create' | 'edit';
-type WorkflowNodeMutationResponse = ApiSuccess<Workflow['nodes'][number]> | ApiError;
+type WorkflowNodeMutationResponse =
+  | ApiSuccess<Workflow['nodes'][number]>
+  | ApiError;
 type FormErrors = {
   projectUUID?: string;
   issueTypeUUID?: string;
@@ -78,7 +83,8 @@ const DEFAULT_FORM_STATE = {
   statusUUID: '',
   agentUUID: '',
   enableSuccessTransition: false,
-  targetStatusUUID: ''
+  targetStatusUUID: '',
+  enableRevisionContext: false
 };
 
 function toSearchSelectOptions(items: RefObject[]) {
@@ -97,20 +103,25 @@ export function WorkflowDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isNodeDialogOpen, setIsNodeDialogOpen] = useState(false);
-  const [dialogMode, setDialogMode] = useState<WorkflowNodeDialogMode>('create');
+  const [dialogMode, setDialogMode] =
+    useState<WorkflowNodeDialogMode>('create');
   const [editingNodeUUID, setEditingNodeUUID] = useState<string | null>(null);
   const [projects, setProjects] = useState<RefObject[]>([]);
   const [issueTypes, setIssueTypes] = useState<RefObject[]>([]);
   const [issueStatuses, setIssueStatuses] = useState<RefObject[]>([]);
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [isLoadingOptions, setIsLoadingOptions] = useState(false);
-  const [optionsErrorMessage, setOptionsErrorMessage] = useState<string | null>(null);
+  const [optionsErrorMessage, setOptionsErrorMessage] = useState<string | null>(
+    null
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState(DEFAULT_FORM_STATE);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
-  const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null);
-  const [pendingDeleteNode, setPendingDeleteNode] =
-    useState<Workflow['nodes'][number] | null>(null);
+  const [dialogContentElement, setDialogContentElement] =
+    useState<HTMLDivElement | null>(null);
+  const [pendingDeleteNode, setPendingDeleteNode] = useState<
+    Workflow['nodes'][number] | null
+  >(null);
   const [deletingNodeUUID, setDeletingNodeUUID] = useState<string | null>(null);
 
   useEffect(() => {
@@ -149,7 +160,9 @@ export function WorkflowDetailPage() {
     } catch (error) {
       setWorkflow(null);
       setTitle(t('pages.workflowDetail.pageTitle'));
-      setErrorMessage(getErrorMessage(error, t, 'pages.workflowDetail.loadFailed'));
+      setErrorMessage(
+        getErrorMessage(error, t, 'pages.workflowDetail.loadFailed')
+      );
     } finally {
       setIsLoading(false);
     }
@@ -204,7 +217,8 @@ export function WorkflowDetailPage() {
       targetStatusUUID:
         node.postActions[0]?.type === 'transition_issue_status'
           ? node.postActions[0].targetStatus.uuid
-          : ''
+          : '',
+      enableRevisionContext: node.revisionContext.enabled
     });
     setFormErrors({});
     setIsNodeDialogOpen(true);
@@ -215,26 +229,34 @@ export function WorkflowDetailPage() {
     setOptionsErrorMessage(null);
 
     try {
-      const [projectsResponse, issueTypesResponse, issueStatusesResponse, agentsResponse] =
-        await Promise.all([
-          fetch('/api/ones/projects'),
-          fetch('/api/ones/issue-types'),
-          fetch('/api/ones/issue-statuses'),
-          fetch('/api/agents')
-        ]);
+      const [
+        projectsResponse,
+        issueTypesResponse,
+        issueStatusesResponse,
+        agentsResponse
+      ] = await Promise.all([
+        fetch('/api/ones/projects'),
+        fetch('/api/ones/issue-types'),
+        fetch('/api/ones/issue-statuses'),
+        fetch('/api/agents')
+      ]);
 
-      const [projectsPayload, issueTypesPayload, issueStatusesPayload, agentsPayload] =
-        (await Promise.all([
-          projectsResponse.json(),
-          issueTypesResponse.json(),
-          issueStatusesResponse.json(),
-          agentsResponse.json()
-        ])) as [
-          RefObjectsResponse,
-          RefObjectsResponse,
-          RefObjectsResponse,
-          AgentsResponse
-        ];
+      const [
+        projectsPayload,
+        issueTypesPayload,
+        issueStatusesPayload,
+        agentsPayload
+      ] = (await Promise.all([
+        projectsResponse.json(),
+        issueTypesResponse.json(),
+        issueStatusesResponse.json(),
+        agentsResponse.json()
+      ])) as [
+        RefObjectsResponse,
+        RefObjectsResponse,
+        RefObjectsResponse,
+        AgentsResponse
+      ];
 
       if (!projectsResponse.ok || !projectsPayload.success) {
         throw new Error(
@@ -289,7 +311,9 @@ export function WorkflowDetailPage() {
       setIssueStatuses(issueStatusesPayload.data);
       setAgents(agentsPayload.data);
     } catch (error) {
-      setOptionsErrorMessage(getErrorMessage(error, t, 'pages.workflowDetail.optionsLoadFailed'));
+      setOptionsErrorMessage(
+        getErrorMessage(error, t, 'pages.workflowDetail.optionsLoadFailed')
+      );
     } finally {
       setIsLoadingOptions(false);
     }
@@ -310,21 +334,33 @@ export function WorkflowDetailPage() {
     }
 
     void loadOptions();
-  }, [agents.length, isNodeDialogOpen, issueStatuses.length, issueTypes.length, projects.length]);
+  }, [
+    agents.length,
+    isNodeDialogOpen,
+    issueStatuses.length,
+    issueTypes.length,
+    projects.length
+  ]);
 
   function validateForm(): FormErrors {
     const nextErrors: FormErrors = {};
 
     if (!formData.projectUUID) {
-      nextErrors.projectUUID = t('pages.workflowDetail.validation.projectRequired');
+      nextErrors.projectUUID = t(
+        'pages.workflowDetail.validation.projectRequired'
+      );
     }
 
     if (!formData.issueTypeUUID) {
-      nextErrors.issueTypeUUID = t('pages.workflowDetail.validation.issueTypeRequired');
+      nextErrors.issueTypeUUID = t(
+        'pages.workflowDetail.validation.issueTypeRequired'
+      );
     }
 
     if (!formData.statusUUID) {
-      nextErrors.statusUUID = t('pages.workflowDetail.validation.statusRequired');
+      nextErrors.statusUUID = t(
+        'pages.workflowDetail.validation.statusRequired'
+      );
     }
 
     if (!formData.agentUUID) {
@@ -365,8 +401,12 @@ export function WorkflowDetailPage() {
     }
 
     const project = projects.find((item) => item.uuid === formData.projectUUID);
-    const issueType = issueTypes.find((item) => item.uuid === formData.issueTypeUUID);
-    const status = issueStatuses.find((item) => item.uuid === formData.statusUUID);
+    const issueType = issueTypes.find(
+      (item) => item.uuid === formData.issueTypeUUID
+    );
+    const status = issueStatuses.find(
+      (item) => item.uuid === formData.statusUUID
+    );
     const targetStatus = formData.enableSuccessTransition
       ? issueStatuses.find((item) => item.uuid === formData.targetStatusUUID)
       : null;
@@ -399,11 +439,16 @@ export function WorkflowDetailPage() {
                 targetStatus
               }
             ]
-          : []
+          : [],
+        revisionContext: {
+          enabled: formData.enableRevisionContext
+        }
       } satisfies CreateWorkflowNodePayload;
       const isEditing = dialogMode === 'edit' && editingNodeUUID;
       const response = await fetch(
-        isEditing ? `/api/workflows/nodes/${editingNodeUUID}` : `/api/workflows/${uuid}/nodes`,
+        isEditing
+          ? `/api/workflows/nodes/${editingNodeUUID}`
+          : `/api/workflows/${uuid}/nodes`,
         {
           method: isEditing ? 'PUT' : 'POST',
           headers: {
@@ -413,10 +458,9 @@ export function WorkflowDetailPage() {
         }
       );
       const payload = (await response.json()) as WorkflowNodeMutationResponse;
-      const fallbackKey =
-        isEditing
-          ? 'pages.workflowDetail.updateNodeFailed'
-          : 'pages.workflowDetail.createNodeFailed';
+      const fallbackKey = isEditing
+        ? 'pages.workflowDetail.updateNodeFailed'
+        : 'pages.workflowDetail.createNodeFailed';
 
       if (!response.ok || !payload.success) {
         throw new Error(
@@ -458,15 +502,24 @@ export function WorkflowDetailPage() {
     try {
       setDeletingNodeUUID(pendingDeleteNode.uuid);
 
-      const response = await fetch(`/api/workflows/nodes/${pendingDeleteNode.uuid}`, {
-        method: 'DELETE'
-      });
+      const response = await fetch(
+        `/api/workflows/nodes/${pendingDeleteNode.uuid}`,
+        {
+          method: 'DELETE'
+        }
+      );
 
       if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as ApiError | null;
+        const payload = (await response
+          .json()
+          .catch(() => null)) as ApiError | null;
         throw new Error(
           payload
-            ? getApiErrorMessage(payload, t, 'pages.workflowDetail.deleteNodeFailed')
+            ? getApiErrorMessage(
+                payload,
+                t,
+                'pages.workflowDetail.deleteNodeFailed'
+              )
             : t('pages.workflowDetail.deleteNodeFailed')
         );
       }
@@ -486,25 +539,34 @@ export function WorkflowDetailPage() {
       toast.success(t('pages.workflowDetail.deleteNodeSuccess'));
       setPendingDeleteNode(null);
     } catch (error) {
-      toast.error(getErrorMessage(error, t, 'pages.workflowDetail.deleteNodeFailed'));
+      toast.error(
+        getErrorMessage(error, t, 'pages.workflowDetail.deleteNodeFailed')
+      );
     } finally {
       setDeletingNodeUUID(null);
     }
   }
 
-  const projectOptions = useMemo(() => toSearchSelectOptions(projects), [projects]);
-  const issueTypeOptions = useMemo(() => toSearchSelectOptions(issueTypes), [issueTypes]);
+  const projectOptions = useMemo(
+    () => toSearchSelectOptions(projects),
+    [projects]
+  );
+  const issueTypeOptions = useMemo(
+    () => toSearchSelectOptions(issueTypes),
+    [issueTypes]
+  );
   const issueStatusOptions = useMemo(
     () => toSearchSelectOptions(issueStatuses),
     [issueStatuses]
   );
 
   const agentOptions = useMemo(
-    () => agents.map((agent) => ({
-      value: agent.uuid,
-      label: agent.name,
-      keywords: [agent.uuid]
-    })),
+    () =>
+      agents.map((agent) => ({
+        value: agent.uuid,
+        label: agent.name,
+        keywords: [agent.uuid]
+      })),
     [agents]
   );
 
@@ -538,10 +600,17 @@ export function WorkflowDetailPage() {
                   {t('pages.workflowDetail.table.index')}
                 </TableHead>
                 <TableHead>{t('pages.workflowDetail.table.project')}</TableHead>
-                <TableHead>{t('pages.workflowDetail.table.issueType')}</TableHead>
+                <TableHead>
+                  {t('pages.workflowDetail.table.issueType')}
+                </TableHead>
                 <TableHead>{t('pages.workflowDetail.table.status')}</TableHead>
                 <TableHead>{t('pages.workflowDetail.table.agent')}</TableHead>
-                <TableHead>{t('pages.workflowDetail.table.postAction')}</TableHead>
+                <TableHead>
+                  {t('pages.workflowDetail.table.postAction')}
+                </TableHead>
+                <TableHead>
+                  {t('pages.workflowDetail.table.revisionContext')}
+                </TableHead>
                 <TableHead className="pr-4 text-right">
                   {t('pages.workflowDetail.table.actions')}
                 </TableHead>
@@ -551,7 +620,7 @@ export function WorkflowDetailPage() {
               {isLoading ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="h-24 px-4 text-center text-muted-foreground"
                   >
                     {t('common.states.loading')}
@@ -560,7 +629,7 @@ export function WorkflowDetailPage() {
               ) : errorMessage ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="h-24 px-4 text-center text-destructive"
                   >
                     {errorMessage}
@@ -569,7 +638,7 @@ export function WorkflowDetailPage() {
               ) : !workflow || workflow.nodes.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="h-24 px-4 text-center text-muted-foreground"
                   >
                     {t('pages.workflowDetail.empty')}
@@ -578,19 +647,24 @@ export function WorkflowDetailPage() {
               ) : (
                 workflow.nodes.map((node, index) => (
                   <TableRow key={node.uuid}>
-                    <TableCell className="px-4 font-medium">{index + 1}</TableCell>
+                    <TableCell className="px-4 font-medium">
+                      {index + 1}
+                    </TableCell>
                     <TableCell>{node.project.name}</TableCell>
                     <TableCell>{node.issueType.name}</TableCell>
                     <TableCell>{node.status.name}</TableCell>
-                    <TableCell className="pr-4">
-                      {node.agent.name}
-                    </TableCell>
+                    <TableCell className="pr-4">{node.agent.name}</TableCell>
                     <TableCell>
                       {node.postActions[0]?.type === 'transition_issue_status'
                         ? t('pages.workflowDetail.table.transitionTo', {
                             status: node.postActions[0].targetStatus.name
                           })
                         : t('pages.workflowDetail.table.noPostAction')}
+                    </TableCell>
+                    <TableCell>
+                      {node.revisionContext.enabled
+                        ? t('pages.workflowDetail.table.revisionEnabled')
+                        : t('pages.workflowDetail.table.revisionDisabled')}
                     </TableCell>
                     <TableCell className="pr-4 text-right">
                       <div className="flex flex-wrap justify-end gap-2">
@@ -634,10 +708,7 @@ export function WorkflowDetailPage() {
           }
         }}
       >
-        <DialogContent
-          ref={setDialogContentElement}
-          className="sm:max-w-2xl"
-        >
+        <DialogContent ref={setDialogContentElement} className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
               {dialogMode === 'edit'
@@ -657,7 +728,9 @@ export function WorkflowDetailPage() {
               </div>
             ) : null}
             <FormField data-invalid={Boolean(formErrors.projectUUID)}>
-              <FieldLabel>{t('pages.workflowDetail.dialog.projectLabel')}</FieldLabel>
+              <FieldLabel>
+                {t('pages.workflowDetail.dialog.projectLabel')}
+              </FieldLabel>
               <FieldContent>
                 <SearchSelect
                   options={projectOptions}
@@ -675,7 +748,9 @@ export function WorkflowDetailPage() {
                   }}
                   placeholder={
                     isLoadingOptions
-                      ? t('pages.workflowDetail.dialog.projectPlaceholderLoading')
+                      ? t(
+                          'pages.workflowDetail.dialog.projectPlaceholderLoading'
+                        )
                       : t('pages.workflowDetail.dialog.projectPlaceholder')
                   }
                   emptyText={t('pages.workflowDetail.dialog.projectEmpty')}
@@ -686,7 +761,9 @@ export function WorkflowDetailPage() {
               </FieldContent>
             </FormField>
             <FormField data-invalid={Boolean(formErrors.issueTypeUUID)}>
-              <FieldLabel>{t('pages.workflowDetail.dialog.issueTypeLabel')}</FieldLabel>
+              <FieldLabel>
+                {t('pages.workflowDetail.dialog.issueTypeLabel')}
+              </FieldLabel>
               <FieldContent>
                 <SearchSelect
                   options={issueTypeOptions}
@@ -704,7 +781,9 @@ export function WorkflowDetailPage() {
                   }}
                   placeholder={
                     isLoadingOptions
-                      ? t('pages.workflowDetail.dialog.issueTypePlaceholderLoading')
+                      ? t(
+                          'pages.workflowDetail.dialog.issueTypePlaceholderLoading'
+                        )
                       : t('pages.workflowDetail.dialog.issueTypePlaceholder')
                   }
                   emptyText={t('pages.workflowDetail.dialog.issueTypeEmpty')}
@@ -715,7 +794,9 @@ export function WorkflowDetailPage() {
               </FieldContent>
             </FormField>
             <FormField data-invalid={Boolean(formErrors.statusUUID)}>
-              <FieldLabel>{t('pages.workflowDetail.dialog.statusLabel')}</FieldLabel>
+              <FieldLabel>
+                {t('pages.workflowDetail.dialog.statusLabel')}
+              </FieldLabel>
               <FieldContent>
                 <SearchSelect
                   options={issueStatusOptions}
@@ -733,7 +814,9 @@ export function WorkflowDetailPage() {
                   }}
                   placeholder={
                     isLoadingOptions
-                      ? t('pages.workflowDetail.dialog.statusPlaceholderLoading')
+                      ? t(
+                          'pages.workflowDetail.dialog.statusPlaceholderLoading'
+                        )
                       : t('pages.workflowDetail.dialog.statusPlaceholder')
                   }
                   emptyText={t('pages.workflowDetail.dialog.statusEmpty')}
@@ -744,7 +827,9 @@ export function WorkflowDetailPage() {
               </FieldContent>
             </FormField>
             <FormField data-invalid={Boolean(formErrors.agentUUID)}>
-              <FieldLabel>{t('pages.workflowDetail.dialog.agentLabel')}</FieldLabel>
+              <FieldLabel>
+                {t('pages.workflowDetail.dialog.agentLabel')}
+              </FieldLabel>
               <FieldContent>
                 <SearchSelect
                   options={agentOptions}
@@ -781,7 +866,8 @@ export function WorkflowDetailPage() {
                     setFormData((current) => ({
                       ...current,
                       enableSuccessTransition: checked === true,
-                      targetStatusUUID: checked === true ? current.targetStatusUUID : ''
+                      targetStatusUUID:
+                        checked === true ? current.targetStatusUUID : ''
                     }));
                     setFormErrors((current) => ({
                       ...current,
@@ -821,6 +907,32 @@ export function WorkflowDetailPage() {
                 </FieldContent>
               ) : null}
             </FormField>
+            <FormField>
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="workflow-node-revision-context"
+                  checked={formData.enableRevisionContext}
+                  onCheckedChange={(checked) => {
+                    setFormData((current) => ({
+                      ...current,
+                      enableRevisionContext: checked === true
+                    }));
+                    setFormErrors((current) => ({
+                      ...current,
+                      submit: undefined
+                    }));
+                  }}
+                />
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="workflow-node-revision-context">
+                    {t('pages.workflowDetail.dialog.revisionContextLabel')}
+                  </FieldLabel>
+                  <p className="text-xs text-muted-foreground">
+                    {t('pages.workflowDetail.dialog.revisionContextHelp')}
+                  </p>
+                </div>
+              </div>
+            </FormField>
             <FieldError>{formErrors.submit}</FieldError>
           </div>
           <DialogFooter>
@@ -835,7 +947,9 @@ export function WorkflowDetailPage() {
             <Button
               type="button"
               onClick={() => void handleSubmitNode()}
-              disabled={isSubmitting || isLoadingOptions || Boolean(optionsErrorMessage)}
+              disabled={
+                isSubmitting || isLoadingOptions || Boolean(optionsErrorMessage)
+              }
             >
               {isSubmitting
                 ? dialogMode === 'edit'
@@ -858,7 +972,9 @@ export function WorkflowDetailPage() {
       >
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('pages.workflowDetail.deleteDialog.title')}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t('pages.workflowDetail.deleteDialog.title')}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {t('pages.workflowDetail.deleteDialog.description')}
             </AlertDialogDescription>

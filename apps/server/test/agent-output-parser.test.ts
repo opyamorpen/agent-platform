@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
-  parseAgentOutputString
-} from '../../../packages/shared/src/agent-output.ts';
+import { parseAgentOutputString } from '../../../packages/shared/src/agent-output.ts';
 import {
   buildAgentInputContextXml,
   buildAgentPrompt
@@ -826,7 +824,10 @@ test('buildAgentInputContextXml renders attachment download url as attachment fi
   });
 
   assert.match(xml, /<field-uuid>field047<\/field-uuid>/);
-  assert.match(xml, /<field-value-type>multi_reference_object<\/field-value-type>/);
+  assert.match(
+    xml,
+    /<field-value-type>multi_reference_object<\/field-value-type>/
+  );
   assert.match(
     xml,
     /<field-reference-object-type>attachment<\/field-reference-object-type>/
@@ -847,7 +848,10 @@ test('buildAgentInputContextXml renders attachment download url as attachment fi
   assert.match(xml, /<field-value>2026-06-22T10:30:45.000Z<\/field-value>/);
   assert.match(xml, /<field-uuid>creator<\/field-uuid>/);
   assert.match(xml, /<field-name>创建者<\/field-name>/);
-  assert.match(xml, /<field-reference-object-type>user<\/field-reference-object-type>/);
+  assert.match(
+    xml,
+    /<field-reference-object-type>user<\/field-reference-object-type>/
+  );
   assert.match(
     xml,
     /<field-uuid>creator<\/field-uuid>[\s\S]*<object>[\s\S]*<object-type>user<\/object-type>[\s\S]*<object-uuid>user-1<\/object-uuid>[\s\S]*<object-name>张三<\/object-name>[\s\S]*<\/object>/
@@ -910,6 +914,25 @@ test('buildAgentPrompt injects runtime input context xml', () => {
   assert.match(markdown, /<set-value><\/set-value>/);
   assert.match(markdown, /## Original Task/);
   assert.match(markdown, /处理输入并生成输出/);
+});
+
+test('buildAgentPrompt injects revision context instructions', () => {
+  const markdown = buildAgentPrompt(
+    {
+      description: '',
+      prompt: '根据审核意见修订',
+      inputs: [],
+      outputs: []
+    },
+    {
+      revisionContextXml:
+        '<revision-context><mode>revision</mode><current-iteration>2</current-iteration></revision-context>'
+    }
+  );
+
+  assert.match(markdown, /<mode>revision<\/mode>/u);
+  assert.match(markdown, /<current-iteration>2<\/current-iteration>/u);
+  assert.match(markdown, /Do not create duplicate target objects/u);
 });
 
 test('buildAgentPrompt forbids all env access when no readable env keys are provided', () => {
@@ -975,11 +998,20 @@ test('buildAgentPrompt previews multiple input sub fields as a nested tree', () 
   assert.match(markdown, /<field-uuid>field001<\/field-uuid>/);
   assert.match(markdown, /<field-name>标题<\/field-name>/);
   assert.match(markdown, /<field-value-type>text<\/field-value-type>/);
-  assert.match(markdown, /<field-description>父工作项标题<\/field-description>/);
+  assert.match(
+    markdown,
+    /<field-description>父工作项标题<\/field-description>/
+  );
   assert.match(markdown, /<field-uuid>field002<\/field-uuid>/);
   assert.match(markdown, /<field-name>描述<\/field-name>/);
-  assert.match(markdown, /<field-value-type>multi_line_text<\/field-value-type>/);
-  assert.match(markdown, /<field-description>父工作项描述<\/field-description>/);
+  assert.match(
+    markdown,
+    /<field-value-type>multi_line_text<\/field-value-type>/
+  );
+  assert.match(
+    markdown,
+    /<field-description>父工作项描述<\/field-description>/
+  );
 });
 
 test('buildAgentPrompt previews multiple output sub fields as separate entries', () => {
@@ -1043,7 +1075,10 @@ test('buildAgentPrompt previews multiple output sub fields as separate entries',
   assert.match(markdown, /<field-description>更新标题<\/field-description>/);
   assert.match(markdown, /<field-uuid>field002<\/field-uuid>/);
   assert.match(markdown, /<field-name>描述<\/field-name>/);
-  assert.match(markdown, /<field-value-type>multi_line_text<\/field-value-type>/);
+  assert.match(
+    markdown,
+    /<field-value-type>multi_line_text<\/field-value-type>/
+  );
   assert.match(markdown, /<field-description>更新描述<\/field-description>/);
 });
 
@@ -1104,13 +1139,19 @@ test('buildAgentPrompt previews comment output as comment objects', () => {
   });
 
   assert.match(markdown, /<field-uuid>field057<\/field-uuid>/);
-  assert.match(markdown, /<field-reference-object-type>comment<\/field-reference-object-type>/);
+  assert.match(
+    markdown,
+    /<field-reference-object-type>comment<\/field-reference-object-type>/
+  );
   assert.match(markdown, /<object-write-mode>create<\/object-write-mode>/);
   assert.match(markdown, /<object-type>comment<\/object-type>/);
   assert.match(markdown, /<field-uuid>content<\/field-uuid>/);
   assert.match(markdown, /<field-name>Content<\/field-name>/);
   assert.match(markdown, /<field-value-type>richtext<\/field-value-type>/);
-  assert.match(markdown, /<field-description>Comment body\.<\/field-description>/);
+  assert.match(
+    markdown,
+    /<field-description>Comment body\.<\/field-description>/
+  );
 });
 
 test('buildAgentPrompt previews attachment output as attachment objects', () => {
@@ -1134,7 +1175,10 @@ test('buildAgentPrompt previews attachment output as attachment objects', () => 
   });
 
   assert.match(markdown, /<field-uuid>field047<\/field-uuid>/);
-  assert.match(markdown, /<field-reference-object-type>attachment<\/field-reference-object-type>/);
+  assert.match(
+    markdown,
+    /<field-reference-object-type>attachment<\/field-reference-object-type>/
+  );
   assert.match(markdown, /<object-write-mode>create<\/object-write-mode>/);
   assert.match(markdown, /<object-type>attachment<\/object-type>/);
   assert.match(markdown, /<field-uuid>local_path<\/field-uuid>/);

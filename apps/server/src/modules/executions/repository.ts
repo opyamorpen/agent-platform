@@ -102,6 +102,9 @@ export interface IssueExecutionHistoryRecord {
   workflowName: string;
   workflowNodeUUID: string;
   workflowNodeName: string;
+  iteration: number;
+  triggerReason: 'initial' | 'revision';
+  previousExecutionUUID: string | null;
   triggerStatusUUID: string;
   triggerStatusName: string;
   triggerAssigneeUUID: string;
@@ -115,8 +118,7 @@ export interface IssueExecutionHistoryRecord {
   agentExecutions: IssueAgentExecutionHistoryRecord[];
 }
 
-export interface IssueAgentExecutionHistoryWithExecutionRecord
-  extends IssueAgentExecutionHistoryRecord {
+export interface IssueAgentExecutionHistoryWithExecutionRecord extends IssueAgentExecutionHistoryRecord {
   issueExecution: Omit<IssueExecutionHistoryRecord, 'agentExecutions'>;
 }
 
@@ -141,6 +143,9 @@ export interface CreateIssueExecutionHistoryInput {
   workflowName: string;
   workflowNodeUUID: string;
   workflowNodeName: string;
+  iteration: number;
+  triggerReason: 'initial' | 'revision';
+  previousExecutionUUID: string | null;
   triggerStatusUUID: string;
   triggerStatusName: string;
   triggerAssigneeUUID: string;
@@ -205,6 +210,9 @@ interface StoredIssueExecutionHistoryEntity {
   workflow_name: string;
   workflow_node_uuid: string;
   workflow_node_name: string;
+  iteration: number;
+  trigger_reason: string;
+  previous_execution_uuid: string;
   trigger_status_uuid: string;
   trigger_status_name: string;
   trigger_assignee_uuid: string;
@@ -277,7 +285,10 @@ function getIssueExecutionHistoryKey(teamUUID: string, uuid: string): string {
   return `issue_execution_${normalizeKeySegment(teamUUID)}_${normalizeKeySegment(uuid)}`;
 }
 
-function getIssueAgentExecutionHistoryKey(teamUUID: string, uuid: string): string {
+function getIssueAgentExecutionHistoryKey(
+  teamUUID: string,
+  uuid: string
+): string {
   return `issue_agent_execution_${normalizeKeySegment(teamUUID)}_${normalizeKeySegment(uuid)}`;
 }
 
@@ -331,7 +342,11 @@ function getLogsObjectKey(teamUUID: string, uuid: string): string {
 }
 
 async function uploadTextObject(key: string, content: string): Promise<void> {
-  await uploadObjectBuffer(key, Buffer.from(content, 'utf8'), 'text/plain; charset=utf-8');
+  await uploadObjectBuffer(
+    key,
+    Buffer.from(content, 'utf8'),
+    'text/plain; charset=utf-8'
+  );
 }
 
 async function readJsonObjectOrDefault(
@@ -353,7 +368,9 @@ function isHostedObjectNotFoundError(error: unknown): boolean {
   return code === 'ObjectKeyNotfound' || code === 'ObjectNotFound';
 }
 
-async function readRawExecuteResultObjectOrDefault(key: string): Promise<string> {
+async function readRawExecuteResultObjectOrDefault(
+  key: string
+): Promise<string> {
   try {
     return await readTextObjectOrDefault(key);
   } catch (error) {
@@ -395,13 +412,15 @@ async function listIssueExecutionEntriesByDispatchedIssueUUID(
   dispatchedIssueUUID: string,
   teamUUID: string
 ): Promise<Array<HostedEntityEntry<StoredIssueExecutionHistoryEntity>>> {
-  return issueExecutionHistoryStore.queryByIndexEqualTo(
-    DISPATCHED_ISSUE_UUID_INDEX_NAME,
-    'dispatched_issue_uuid',
-    dispatchedIssueUUID
-  ).then((entries) =>
-    entries.filter((entry) => entry.value.team_uuid === teamUUID)
-  );
+  return issueExecutionHistoryStore
+    .queryByIndexEqualTo(
+      DISPATCHED_ISSUE_UUID_INDEX_NAME,
+      'dispatched_issue_uuid',
+      dispatchedIssueUUID
+    )
+    .then((entries) =>
+      entries.filter((entry) => entry.value.team_uuid === teamUUID)
+    );
 }
 
 async function listTeamIssueAgentExecutionHistoryEntries(
@@ -418,16 +437,20 @@ async function listIssueAgentExecutionEntriesByIssueExecutionUUID(
   issueExecutionUUID: string,
   teamUUID: string
 ): Promise<Array<HostedEntityEntry<StoredIssueAgentExecutionHistoryEntity>>> {
-  return issueAgentExecutionHistoryStore.queryByIndexEqualTo(
-    ISSUE_EXECUTION_UUID_INDEX_NAME,
-    'issue_execution_uuid',
-    issueExecutionUUID
-  ).then((entries) =>
-    entries.filter((entry) => entry.value.team_uuid === teamUUID)
-  );
+  return issueAgentExecutionHistoryStore
+    .queryByIndexEqualTo(
+      ISSUE_EXECUTION_UUID_INDEX_NAME,
+      'issue_execution_uuid',
+      issueExecutionUUID
+    )
+    .then((entries) =>
+      entries.filter((entry) => entry.value.team_uuid === teamUUID)
+    );
 }
 
-function toAgentClientRecord(entry: StoredAgentClientEntity): AgentClientRecord {
+function toAgentClientRecord(
+  entry: StoredAgentClientEntity
+): AgentClientRecord {
   return {
     uuid: entry.uuid,
     name: entry.name,
@@ -471,6 +494,12 @@ function toIssueExecutionHistoryBaseRecord(
     workflowName: entry.workflow_name,
     workflowNodeUUID: entry.workflow_node_uuid,
     workflowNodeName: entry.workflow_node_name,
+    iteration:
+      typeof entry.iteration === 'number' && entry.iteration > 0
+        ? entry.iteration
+        : 1,
+    triggerReason: entry.trigger_reason === 'revision' ? 'revision' : 'initial',
+    previousExecutionUUID: entry.previous_execution_uuid || null,
     triggerStatusUUID: entry.trigger_status_uuid || '',
     triggerStatusName: entry.trigger_status_name || '',
     triggerAssigneeUUID: entry.trigger_assignee_uuid || '',
@@ -487,16 +516,25 @@ function toIssueExecutionHistoryBaseRecord(
 async function toIssueAgentExecutionHistoryRecord(
   entry: StoredIssueAgentExecutionHistoryEntity
 ): Promise<IssueAgentExecutionHistoryRecord> {
-  const rawExecuteResultObjectKey = getRawExecuteResultObjectKey(entry.team_uuid, entry.uuid);
-  const [prompt, executePayload, executeOption, executeResult, rawExecuteResult, logs] =
-    await Promise.all([
-      readTextObjectOrDefault(entry.prompt_object_key),
-      readJsonObjectOrDefault(entry.execute_payload_object_key),
-      readJsonObjectOrDefault(entry.execute_option_object_key),
-      readJsonObjectOrDefault(entry.execute_result_object_key),
-      readRawExecuteResultObjectOrDefault(rawExecuteResultObjectKey),
-      readTextObjectOrDefault(entry.logs_object_key)
-    ]);
+  const rawExecuteResultObjectKey = getRawExecuteResultObjectKey(
+    entry.team_uuid,
+    entry.uuid
+  );
+  const [
+    prompt,
+    executePayload,
+    executeOption,
+    executeResult,
+    rawExecuteResult,
+    logs
+  ] = await Promise.all([
+    readTextObjectOrDefault(entry.prompt_object_key),
+    readJsonObjectOrDefault(entry.execute_payload_object_key),
+    readJsonObjectOrDefault(entry.execute_option_object_key),
+    readJsonObjectOrDefault(entry.execute_result_object_key),
+    readRawExecuteResultObjectOrDefault(rawExecuteResultObjectKey),
+    readTextObjectOrDefault(entry.logs_object_key)
+  ]);
 
   return {
     uuid: entry.uuid,
@@ -558,7 +596,9 @@ async function getStoredDispatchedIssueByUUID(
   uuid: string,
   teamUUID: string
 ): Promise<StoredDispatchedIssueEntity | null> {
-  const entry = await dispatchedIssueStore.get(getDispatchedIssueKey(teamUUID, uuid));
+  const entry = await dispatchedIssueStore.get(
+    getDispatchedIssueKey(teamUUID, uuid)
+  );
   return entry?.team_uuid === teamUUID ? entry : null;
 }
 
@@ -598,7 +638,10 @@ async function persistAgentExecutionObjects(
   const executePayloadObjectKey = getExecutePayloadObjectKey(teamUUID, uuid);
   const executeOptionObjectKey = getExecuteOptionObjectKey(teamUUID, uuid);
   const executeResultObjectKey = getExecuteResultObjectKey(teamUUID, uuid);
-  const rawExecuteResultObjectKey = getRawExecuteResultObjectKey(teamUUID, uuid);
+  const rawExecuteResultObjectKey = getRawExecuteResultObjectKey(
+    teamUUID,
+    uuid
+  );
   const logsObjectKey = getLogsObjectKey(teamUUID, uuid);
 
   await Promise.all([
@@ -665,7 +708,10 @@ export async function upsertDispatchedIssue(
     updated_at: now
   };
 
-  await dispatchedIssueStore.set(getDispatchedIssueKey(teamUUID, input.uuid), nextRecord);
+  await dispatchedIssueStore.set(
+    getDispatchedIssueKey(teamUUID, input.uuid),
+    nextRecord
+  );
   return toDispatchedIssueRecord(nextRecord);
 }
 
@@ -739,6 +785,11 @@ export async function createIssueExecutionHistory(
       workflow_name: input.workflowName,
       workflow_node_uuid: input.workflowNodeUUID,
       workflow_node_name: input.workflowNodeName,
+      iteration: input.iteration,
+      trigger_reason: input.triggerReason,
+      previous_execution_uuid: normalizeOptionalString(
+        input.previousExecutionUUID
+      ),
       trigger_status_uuid: input.triggerStatusUUID,
       trigger_status_name: input.triggerStatusName,
       trigger_assignee_uuid: input.triggerAssigneeUUID,
@@ -815,7 +866,10 @@ export async function updateDispatchedIssueLatestExecution(
     updated_at: Date.now()
   };
 
-  await dispatchedIssueStore.set(getDispatchedIssueKey(teamUUID, input.uuid), nextRecord);
+  await dispatchedIssueStore.set(
+    getDispatchedIssueKey(teamUUID, input.uuid),
+    nextRecord
+  );
   return toDispatchedIssueRecord(nextRecord);
 }
 
@@ -831,14 +885,18 @@ export async function createIssueAgentExecutionHistories(
 
   await Promise.all(
     inputs.map(async (input, index) => {
-      const objectKeys = await persistAgentExecutionObjects(teamUUID, input.uuid, {
-        prompt: input.prompt,
-        executePayload: input.executePayload,
-        executeOption: input.executeOption,
-        executeResult: input.executeResult,
-        rawExecuteResult: input.rawExecuteResult,
-        logs: input.logs
-      });
+      const objectKeys = await persistAgentExecutionObjects(
+        teamUUID,
+        input.uuid,
+        {
+          prompt: input.prompt,
+          executePayload: input.executePayload,
+          executeOption: input.executeOption,
+          executeResult: input.executeResult,
+          rawExecuteResult: input.rawExecuteResult,
+          logs: input.logs
+        }
+      );
       const createdAt = baseNow + index;
 
       await issueAgentExecutionHistoryStore.set(
@@ -870,14 +928,12 @@ export async function createIssueAgentExecutionHistories(
   );
 }
 
-export async function upsertAgentClient(
-  input: {
-    uuid: string;
-    name: string;
-    status: string;
-    lastExchangeAt: Date;
-  }
-) {
+export async function upsertAgentClient(input: {
+  uuid: string;
+  name: string;
+  status: string;
+  lastExchangeAt: Date;
+}) {
   const now = Date.now();
   const existing = await getStoredAgentClientByUUID(input.uuid);
   const nextRecord: StoredAgentClientEntity = {
@@ -889,10 +945,7 @@ export async function upsertAgentClient(
     updated_at: now
   };
 
-  await agentClientStore.set(
-    getAgentClientKey(input.uuid),
-    nextRecord
-  );
+  await agentClientStore.set(getAgentClientKey(input.uuid), nextRecord);
   return toAgentClientRecord(nextRecord);
 }
 
@@ -913,7 +966,10 @@ export async function findIssueAgentExecutionHistoryByUUID(
   uuid: string,
   teamUUID: string
 ): Promise<IssueAgentExecutionHistoryWithExecutionRecord | null> {
-  const record = await getStoredIssueAgentExecutionHistoryByUUID(uuid, teamUUID);
+  const record = await getStoredIssueAgentExecutionHistoryByUUID(
+    uuid,
+    teamUUID
+  );
 
   if (!record) {
     return null;
@@ -947,7 +1003,10 @@ export async function deleteIssueAgentExecutionHistoryByUUID(
   uuid: string,
   teamUUID: string
 ): Promise<void> {
-  const record = await getStoredIssueAgentExecutionHistoryByUUID(uuid, teamUUID);
+  const record = await getStoredIssueAgentExecutionHistoryByUUID(
+    uuid,
+    teamUUID
+  );
 
   if (!record) {
     return;
@@ -958,7 +1017,9 @@ export async function deleteIssueAgentExecutionHistoryByUUID(
     deleteObject(record.execute_payload_object_key),
     deleteObject(record.execute_option_object_key),
     deleteObject(record.execute_result_object_key),
-    deleteObject(getRawExecuteResultObjectKey(record.team_uuid, record.uuid)).catch(() => undefined),
+    deleteObject(
+      getRawExecuteResultObjectKey(record.team_uuid, record.uuid)
+    ).catch(() => undefined),
     deleteObject(record.logs_object_key)
   ]);
   await issueAgentExecutionHistoryStore.delete(
@@ -987,10 +1048,15 @@ export async function updateIssueAgentExecutionHistory(
   },
   teamUUID: string
 ) {
-  const record = await getStoredIssueAgentExecutionHistoryByUUID(input.uuid, teamUUID);
+  const record = await getStoredIssueAgentExecutionHistoryByUUID(
+    input.uuid,
+    teamUUID
+  );
 
   if (!record) {
-    throw new Error(`Issue agent execution history not found in storage: ${input.uuid}`);
+    throw new Error(
+      `Issue agent execution history not found in storage: ${input.uuid}`
+    );
   }
 
   const promptObjectKey = record.prompt_object_key;
@@ -1013,7 +1079,9 @@ export async function updateIssueAgentExecutionHistory(
   }
 
   if (input.executePayload !== undefined) {
-    writes.push(uploadObjectJson(executePayloadObjectKey, input.executePayload));
+    writes.push(
+      uploadObjectJson(executePayloadObjectKey, input.executePayload)
+    );
   }
 
   if (input.executeOption !== undefined) {
@@ -1021,7 +1089,9 @@ export async function updateIssueAgentExecutionHistory(
   }
 
   if (input.rawExecuteResult !== undefined && rawExecuteResultObjectKey) {
-    writes.push(uploadTextObject(rawExecuteResultObjectKey, input.rawExecuteResult));
+    writes.push(
+      uploadTextObject(rawExecuteResultObjectKey, input.rawExecuteResult)
+    );
   }
 
   await Promise.all(writes);
@@ -1040,7 +1110,9 @@ export async function updateIssueAgentExecutionHistory(
     execute_client_uuid: normalizeOptionalString(input.executeClientUUID),
     execute_client_name: normalizeOptionalString(input.executeClientName),
     queued_at:
-      input.queuedAt !== undefined ? toTimestamp(input.queuedAt) : record.queued_at,
+      input.queuedAt !== undefined
+        ? toTimestamp(input.queuedAt)
+        : record.queued_at,
     last_reported_at:
       input.lastReportedAt !== undefined
         ? toTimestamp(input.lastReportedAt)
@@ -1089,10 +1161,15 @@ export async function updateIssueExecutionHistory(
   },
   teamUUID: string
 ) {
-  const record = await getStoredIssueExecutionHistoryByUUID(input.uuid, teamUUID);
+  const record = await getStoredIssueExecutionHistoryByUUID(
+    input.uuid,
+    teamUUID
+  );
 
   if (!record) {
-    throw new Error(`Issue execution history not found in storage: ${input.uuid}`);
+    throw new Error(
+      `Issue execution history not found in storage: ${input.uuid}`
+    );
   }
 
   const nextRecord: StoredIssueExecutionHistoryEntity = {
@@ -1104,7 +1181,9 @@ export async function updateIssueExecutionHistory(
         : record.block_reason,
     current_agent_uuid: input.currentAgentUUID,
     started_at:
-      input.startedAt !== undefined ? toTimestamp(input.startedAt) : record.started_at,
+      input.startedAt !== undefined
+        ? toTimestamp(input.startedAt)
+        : record.started_at,
     finished_at:
       input.finishedAt !== undefined
         ? toTimestamp(input.finishedAt)
@@ -1139,7 +1218,9 @@ export async function listRunnableIssueExecutionHistories(
   const entries = await listTeamIssueExecutionHistoryEntries(teamUUID);
   const runnableEntries = entries
     .map((entry) => entry.value)
-    .filter((entry) => entry.status === 'created' || entry.status === 'executing')
+    .filter(
+      (entry) => entry.status === 'created' || entry.status === 'executing'
+    )
     .sort((left, right) => left.created_at - right.created_at);
 
   return Promise.all(

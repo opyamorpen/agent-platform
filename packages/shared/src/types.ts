@@ -34,6 +34,11 @@ export interface WorkflowNode {
   status: RefObject;
   agent: Agent;
   postActions: WorkflowNodePostAction[];
+  revisionContext: WorkflowNodeRevisionContext;
+}
+
+export interface WorkflowNodeRevisionContext {
+  enabled: boolean;
 }
 
 export interface WorkflowNodeTransitionIssueStatusPostAction {
@@ -383,6 +388,9 @@ export interface IssueExecutionHistory {
   status: IssueExecutionStatus;
   workflow: RefObject;
   workflowNode: RefObject;
+  iteration: number;
+  triggerReason: 'initial' | 'revision';
+  previousExecutionUUID: string | null;
   createdAt: string;
   currentAgentUUID: string;
   startedAt: string | null;

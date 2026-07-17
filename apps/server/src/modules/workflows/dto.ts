@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import type { Workflow, WorkflowNode, WorkflowSummary } from '@ones-ai-workflow/shared';
+import type {
+  Workflow,
+  WorkflowNode,
+  WorkflowSummary
+} from '@ones-ai-workflow/shared';
 
 export type WorkflowSummaryDTO = WorkflowSummary;
 export type WorkflowDTO = Workflow;
@@ -15,19 +19,22 @@ const workflowNodePostActionSchema = z.object({
   targetStatus: refObjectSchema
 });
 
+const workflowNodeRevisionContextSchema = z.object({
+  enabled: z.boolean().default(false)
+});
+
 export const createWorkflowSchema = z.object({
   name: z.string().min(1)
 });
 
-export const updateWorkflowSchema = z.object({
-  name: z.string().min(1).optional(),
-  isActive: z.boolean().optional()
-}).refine(
-  (value) => value.name !== undefined || value.isActive !== undefined,
-  {
+export const updateWorkflowSchema = z
+  .object({
+    name: z.string().min(1).optional(),
+    isActive: z.boolean().optional()
+  })
+  .refine((value) => value.name !== undefined || value.isActive !== undefined, {
     message: 'At least one workflow field must be provided'
-  }
-);
+  });
 
 export const createWorkflowNodeSchema = z
   .object({
@@ -35,7 +42,10 @@ export const createWorkflowNodeSchema = z
     issueType: refObjectSchema,
     status: refObjectSchema,
     agentUUID: z.string().min(1),
-    postActions: z.array(workflowNodePostActionSchema).max(1).default([])
+    postActions: z.array(workflowNodePostActionSchema).max(1).default([]),
+    revisionContext: workflowNodeRevisionContextSchema.default({
+      enabled: false
+    })
   })
   .superRefine((value, context) => {
     const transitionAction = value.postActions[0];

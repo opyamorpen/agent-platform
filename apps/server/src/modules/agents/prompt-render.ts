@@ -524,6 +524,7 @@ export function buildAgentPrompt(
     inputContextXml?: string;
     wikiInputsXml?: string;
     knowledgeContextXml?: string;
+    revisionContextXml?: string;
     readableEnvKeys?: string[];
   } = {}
 ): string {
@@ -539,7 +540,9 @@ export function buildAgentPrompt(
         options.inputContextXml?.trim() ||
           buildPreviewAgentInputContextXml(config.inputs),
         options.wikiInputsXml?.trim() || '<wiki-inputs />',
-        options.knowledgeContextXml?.trim() || '<knowledge-context />'
+        options.knowledgeContextXml?.trim() || '<knowledge-context />',
+        options.revisionContextXml?.trim() ||
+          '<revision-context><mode>initial</mode></revision-context>'
       ]
         .join('\n\n')
         .trim()

@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import type { Agent, Workflow, WorkflowNode, WorkflowSummary } from '@ones-ai-workflow/shared';
+import type {
+  Agent,
+  Workflow,
+  WorkflowNode,
+  WorkflowSummary
+} from '@ones-ai-workflow/shared';
 import {
   findAgentByUUID,
   findAgentsByUUIDs,
@@ -34,7 +39,9 @@ export class WorkflowNotFoundError extends Error {
 
 export class WorkflowDeletionBlockedError extends Error {
   constructor(uuid: string) {
-    super(`Workflow cannot be deleted while it still has execution nodes: ${uuid}`);
+    super(
+      `Workflow cannot be deleted while it still has execution nodes: ${uuid}`
+    );
     this.name = 'WorkflowDeletionBlockedError';
   }
 }
@@ -81,11 +88,16 @@ export function validateWorkflowNodeExecutorBindings(
   }
 }
 
-export async function getWorkflowSummaries(teamUUID: string): Promise<WorkflowSummary[]> {
+export async function getWorkflowSummaries(
+  teamUUID: string
+): Promise<WorkflowSummary[]> {
   return listWorkflows(teamUUID);
 }
 
-export async function getWorkflow(uuid: string, teamUUID: string): Promise<Workflow> {
+export async function getWorkflow(
+  uuid: string,
+  teamUUID: string
+): Promise<Workflow> {
   const workflow = await findWorkflowByUUID(uuid, teamUUID);
 
   if (!workflow) {
@@ -126,7 +138,10 @@ export async function updateWorkflow(
   return updatedWorkflow;
 }
 
-export async function removeWorkflow(uuid: string, teamUUID: string): Promise<void> {
+export async function removeWorkflow(
+  uuid: string,
+  teamUUID: string
+): Promise<void> {
   const workflow = await findWorkflowByUUID(uuid, teamUUID);
 
   if (!workflow) {
@@ -195,7 +210,10 @@ export async function updateWorkflowNode(
   return mapWorkflowNode(updatedNode, teamUUID);
 }
 
-export async function removeWorkflowNode(uuid: string, teamUUID: string): Promise<void> {
+export async function removeWorkflowNode(
+  uuid: string,
+  teamUUID: string
+): Promise<void> {
   const node = await findWorkflowNodeByUUID(uuid, teamUUID);
 
   if (!node) {
@@ -271,7 +289,8 @@ function toWorkflowNode(
       name: node.statusName
     },
     agent,
-    postActions: node.postActions
+    postActions: node.postActions,
+    revisionContext: node.revisionContext
   };
 }
 

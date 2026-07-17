@@ -300,6 +300,9 @@ export const zhCN = {
       },
       table: {
         agent: 'Agent',
+        iteration: '执行轮次',
+        initialIteration: '初次执行',
+        revisionIteration: '第 {{count}} 轮返工',
         executeClient: '执行客户端',
         status: '状态',
         inputTokens: '输入 tokens',
@@ -873,6 +876,9 @@ export const zhCN = {
         postAction: '成功后置动作',
         transitionTo: '流转到「{{status}}」',
         noPostAction: '无',
+        revisionContext: '返工上下文',
+        revisionEnabled: '已启用',
+        revisionDisabled: '未启用',
         actions: '操作'
       },
       dialog: {
@@ -899,6 +905,9 @@ export const zhCN = {
         agentEmpty: '没有匹配的 Agent',
         successTransitionLabel: '任务成功后自动流转工作项状态',
         successTransitionPlaceholder: '选择任务成功后的目标状态',
+        revisionContextLabel: '审核退回时继承历史结果和评论',
+        revisionContextHelp:
+          '同一节点再次触发时，Agent 会读取历史执行结果和新增审核评论；没有新增评论时任务将阻断。',
         saving: '保存中...',
         creating: '创建中...'
       },

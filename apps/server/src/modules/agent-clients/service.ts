@@ -76,6 +76,11 @@ import {
   buildAgentPrompt
 } from '../agents/prompt-render.js';
 import {
+  buildRevisionRuntimeContext,
+  loadAppliedWriteSnapshot,
+  RevisionContextBuildError
+} from '../executions/revision-context.js';
+import {
   loadAgentClientTaskAttachment,
   stageAgentClientTaskAttachments as stageAgentClientTaskAttachmentsInStorage
 } from './attachment-staging.js';
@@ -644,6 +649,52 @@ function getTaskAttachmentUploads(
   );
 }
 
+function getRevisionCurrentOutputRefUUIDs(
+  executeOption: unknown,
+  fieldUUID: string
+): string[] {
+  if (
+    !executeOption ||
+    typeof executeOption !== 'object' ||
+    Array.isArray(executeOption)
+  ) {
+    return [];
+  }
+  const revisionContext = (executeOption as { revisionContext?: unknown })
+    .revisionContext;
+  if (
+    !revisionContext ||
+    typeof revisionContext !== 'object' ||
+    Array.isArray(revisionContext)
+  ) {
+    return [];
+  }
+  const currentOutputs = (revisionContext as { currentOutputs?: unknown })
+    .currentOutputs;
+  if (!Array.isArray(currentOutputs)) {
+    return [];
+  }
+  const output = currentOutputs.find(
+    (item) =>
+      item &&
+      typeof item === 'object' &&
+      !Array.isArray(item) &&
+      (item as { fieldUUID?: unknown }).fieldUUID === fieldUUID
+  ) as { value?: unknown } | undefined;
+  const values = Array.isArray(output?.value) ? output.value : [output?.value];
+  return Array.from(
+    new Set(
+      values.flatMap((value) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return [];
+        }
+        const uuid = (value as { uuid?: unknown }).uuid;
+        return typeof uuid === 'string' && uuid.trim() ? [uuid.trim()] : [];
+      })
+    )
+  );
+}
+
 function normalizeAttachmentOutputRecords(
   value: unknown
 ): AttachmentOutputRecord[] {
@@ -738,10 +789,12 @@ export function buildWikiPageReferenceFieldValue(
   }
 
   return Array.from(
-    new Set([
-      ...toIssueRefList(existingValue).map((refObject) => refObject.uuid),
-      normalizedPageUUID
-    ].filter(Boolean))
+    new Set(
+      [
+        ...toIssueRefList(existingValue).map((refObject) => refObject.uuid),
+        normalizedPageUUID
+      ].filter(Boolean)
+    )
   );
 }
 
@@ -2171,6 +2224,21 @@ export async function buildIssueOutputWritePlan(
 
       const updatedIssueUUIDs: string[] = [];
       const fieldWriteMode = getReferenceFieldWriteMode(parsedOutput);
+      const revisionTargetIssueUUIDs = getRevisionCurrentOutputRefUUIDs(
+        task.executeOption,
+        output.field.uuid
+      );
+
+      if (
+        revisionTargetIssueUUIDs.length > 0 &&
+        parsedOutput.objects.some(
+          (objectValue) => objectValue.objectWriteMode === 'create'
+        )
+      ) {
+        throw new Error(
+          `Revision output "${outputFieldUUIDPath}" must update an existing issue instead of creating a duplicate`
+        );
+      }
 
       for (const objectValue of parsedOutput.objects) {
         if (
@@ -2199,6 +2267,15 @@ export async function buildIssueOutputWritePlan(
           if (!targetIssueUUID) {
             throw new Error(
               `Output "${outputFieldUUIDPath}" update object requires object-uuid`
+            );
+          }
+
+          if (
+            revisionTargetIssueUUIDs.length > 0 &&
+            !revisionTargetIssueUUIDs.includes(targetIssueUUID)
+          ) {
+            throw new Error(
+              `Revision output "${outputFieldUUIDPath}" can only update issues linked by an earlier round`
             );
           }
 
@@ -3735,7 +3812,9 @@ async function applyTaskReport(
   const workflowNode = workflowNodeMap.get(preparedReport.workflowNodeUUID);
 
   if (!workflowNode) {
-    throw new InvalidAgentClientTaskReportError(preparedReport.workflowNodeUUID);
+    throw new InvalidAgentClientTaskReportError(
+      preparedReport.workflowNodeUUID
+    );
   }
 
   if (finalStatus === 'success') {
@@ -3802,11 +3881,11 @@ async function applyTaskReport(
       outputWriteStage = 'wiki';
       const wikiFieldValues: ScopedIssueFieldValue[] = [];
       for (const wikiWrite of preparedReport.outputWritePlan.wikiWrites) {
-        const appliedWikiWrite = await applyWikiWritePlan(wikiWrite, onesContext);
-        finalLogs = appendLogMessage(
-          finalLogs,
-          appliedWikiWrite.log
+        const appliedWikiWrite = await applyWikiWritePlan(
+          wikiWrite,
+          onesContext
         );
+        finalLogs = appendLogMessage(finalLogs, appliedWikiWrite.log);
         const existingWikiFieldValue =
           wikiWrite.outputFieldValueType === 'multi_reference_object'
             ? (
@@ -3943,6 +4022,33 @@ async function applyTaskReport(
     throw new InvalidAgentClientTaskReportError(preparedReport.taskUUID);
   }
 
+  let executeResultToPersist = preparedReport.executeResult;
+  if (finalStatus === 'success') {
+    try {
+      const agentConfig = await loadAgentConfig(
+        task.agentUUID,
+        task.agentVersion,
+        agentConfigCache,
+        teamUUID
+      );
+      if (agentConfig) {
+        executeResultToPersist = {
+          ...preparedReport.executeResult,
+          appliedWrites: await loadAppliedWriteSnapshot(
+            preparedReport.dispatchedIssueUUID,
+            agentConfig.outputs,
+            onesContext
+          )
+        };
+      }
+    } catch (error) {
+      finalLogs = appendLogMessage(
+        finalLogs,
+        `[system] could not snapshot applied outputs for future revision context: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
   const mergedLogs = mergeLogHistory(task.logs, finalLogs);
 
   await updateIssueAgentExecutionHistory(
@@ -3950,7 +4056,7 @@ async function applyTaskReport(
       uuid: task.uuid,
       status: finalStatus,
       logs: mergedLogs,
-      executeResult: toJsonObject(preparedReport.executeResult),
+      executeResult: toJsonObject(executeResultToPersist),
       rawExecuteResult: report.executeResult,
       executeClientUUID: client.uuid,
       executeClientName: client.name,
@@ -4164,6 +4270,8 @@ async function dispatchTasks(
     let inputContextXml: string;
     let wikiInputsXml = '<wiki-inputs />';
     let knowledgeContextXml = '<knowledge-context />';
+    let revisionContextXml =
+      '<revision-context><mode>initial</mode></revision-context>';
 
     try {
       const onesContext = getExecutorOnesContext(nextTask, teamUUID);
@@ -4195,6 +4303,26 @@ async function dispatchTasks(
           knowledgeSources: wikiContext.knowledgeSources
         }
       });
+      if (workflowNode.revisionContext.enabled) {
+        const allExecutions =
+          await listIssueExecutionHistoriesByDispatchedIssueUUID(
+            issueExecution.dispatchedIssueUUID,
+            teamUUID
+          );
+        const revisionContext = await buildRevisionRuntimeContext({
+          currentExecution: issueExecution,
+          allExecutions,
+          agentConfig,
+          onesContext,
+          snapshotAt: exchangeAt
+        });
+        if (revisionContext) {
+          revisionContextXml = revisionContext.xml;
+          Object.assign(executeOption, {
+            revisionContext: revisionContext.metadata
+          });
+        }
+      }
     } catch (error) {
       logger.error(
         '[agent-client-exchange] skip task dispatch because execute payload build failed',
@@ -4205,6 +4333,10 @@ async function dispatchTasks(
           error: error instanceof Error ? error.message : String(error)
         }
       );
+      const blockReason =
+        error instanceof RevisionContextBuildError
+          ? error.code
+          : 'wiki_or_input_context_error';
       await updateIssueAgentExecutionHistory(
         {
           uuid: nextTask.uuid,
@@ -4229,7 +4361,7 @@ async function dispatchTasks(
       await refreshIssueExecutionAggregate(
         issueExecution.uuid,
         workflowNodeMap,
-        'wiki_or_input_context_error',
+        blockReason,
         teamUUID
       );
       continue;
@@ -4242,6 +4374,7 @@ async function dispatchTasks(
         inputContextXml,
         wikiInputsXml,
         knowledgeContextXml,
+        revisionContextXml,
         readableEnvKeys: bindings.readableEnvKeys
       });
     } catch (error) {

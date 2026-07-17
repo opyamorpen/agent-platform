@@ -39,11 +39,12 @@ export interface AppliedWikiWrite {
 
 type WikiExecutionContext = {
   inputPages: WikiInputPageSnapshot[];
+  revisionPages: Array<WikiInputPageSnapshot & { fieldUUID: string }>;
 };
 
 function parseExecutionContext(value: unknown): WikiExecutionContext {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return { inputPages: [] };
+    return { inputPages: [], revisionPages: [] };
   }
 
   const wikiContext = (value as { wikiContext?: unknown }).wikiContext;
@@ -52,31 +53,62 @@ function parseExecutionContext(value: unknown): WikiExecutionContext {
     typeof wikiContext !== 'object' ||
     Array.isArray(wikiContext)
   ) {
-    return { inputPages: [] };
+    return { inputPages: [], revisionPages: [] };
   }
 
   const inputPages = (wikiContext as { inputPages?: unknown }).inputPages;
-  if (!Array.isArray(inputPages)) {
-    return { inputPages: [] };
-  }
+  const revisionContext = (value as { revisionContext?: unknown })
+    .revisionContext;
+  const revisionPages =
+    revisionContext &&
+    typeof revisionContext === 'object' &&
+    !Array.isArray(revisionContext) &&
+    Array.isArray(
+      (revisionContext as { currentWikiPages?: unknown }).currentWikiPages
+    )
+      ? (revisionContext as { currentWikiPages: unknown[] }).currentWikiPages
+      : [];
 
   return {
-    inputPages: inputPages.flatMap((item): WikiInputPageSnapshot[] => {
-      if (!item || typeof item !== 'object') {
-        return [];
+    inputPages: (Array.isArray(inputPages) ? inputPages : []).flatMap(
+      (item): WikiInputPageSnapshot[] => {
+        if (!item || typeof item !== 'object') {
+          return [];
+        }
+        const page = item as Record<string, unknown>;
+        if (
+          typeof page.uuid !== 'string' ||
+          typeof page.title !== 'string' ||
+          typeof page.spaceUUID !== 'string' ||
+          typeof page.updatedTime !== 'number' ||
+          typeof page.refType !== 'string'
+        ) {
+          return [];
+        }
+        return [page as unknown as WikiInputPageSnapshot];
       }
-      const page = item as Record<string, unknown>;
-      if (
-        typeof page.uuid !== 'string' ||
-        typeof page.title !== 'string' ||
-        typeof page.spaceUUID !== 'string' ||
-        typeof page.updatedTime !== 'number' ||
-        typeof page.refType !== 'string'
-      ) {
-        return [];
+    ),
+    revisionPages: revisionPages.flatMap(
+      (item): Array<WikiInputPageSnapshot & { fieldUUID: string }> => {
+        if (!item || typeof item !== 'object') {
+          return [];
+        }
+        const page = item as Record<string, unknown>;
+        if (
+          typeof page.fieldUUID !== 'string' ||
+          typeof page.uuid !== 'string' ||
+          typeof page.title !== 'string' ||
+          typeof page.spaceUUID !== 'string' ||
+          typeof page.updatedTime !== 'number' ||
+          typeof page.refType !== 'string'
+        ) {
+          return [];
+        }
+        return [
+          page as unknown as WikiInputPageSnapshot & { fieldUUID: string }
+        ];
       }
-      return [page as unknown as WikiInputPageSnapshot];
-    })
+    )
   };
 }
 
@@ -130,11 +162,20 @@ export async function buildWikiWritePlan(input: {
     throw new Error('Wiki output field must be a reference field');
   }
 
-  const client = await createOnesOpenApiClient(input.onesContext);
   const executionContext = parseExecutionContext(input.executeOption);
   const inputPageUUIDs = new Set(
     executionContext.inputPages.map((page) => page.uuid)
   );
+  const revisionPages = executionContext.revisionPages.filter(
+    (page) => page.fieldUUID === input.field.field.uuid
+  );
+  const revisionPageUUIDs = new Set(revisionPages.map((page) => page.uuid));
+  if (input.output.action === 'create' && revisionPages.length > 0) {
+    throw new Error(
+      'Revision Wiki output must replace or append the existing page instead of creating a duplicate'
+    );
+  }
+  const client = await createOnesOpenApiClient(input.onesContext);
   const sources = input.field.writeTarget
     ? []
     : await findKnowledgeSourcesByUUIDs(
@@ -154,11 +195,17 @@ export async function buildWikiWritePlan(input: {
   const inputPages = await Promise.all(
     executionContext.inputPages.map((page) => client.getWikiPage(page.uuid))
   );
+  const existingRevisionPages = await Promise.all(
+    revisionPages.map((page) => client.getWikiPage(page.uuid))
+  );
   const candidates = Array.from(
     new Map(
-      [...inputPages, ...knowledgePages, ...writeTargetPages].map(
-        (page) => [page.id, page] as const
-      )
+      [
+        ...inputPages,
+        ...existingRevisionPages,
+        ...knowledgePages,
+        ...writeTargetPages
+      ].map((page) => [page.id, page] as const)
     ).values()
   );
 
@@ -223,17 +270,21 @@ export async function buildWikiWritePlan(input: {
         : 'Wiki output target is outside the allowed input/knowledge scope'
     );
   }
-  if (input.output.action === 'replace' && !inputPageUUIDs.has(target.id)) {
+  if (
+    input.output.action === 'replace' &&
+    !inputPageUUIDs.has(target.id) &&
+    !revisionPageUUIDs.has(target.id)
+  ) {
     throw new Error(
-      'Wiki replace is only allowed for a page read in this execution'
+      'Wiki replace is only allowed for a page read in this execution or created by an earlier revision round'
     );
   }
 
   const current = await client.getWikiPage(target.id);
   assertWritablePage(current);
-  const snapshot = executionContext.inputPages.find(
-    (page) => page.uuid === target.id
-  );
+  const snapshot =
+    executionContext.inputPages.find((page) => page.uuid === target.id) ??
+    revisionPages.find((page) => page.uuid === target.id);
   if (
     input.output.action === 'replace' &&
     (!snapshot || snapshot.updatedTime !== current.updatedTime)

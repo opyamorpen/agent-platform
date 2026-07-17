@@ -112,6 +112,19 @@ test('workflow node DTO keeps old nodes compatible without post-actions', () => 
   });
 
   assert.deepEqual(parsed.postActions, []);
+  assert.deepEqual(parsed.revisionContext, { enabled: false });
+});
+
+test('workflow node DTO accepts revision context opt-in', () => {
+  const parsed = createWorkflowNodeSchema.parse({
+    project: { uuid: 'project-1', name: 'Project' },
+    issueType: { uuid: 'type-1', name: 'Requirement' },
+    status: { uuid: 'status-1', name: 'In progress' },
+    agentUUID: 'agent-1',
+    revisionContext: { enabled: true }
+  });
+
+  assert.equal(parsed.revisionContext.enabled, true);
 });
 
 test('workflow node DTO rejects a post-action that keeps the trigger status', () => {
@@ -799,6 +812,81 @@ test('buildIssueOutputWritePlan skips empty object outputs', async () => {
     statusFieldValues: [],
     wikiWrites: []
   });
+});
+
+test('revision issue output rejects duplicate create', async () => {
+  await assert.rejects(
+    () =>
+      buildIssueOutputWritePlan(
+        {
+          agentUUID: 'agent-1',
+          agentVersion: 1,
+          executeOption: {
+            revisionContext: {
+              currentOutputs: [
+                {
+                  fieldUUID: 'A2wqc8Kt',
+                  value: { uuid: 'issue-existing', name: '已有缺陷' }
+                }
+              ]
+            }
+          },
+          issueExecution: { dispatchedIssueUUID: 'issue-1' }
+        } as unknown as Parameters<typeof buildIssueOutputWritePlan>[0],
+        [
+          {
+            mode: 'object_values',
+            fieldUUIDPath: 'A2wqc8Kt',
+            fieldWriteMode: null,
+            objects: [
+              {
+                objectType: 'issue',
+                objectWriteMode: 'create',
+                objectUUID: null,
+                objectName: null,
+                fields: { field001: '重复缺陷' }
+              }
+            ]
+          }
+        ],
+        null,
+        new Map([
+          [
+            'team-1:agent-1:1',
+            {
+              outputs: [
+                {
+                  mode: 'set_value',
+                  field: {
+                    uuid: 'A2wqc8Kt',
+                    name: '关联逃逸缺陷',
+                    valueType: 'single_reference_object',
+                    referenceObjectType: 'issue'
+                  },
+                  description: '更新已有缺陷',
+                  subFields: [
+                    {
+                      mode: 'set_value',
+                      field: {
+                        uuid: 'field001',
+                        name: '标题',
+                        valueType: 'text',
+                        referenceObjectType: null
+                      },
+                      description: '标题',
+                      subFields: []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        ]) as unknown as Parameters<typeof buildIssueOutputWritePlan>[3],
+        'team-1',
+        { teamUUID: 'team-1', userUUID: 'user-1' }
+      ),
+    /must update an existing issue instead of creating a duplicate/u
+  );
 });
 
 test('getTaskExecuteOptionMetadata treats field047 as attachment even without reference object type', () => {

@@ -48,7 +48,9 @@ type IssueExecutionHistoriesResponse =
 type AgentExecutionResponse =
   | ApiSuccess<IssueExecutionHistory['agentExecutions'][number]>
   | ApiError;
-type AgentExecutionLogsResponse = ApiSuccess<IssueAgentExecutionHistory> | ApiError;
+type AgentExecutionLogsResponse =
+  | ApiSuccess<IssueAgentExecutionHistory>
+  | ApiError;
 type AgentExecutionRawView = 'input' | 'output';
 
 function getAgentExecutionStatusMeta(
@@ -57,7 +59,10 @@ function getAgentExecutionStatusMeta(
 ) {
   const statusMap: Record<
     IssueExecutionHistory['agentExecutions'][number]['status'],
-    { label: string; variant: 'secondary' | 'default' | 'destructive' | 'outline' }
+    {
+      label: string;
+      variant: 'secondary' | 'default' | 'destructive' | 'outline';
+    }
   > = {
     created: {
       label: t('pages.issueDetail.status.created'),
@@ -88,18 +93,25 @@ function getAgentExecutionStatusMeta(
   return statusMap[status];
 }
 
-function formatTokenCount(value: number | null | undefined, t: (key: string) => string) {
-  return typeof value === 'number' ? value.toLocaleString() : t('common.fallback.emptyValue');
+function formatTokenCount(
+  value: number | null | undefined,
+  t: (key: string) => string
+) {
+  return typeof value === 'number'
+    ? value.toLocaleString()
+    : t('common.fallback.emptyValue');
 }
 
 type ExecutionRow = {
+  history: IssueExecutionHistory;
   agentExecution: IssueExecutionHistory['agentExecutions'][number];
   canReset: boolean;
 };
 
 export function IssueDetailPage() {
   const { t, i18n } = useTranslation();
-  const locale = resolveLocale(i18n.resolvedLanguage ?? i18n.language) ?? DEFAULT_LOCALE;
+  const locale =
+    resolveLocale(i18n.resolvedLanguage ?? i18n.language) ?? DEFAULT_LOCALE;
   const { uuid } = useParams<{ uuid: string }>();
   const { setActions, setTitle } = useHeaderActions();
   const [issue, setIssue] = useState<DispatchedIssue | null>(null);
@@ -107,7 +119,10 @@ export function IssueDetailPage() {
   const [selectedAgentExecutionLogs, setSelectedAgentExecutionLogs] = useState<
     IssueExecutionHistory['agentExecutions'][number] | null
   >(null);
-  const [selectedAgentExecutionRawContent, setSelectedAgentExecutionRawContent] = useState<{
+  const [
+    selectedAgentExecutionRawContent,
+    setSelectedAgentExecutionRawContent
+  ] = useState<{
     execution: IssueExecutionHistory['agentExecutions'][number];
     view: AgentExecutionRawView;
   } | null>(null);
@@ -123,8 +138,10 @@ export function IssueDetailPage() {
     string | null
   >(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [agentExecutionDetailErrorMessage, setAgentExecutionDetailErrorMessage] =
-    useState<string | null>(null);
+  const [
+    agentExecutionDetailErrorMessage,
+    setAgentExecutionDetailErrorMessage
+  ] = useState<string | null>(null);
   const agentExecutionLogsContainerRef = useRef<HTMLPreElement | null>(null);
 
   useEffect(() => {
@@ -164,7 +181,11 @@ export function IssueDetailPage() {
         throw new Error(
           issuePayload.success
             ? t('pages.issueDetail.loadFailed')
-            : getApiErrorMessage(issuePayload, t, 'pages.issueDetail.loadFailed')
+            : getApiErrorMessage(
+                issuePayload,
+                t,
+                'pages.issueDetail.loadFailed'
+              )
         );
       }
 
@@ -187,7 +208,9 @@ export function IssueDetailPage() {
       setIssue(null);
       setHistories([]);
       setTitle(t('pages.issueDetail.pageTitle'));
-      setErrorMessage(getErrorMessage(error, t, 'pages.issueDetail.loadFailed'));
+      setErrorMessage(
+        getErrorMessage(error, t, 'pages.issueDetail.loadFailed')
+      );
     } finally {
       setIsLoading(false);
     }
@@ -202,7 +225,9 @@ export function IssueDetailPage() {
     setAgentExecutionDetailErrorMessage(null);
 
     try {
-      const response = await fetch(`/api/executions/agent-histories/${agentExecutionUUID}`);
+      const response = await fetch(
+        `/api/executions/agent-histories/${agentExecutionUUID}`
+      );
       const payload = (await response.json()) as AgentExecutionLogsResponse;
 
       if (!response.ok || !payload.success) {
@@ -226,7 +251,9 @@ export function IssueDetailPage() {
 
   useEffect(() => {
     const activeExecution =
-      selectedAgentExecutionLogs ?? selectedAgentExecutionRawContent?.execution ?? null;
+      selectedAgentExecutionLogs ??
+      selectedAgentExecutionRawContent?.execution ??
+      null;
 
     if (!activeExecution) {
       setSelectedAgentExecutionDetail(null);
@@ -281,7 +308,9 @@ export function IssueDetailPage() {
       if (selectedAgentExecutionLogs?.uuid === payload.data.uuid) {
         setSelectedAgentExecutionLogs(null);
       }
-      if (selectedAgentExecutionRawContent?.execution.uuid === payload.data.uuid) {
+      if (
+        selectedAgentExecutionRawContent?.execution.uuid === payload.data.uuid
+      ) {
         setSelectedAgentExecutionRawContent(null);
       }
 
@@ -289,7 +318,9 @@ export function IssueDetailPage() {
         currentHistories.map((history) => ({
           ...history,
           agentExecutions: history.agentExecutions.map((agentExecution) =>
-            agentExecution.uuid === payload.data.uuid ? payload.data : agentExecution
+            agentExecution.uuid === payload.data.uuid
+              ? payload.data
+              : agentExecution
           )
         }))
       );
@@ -326,7 +357,9 @@ export function IssueDetailPage() {
     window.URL.revokeObjectURL(objectUrl);
   }
 
-  function openAgentExecutionLogs(agentExecution: IssueExecutionHistory['agentExecutions'][number]) {
+  function openAgentExecutionLogs(
+    agentExecution: IssueExecutionHistory['agentExecutions'][number]
+  ) {
     setSelectedAgentExecutionRawContent(null);
     setSelectedAgentExecutionLogs(agentExecution);
   }
@@ -372,8 +405,8 @@ export function IssueDetailPage() {
     }
 
     return selectedAgentExecutionRawContent.view === 'input'
-      ? selectedAgentExecutionDetail.prompt ?? ''
-      : selectedAgentExecutionDetail.rawExecuteResult ?? '';
+      ? (selectedAgentExecutionDetail.prompt ?? '')
+      : (selectedAgentExecutionDetail.rawExecuteResult ?? '');
   }
 
   function getSelectedRawEmptyText(): string {
@@ -401,6 +434,7 @@ export function IssueDetailPage() {
 
     return histories.flatMap((history) => {
       return history.agentExecutions.map((agentExecution) => ({
+        history,
         agentExecution,
         canReset:
           latestAgentExecutionUUID === agentExecution.uuid &&
@@ -430,13 +464,28 @@ export function IssueDetailPage() {
             <Table>
               <TableHeader className="bg-muted">
                 <TableRow>
-                  <TableHead className="px-4">{t('pages.issueDetail.table.agent')}</TableHead>
-                  <TableHead>{t('pages.issueDetail.table.executeClient')}</TableHead>
+                  <TableHead className="px-4">
+                    {t('pages.issueDetail.table.agent')}
+                  </TableHead>
+                  <TableHead>
+                    {t('pages.issueDetail.table.iteration')}
+                  </TableHead>
+                  <TableHead>
+                    {t('pages.issueDetail.table.executeClient')}
+                  </TableHead>
                   <TableHead>{t('pages.issueDetail.table.status')}</TableHead>
-                  <TableHead>{t('pages.issueDetail.table.inputTokens')}</TableHead>
-                  <TableHead>{t('pages.issueDetail.table.outputTokens')}</TableHead>
-                  <TableHead>{t('pages.issueDetail.table.startedAt')}</TableHead>
-                  <TableHead>{t('pages.issueDetail.table.finishedAt')}</TableHead>
+                  <TableHead>
+                    {t('pages.issueDetail.table.inputTokens')}
+                  </TableHead>
+                  <TableHead>
+                    {t('pages.issueDetail.table.outputTokens')}
+                  </TableHead>
+                  <TableHead>
+                    {t('pages.issueDetail.table.startedAt')}
+                  </TableHead>
+                  <TableHead>
+                    {t('pages.issueDetail.table.finishedAt')}
+                  </TableHead>
                   <TableHead className="pr-4 text-right">
                     {t('pages.issueDetail.table.actions')}
                   </TableHead>
@@ -446,14 +495,14 @@ export function IssueDetailPage() {
                 {executionRows.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={9}
                       className="h-24 px-4 text-center text-muted-foreground"
                     >
                       {t('pages.issueDetail.empty')}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  executionRows.map(({ agentExecution, canReset }) => {
+                  executionRows.map(({ history, agentExecution, canReset }) => {
                     const agentStatusMeta = getAgentExecutionStatusMeta(
                       agentExecution.status,
                       t
@@ -465,6 +514,13 @@ export function IssueDetailPage() {
                           {agentExecution.agent.name}
                         </TableCell>
                         <TableCell>
+                          {history.triggerReason === 'revision'
+                            ? t('pages.issueDetail.table.revisionIteration', {
+                                count: history.iteration
+                              })
+                            : t('pages.issueDetail.table.initialIteration')}
+                        </TableCell>
+                        <TableCell>
                           {agentExecution.executeClient?.name ??
                             t('common.fallback.emptyValue')}
                         </TableCell>
@@ -474,10 +530,16 @@ export function IssueDetailPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {formatTokenCount(agentExecution.usage?.inputTokens, t)}
+                          {formatTokenCount(
+                            agentExecution.usage?.inputTokens,
+                            t
+                          )}
                         </TableCell>
                         <TableCell>
-                          {formatTokenCount(agentExecution.usage?.outputTokens, t)}
+                          {formatTokenCount(
+                            agentExecution.usage?.outputTokens,
+                            t
+                          )}
                         </TableCell>
                         <TableCell>
                           {formatDateTime(agentExecution.startedAt, locale)}
@@ -491,7 +553,9 @@ export function IssueDetailPage() {
                               variant="outline"
                               size="sm"
                               type="button"
-                              onClick={() => openAgentExecutionLogs(agentExecution)}
+                              onClick={() =>
+                                openAgentExecutionLogs(agentExecution)
+                              }
                             >
                               <FileTextIcon />
                               {t('pages.issueDetail.actions.viewLogs')}
@@ -501,7 +565,10 @@ export function IssueDetailPage() {
                               size="sm"
                               type="button"
                               onClick={() =>
-                                openAgentExecutionRawContent(agentExecution, 'input')
+                                openAgentExecutionRawContent(
+                                  agentExecution,
+                                  'input'
+                                )
                               }
                             >
                               {t('pages.issueDetail.actions.viewInput')}
@@ -511,7 +578,10 @@ export function IssueDetailPage() {
                               size="sm"
                               type="button"
                               onClick={() =>
-                                openAgentExecutionRawContent(agentExecution, 'output')
+                                openAgentExecutionRawContent(
+                                  agentExecution,
+                                  'output'
+                                )
                               }
                             >
                               {t('pages.issueDetail.actions.viewOutput')}
@@ -572,7 +642,11 @@ export function IssueDetailPage() {
                     size="sm"
                     type="button"
                     disabled={isLoadingAgentExecutionDetail}
-                    onClick={() => void loadAgentExecutionDetail(selectedAgentExecutionLogs.uuid)}
+                    onClick={() =>
+                      void loadAgentExecutionDetail(
+                        selectedAgentExecutionLogs.uuid
+                      )
+                    }
                   >
                     {isLoadingAgentExecutionDetail
                       ? t('pages.issueDetail.states.logsRefreshing')
@@ -590,7 +664,8 @@ export function IssueDetailPage() {
                   </Button>
                 </div>
               </div>
-              {isLoadingAgentExecutionDetail && !selectedAgentExecutionDetail ? (
+              {isLoadingAgentExecutionDetail &&
+              !selectedAgentExecutionDetail ? (
                 <div className="px-4 py-8 text-center text-sm text-muted-foreground">
                   {t('pages.issueDetail.states.logsLoading')}
                 </div>
@@ -628,7 +703,9 @@ export function IssueDetailPage() {
           {selectedAgentExecutionRawContent ? (
             <div className="overflow-hidden rounded-xl border">
               <div className="flex items-center justify-between gap-3 border-b bg-muted/50 px-4 py-3">
-                <div className="text-sm font-medium">{getSelectedRawSectionTitle()}</div>
+                <div className="text-sm font-medium">
+                  {getSelectedRawSectionTitle()}
+                </div>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
@@ -647,7 +724,8 @@ export function IssueDetailPage() {
                   </Button>
                 </div>
               </div>
-              {isLoadingAgentExecutionDetail && !selectedAgentExecutionDetail ? (
+              {isLoadingAgentExecutionDetail &&
+              !selectedAgentExecutionDetail ? (
                 <div className="px-4 py-8 text-center text-sm text-muted-foreground">
                   {t('pages.issueDetail.states.logsLoading')}
                 </div>
@@ -675,7 +753,9 @@ export function IssueDetailPage() {
       >
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('pages.issueDetail.retryDialog.title')}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t('pages.issueDetail.retryDialog.title')}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {pendingRetryAgentExecution
                 ? t('pages.issueDetail.retryDialog.descriptionWithAgent', {
@@ -706,7 +786,10 @@ export function IssueDetailPage() {
   );
 }
 
-function buildAgentExecutionLogFileName(agentName: string, executionUUID: string): string {
+function buildAgentExecutionLogFileName(
+  agentName: string,
+  executionUUID: string
+): string {
   const normalizedAgentName =
     agentName
       .trim()

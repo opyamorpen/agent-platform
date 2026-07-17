@@ -2,7 +2,10 @@ import {
   createEntityStore,
   type HostedEntityEntry
 } from '../../lib/hosted-storage.js';
-import type { WorkflowNodePostAction } from '@ones-ai-workflow/shared';
+import type {
+  WorkflowNodePostAction,
+  WorkflowNodeRevisionContext
+} from '@ones-ai-workflow/shared';
 import type {
   CreateWorkflowNodeDTO,
   UpdateWorkflowDTO,
@@ -14,9 +17,11 @@ const WORKFLOW_ENTITY_NAME = 'workflow';
 const WORKFLOW_NODE_ENTITY_NAME = 'workflow_node';
 const TEAM_UUID_INDEX_NAME = 'idx_team_uuid';
 
-const workflowStore = createEntityStore<StoredWorkflowEntity>(WORKFLOW_ENTITY_NAME);
-const workflowNodeStore =
-  createEntityStore<StoredWorkflowNodeEntity>(WORKFLOW_NODE_ENTITY_NAME);
+const workflowStore =
+  createEntityStore<StoredWorkflowEntity>(WORKFLOW_ENTITY_NAME);
+const workflowNodeStore = createEntityStore<StoredWorkflowNodeEntity>(
+  WORKFLOW_NODE_ENTITY_NAME
+);
 
 export type WorkflowRecord = {
   uuid: string;
@@ -35,6 +40,7 @@ export type WorkflowNodeRecord = {
   statusName: string;
   agentUUID: string;
   postActions: WorkflowNodePostAction[];
+  revisionContext: WorkflowNodeRevisionContext;
 };
 
 interface StoredWorkflowEntity {
@@ -74,7 +80,10 @@ function getWorkflowKey(teamUUID: string, workflowUUID: string): string {
   return `workflow_${normalizeKeySegment(teamUUID)}_${normalizeKeySegment(workflowUUID)}`;
 }
 
-function getWorkflowNodeKey(teamUUID: string, workflowNodeUUID: string): string {
+function getWorkflowNodeKey(
+  teamUUID: string,
+  workflowNodeUUID: string
+): string {
   return `workflow_node_${normalizeKeySegment(teamUUID)}_${normalizeKeySegment(workflowNodeUUID)}`;
 }
 
@@ -103,18 +112,27 @@ function serializeAgentUUID(agentUUID: string): string {
 
 function serializeWorkflowNodeBinding(
   agentUUID: string,
-  postActions: WorkflowNodePostAction[]
+  postActions: WorkflowNodePostAction[],
+  revisionContext: WorkflowNodeRevisionContext
 ): string {
   const transitionAction = postActions[0];
 
-  if (transitionAction?.type !== 'transition_issue_status') {
+  if (
+    transitionAction?.type !== 'transition_issue_status' &&
+    !revisionContext.enabled
+  ) {
     return serializeAgentUUID(agentUUID);
   }
 
   return JSON.stringify({
     a: compactUUID(agentUUID),
-    t: transitionAction.targetStatus.uuid,
-    n: transitionAction.targetStatus.name
+    ...(transitionAction?.type === 'transition_issue_status'
+      ? {
+          t: transitionAction.targetStatus.uuid,
+          n: transitionAction.targetStatus.name
+        }
+      : {}),
+    ...(revisionContext.enabled ? { r: 1 } : {})
   });
 }
 
@@ -149,7 +167,10 @@ function parseAgentUUIDText(value: string): string {
     return '';
   } catch {
     // Comma-separated format: take the first UUID
-    const first = value.split(',').map((item) => item.trim()).find(Boolean);
+    const first = value
+      .split(',')
+      .map((item) => item.trim())
+      .find(Boolean);
     return first ? expandCompactUUID(first) : '';
   }
 }
@@ -185,6 +206,22 @@ function parsePostActions(value: string): WorkflowNodePostAction[] {
   }
 }
 
+function parseRevisionContext(value: string): WorkflowNodeRevisionContext {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return {
+      enabled: Boolean(
+        parsed &&
+        typeof parsed === 'object' &&
+        !Array.isArray(parsed) &&
+        (parsed as { r?: unknown }).r === 1
+      )
+    };
+  } catch {
+    return { enabled: false };
+  }
+}
+
 function toWorkflowRecord(entry: StoredWorkflowEntity): WorkflowRecord {
   return {
     uuid: entry.uuid,
@@ -193,7 +230,9 @@ function toWorkflowRecord(entry: StoredWorkflowEntity): WorkflowRecord {
   };
 }
 
-function toWorkflowNodeRecord(entry: StoredWorkflowNodeEntity): WorkflowNodeRecord {
+function toWorkflowNodeRecord(
+  entry: StoredWorkflowNodeEntity
+): WorkflowNodeRecord {
   return {
     uuid: entry.uuid,
     workflowUUID: entry.workflow_uuid,
@@ -204,7 +243,8 @@ function toWorkflowNodeRecord(entry: StoredWorkflowNodeEntity): WorkflowNodeReco
     statusUUID: entry.status_uuid,
     statusName: entry.status_name,
     agentUUID: parseAgentUUIDText(entry.agent_uuids_text),
-    postActions: parsePostActions(entry.agent_uuids_text)
+    postActions: parsePostActions(entry.agent_uuids_text),
+    revisionContext: parseRevisionContext(entry.agent_uuids_text)
   };
 }
 
@@ -256,7 +296,9 @@ async function getStoredWorkflowNodeByUUID(
   return entry?.team_uuid === teamUUID ? entry : null;
 }
 
-export async function listWorkflows(teamUUID: string): Promise<WorkflowSummaryDTO[]> {
+export async function listWorkflows(
+  teamUUID: string
+): Promise<WorkflowSummaryDTO[]> {
   const entries = await listTeamWorkflowEntries(teamUUID);
 
   return entries
@@ -346,7 +388,9 @@ export async function deleteWorkflowNodesByWorkflowUUID(
   teamUUID: string
 ): Promise<void> {
   const entries = await listTeamWorkflowNodeEntries(teamUUID);
-  const targets = entries.filter((entry) => entry.value.workflow_uuid === workflowUUID);
+  const targets = entries.filter(
+    (entry) => entry.value.workflow_uuid === workflowUUID
+  );
 
   await Promise.all(
     targets.map((entry) =>
@@ -406,7 +450,8 @@ export async function createWorkflowNode(
     status_name: node.status.name,
     agent_uuids_text: serializeWorkflowNodeBinding(
       node.agentUUID,
-      node.postActions
+      node.postActions,
+      node.revisionContext
     ),
     created_at: now,
     updated_at: now
@@ -438,7 +483,8 @@ export async function updateWorkflowNode(
     status_name: node.status.name,
     agent_uuids_text: serializeWorkflowNodeBinding(
       node.agentUUID,
-      node.postActions
+      node.postActions,
+      node.revisionContext
     ),
     updated_at: Date.now()
   };

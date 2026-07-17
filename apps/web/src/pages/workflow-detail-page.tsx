@@ -19,6 +19,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -55,6 +56,10 @@ type CreateWorkflowNodePayload = {
   issueType: RefObject;
   status: RefObject;
   agentUUID: string;
+  postActions: Array<{
+    type: 'transition_issue_status';
+    targetStatus: RefObject;
+  }>;
 };
 type WorkflowNodeDialogMode = 'create' | 'edit';
 type WorkflowNodeMutationResponse = ApiSuccess<Workflow['nodes'][number]> | ApiError;
@@ -63,6 +68,7 @@ type FormErrors = {
   issueTypeUUID?: string;
   statusUUID?: string;
   agentUUID?: string;
+  targetStatusUUID?: string;
   submit?: string;
 };
 
@@ -70,7 +76,9 @@ const DEFAULT_FORM_STATE = {
   projectUUID: '',
   issueTypeUUID: '',
   statusUUID: '',
-  agentUUID: ''
+  agentUUID: '',
+  enableSuccessTransition: false,
+  targetStatusUUID: ''
 };
 
 function toSearchSelectOptions(items: RefObject[]) {
@@ -191,7 +199,12 @@ export function WorkflowDetailPage() {
       projectUUID: node.project.uuid,
       issueTypeUUID: node.issueType.uuid,
       statusUUID: node.status.uuid,
-      agentUUID: node.agent.uuid
+      agentUUID: node.agent.uuid,
+      enableSuccessTransition: node.postActions.length > 0,
+      targetStatusUUID:
+        node.postActions[0]?.type === 'transition_issue_status'
+          ? node.postActions[0].targetStatus.uuid
+          : ''
     });
     setFormErrors({});
     setIsNodeDialogOpen(true);
@@ -318,6 +331,21 @@ export function WorkflowDetailPage() {
       nextErrors.agentUUID = t('pages.workflowDetail.validation.agentRequired');
     }
 
+    if (formData.enableSuccessTransition && !formData.targetStatusUUID) {
+      nextErrors.targetStatusUUID = t(
+        'pages.workflowDetail.validation.targetStatusRequired'
+      );
+    }
+
+    if (
+      formData.enableSuccessTransition &&
+      formData.targetStatusUUID === formData.statusUUID
+    ) {
+      nextErrors.targetStatusUUID = t(
+        'pages.workflowDetail.validation.targetStatusMustDiffer'
+      );
+    }
+
     return nextErrors;
   }
 
@@ -339,8 +367,16 @@ export function WorkflowDetailPage() {
     const project = projects.find((item) => item.uuid === formData.projectUUID);
     const issueType = issueTypes.find((item) => item.uuid === formData.issueTypeUUID);
     const status = issueStatuses.find((item) => item.uuid === formData.statusUUID);
+    const targetStatus = formData.enableSuccessTransition
+      ? issueStatuses.find((item) => item.uuid === formData.targetStatusUUID)
+      : null;
 
-    if (!project || !issueType || !status) {
+    if (
+      !project ||
+      !issueType ||
+      !status ||
+      (formData.enableSuccessTransition && !targetStatus)
+    ) {
       setFormErrors({
         submit: t('pages.workflowDetail.validation.incompleteSelection')
       });
@@ -355,7 +391,15 @@ export function WorkflowDetailPage() {
         project,
         issueType,
         status,
-        agentUUID: formData.agentUUID
+        agentUUID: formData.agentUUID,
+        postActions: targetStatus
+          ? [
+              {
+                type: 'transition_issue_status' as const,
+                targetStatus
+              }
+            ]
+          : []
       } satisfies CreateWorkflowNodePayload;
       const isEditing = dialogMode === 'edit' && editingNodeUUID;
       const response = await fetch(
@@ -497,6 +541,7 @@ export function WorkflowDetailPage() {
                 <TableHead>{t('pages.workflowDetail.table.issueType')}</TableHead>
                 <TableHead>{t('pages.workflowDetail.table.status')}</TableHead>
                 <TableHead>{t('pages.workflowDetail.table.agent')}</TableHead>
+                <TableHead>{t('pages.workflowDetail.table.postAction')}</TableHead>
                 <TableHead className="pr-4 text-right">
                   {t('pages.workflowDetail.table.actions')}
                 </TableHead>
@@ -506,7 +551,7 @@ export function WorkflowDetailPage() {
               {isLoading ? (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className="h-24 px-4 text-center text-muted-foreground"
                   >
                     {t('common.states.loading')}
@@ -515,7 +560,7 @@ export function WorkflowDetailPage() {
               ) : errorMessage ? (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className="h-24 px-4 text-center text-destructive"
                   >
                     {errorMessage}
@@ -524,7 +569,7 @@ export function WorkflowDetailPage() {
               ) : !workflow || workflow.nodes.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className="h-24 px-4 text-center text-muted-foreground"
                   >
                     {t('pages.workflowDetail.empty')}
@@ -539,6 +584,13 @@ export function WorkflowDetailPage() {
                     <TableCell>{node.status.name}</TableCell>
                     <TableCell className="pr-4">
                       {node.agent.name}
+                    </TableCell>
+                    <TableCell>
+                      {node.postActions[0]?.type === 'transition_issue_status'
+                        ? t('pages.workflowDetail.table.transitionTo', {
+                            status: node.postActions[0].targetStatus.name
+                          })
+                        : t('pages.workflowDetail.table.noPostAction')}
                     </TableCell>
                     <TableCell className="pr-4 text-right">
                       <div className="flex flex-wrap justify-end gap-2">
@@ -719,6 +771,55 @@ export function WorkflowDetailPage() {
                 />
                 <FieldError>{formErrors.agentUUID}</FieldError>
               </FieldContent>
+            </FormField>
+            <FormField data-invalid={Boolean(formErrors.targetStatusUUID)}>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="workflow-node-success-transition"
+                  checked={formData.enableSuccessTransition}
+                  onCheckedChange={(checked) => {
+                    setFormData((current) => ({
+                      ...current,
+                      enableSuccessTransition: checked === true,
+                      targetStatusUUID: checked === true ? current.targetStatusUUID : ''
+                    }));
+                    setFormErrors((current) => ({
+                      ...current,
+                      targetStatusUUID: undefined,
+                      submit: undefined
+                    }));
+                  }}
+                />
+                <FieldLabel htmlFor="workflow-node-success-transition">
+                  {t('pages.workflowDetail.dialog.successTransitionLabel')}
+                </FieldLabel>
+              </div>
+              {formData.enableSuccessTransition ? (
+                <FieldContent>
+                  <SearchSelect
+                    options={issueStatusOptions}
+                    value={formData.targetStatusUUID || undefined}
+                    onValueChange={(value) => {
+                      setFormData((current) => ({
+                        ...current,
+                        targetStatusUUID: value ?? ''
+                      }));
+                      setFormErrors((current) => ({
+                        ...current,
+                        targetStatusUUID: undefined,
+                        submit: undefined
+                      }));
+                    }}
+                    placeholder={t(
+                      'pages.workflowDetail.dialog.successTransitionPlaceholder'
+                    )}
+                    emptyText={t('pages.workflowDetail.dialog.statusEmpty')}
+                    disabled={isLoadingOptions || Boolean(optionsErrorMessage)}
+                    portalContainer={dialogContentElement}
+                  />
+                  <FieldError>{formErrors.targetStatusUUID}</FieldError>
+                </FieldContent>
+              ) : null}
             </FormField>
             <FieldError>{formErrors.submit}</FieldError>
           </div>

@@ -270,7 +270,8 @@ function toWorkflowNode(
       uuid: node.statusUUID,
       name: node.statusName
     },
-    agent
+    agent,
+    postActions: node.postActions
   };
 }
 

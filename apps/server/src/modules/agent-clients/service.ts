@@ -258,7 +258,8 @@ type OutputWriteStage =
   | 'comments'
   | 'attachments'
   | 'wiki'
-  | 'statuses';
+  | 'statuses'
+  | 'post_actions';
 
 type IssueTriggerSnapshot = {
   statusUUID: string;
@@ -723,6 +724,25 @@ function toIssueRefList(value: unknown): RefObject[] {
   }
 
   return [];
+}
+
+export function buildWikiPageReferenceFieldValue(
+  fieldValueType: 'single_reference_object' | 'multi_reference_object',
+  existingValue: unknown,
+  pageUUID: string
+): string | string[] {
+  const normalizedPageUUID = pageUUID.trim();
+
+  if (fieldValueType === SINGLE_REFERENCE_OBJECT_VALUE_TYPE) {
+    return normalizedPageUUID;
+  }
+
+  return Array.from(
+    new Set([
+      ...toIssueRefList(existingValue).map((refObject) => refObject.uuid),
+      normalizedPageUUID
+    ].filter(Boolean))
+  );
 }
 
 function toReferenceUUIDList(value: unknown): string[] {
@@ -3477,6 +3497,79 @@ async function transitionIssueStatusesIfNeeded(
   return transitionLogs;
 }
 
+async function executeWorkflowNodePostActions(
+  workflowNode: WorkflowNodeRecord,
+  issueUUID: string,
+  onesContext: OnesOpenApiContext
+): Promise<string[]> {
+  const logs: string[] = [];
+
+  for (const postAction of workflowNode.postActions) {
+    if (postAction.type !== 'transition_issue_status') {
+      continue;
+    }
+
+    const issue = await getIssue(issueUUID, onesContext);
+    if (issue.status.id === postAction.targetStatus.uuid) {
+      logs.push(
+        `[system] skipped workflow node post-action because issue is already in status "${postAction.targetStatus.name}"`
+      );
+      continue;
+    }
+
+    const executableWorkflows = await listExecutableIssueWorkflows(
+      issueUUID,
+      onesContext
+    );
+    const matchedWorkflow = selectConfiguredPostActionWorkflow(
+      executableWorkflows,
+      postAction.targetStatus,
+      issue.status.name
+    );
+    await executeIssueWorkflow(
+      issueUUID,
+      {
+        id: matchedWorkflow.id
+      },
+      onesContext
+    );
+    logs.push(
+      `[system] executed workflow node post-action "${matchedWorkflow.name}" to transition issue status from "${issue.status.name}" to "${postAction.targetStatus.name}"`
+    );
+  }
+
+  return logs;
+}
+
+export function selectConfiguredPostActionWorkflow(
+  executableWorkflows: Array<{
+    id: string;
+    name: string;
+    start: string;
+    end: string;
+  }>,
+  targetStatus: RefObject,
+  currentStatusName: string
+) {
+  const matchedWorkflows = executableWorkflows.filter(
+    (workflow) => workflow.end === targetStatus.uuid
+  );
+
+  if (matchedWorkflows.length === 0) {
+    throw new Error(
+      `No executable workflow found from "${currentStatusName}" to configured post-action status "${targetStatus.name}"`
+    );
+  }
+
+  if (matchedWorkflows.length > 1) {
+    throw new Error(
+      `Multiple executable workflows found from "${currentStatusName}" to configured post-action status "${targetStatus.name}"`
+    );
+  }
+
+  return matchedWorkflows[0] as (typeof matchedWorkflows)[number];
+}
+
 function getLatestAgentExecution(
   issueExecution: IssueExecutionHistoryRecord
 ): IssueAgentExecutionHistoryRecord | null {
@@ -3639,6 +3732,11 @@ async function applyTaskReport(
   let finalLogs = preparedReport.logs;
   let finalBlockReason: string | null = null;
   const onesContext = getExecutorOnesContext(preparedReport, teamUUID);
+  const workflowNode = workflowNodeMap.get(preparedReport.workflowNodeUUID);
+
+  if (!workflowNode) {
+    throw new InvalidAgentClientTaskReportError(preparedReport.workflowNodeUUID);
+  }
 
   if (finalStatus === 'success') {
     let outputWriteStage: OutputWriteStage = 'creates';
@@ -3702,21 +3800,75 @@ async function applyTaskReport(
         '[system] wrote execute result to ONES attachments'
       );
       outputWriteStage = 'wiki';
+      const wikiFieldValues: ScopedIssueFieldValue[] = [];
       for (const wikiWrite of preparedReport.outputWritePlan.wikiWrites) {
+        const appliedWikiWrite = await applyWikiWritePlan(wikiWrite, onesContext);
         finalLogs = appendLogMessage(
           finalLogs,
-          await applyWikiWritePlan(wikiWrite, onesContext)
+          appliedWikiWrite.log
+        );
+        const existingWikiFieldValue =
+          wikiWrite.outputFieldValueType === 'multi_reference_object'
+            ? (
+                await getIssueFieldValues(
+                  preparedReport.dispatchedIssueUUID,
+                  [
+                    {
+                      uuid: wikiWrite.outputFieldUUID,
+                      alias: wikiWrite.outputFieldUUID,
+                      valueType: 'multi_reference_object',
+                      referenceObjectType: 'wiki_page'
+                    }
+                  ],
+                  onesContext
+                )
+              )?.[wikiWrite.outputFieldUUID]
+            : null;
+        wikiFieldValues.push({
+          issueUUID: preparedReport.dispatchedIssueUUID,
+          fieldUUID: wikiWrite.outputFieldUUID,
+          value: buildWikiPageReferenceFieldValue(
+            wikiWrite.outputFieldValueType,
+            existingWikiFieldValue,
+            appliedWikiWrite.pageUUID
+          ),
+          outputFieldUUIDPath: wikiWrite.outputFieldUUIDPath
+        });
+      }
+      await writeTaskOutputsToIssue(wikiFieldValues, onesContext);
+      if (wikiFieldValues.length > 0) {
+        finalLogs = appendLogMessage(
+          finalLogs,
+          '[system] linked written Wiki pages to ONES issue fields'
         );
       }
       outputWriteStage = 'statuses';
 
-      const transitionLogs = await transitionIssueStatusesIfNeeded(
-        preparedReport.outputWritePlan.statusFieldValues,
-        onesContext
-      );
+      const transitionLogs =
+        workflowNode.postActions.length > 0
+          ? preparedReport.outputWritePlan.statusFieldValues.length > 0
+            ? [
+                '[system] ignored agent-produced status outputs because the workflow node has a configured post-action'
+              ]
+            : []
+          : await transitionIssueStatusesIfNeeded(
+              preparedReport.outputWritePlan.statusFieldValues,
+              onesContext
+            );
 
       for (const transitionLog of transitionLogs) {
         finalLogs = appendLogMessage(finalLogs, transitionLog);
+      }
+
+      outputWriteStage = 'post_actions';
+      const postActionLogs = await executeWorkflowNodePostActions(
+        workflowNode,
+        preparedReport.dispatchedIssueUUID,
+        onesContext
+      );
+
+      for (const postActionLog of postActionLogs) {
+        finalLogs = appendLogMessage(finalLogs, postActionLog);
       }
 
       if (await shouldBlockSuccessfulTaskReport(preparedReport, onesContext)) {
@@ -3755,9 +3907,14 @@ async function applyTaskReport(
           ...buildOutputWriteErrorContext(error)
         }
       );
-      finalStatus = outputWriteStage === 'wiki' ? 'blocked' : 'failure';
+      finalStatus =
+        outputWriteStage === 'wiki' || outputWriteStage === 'post_actions'
+          ? 'blocked'
+          : 'failure';
       if (outputWriteStage === 'wiki') {
         finalBlockReason = 'wiki_write_failed';
+      } else if (outputWriteStage === 'post_actions') {
+        finalBlockReason = 'post_action_failed';
       }
       finalLogs = appendLogMessage(
         finalLogs,

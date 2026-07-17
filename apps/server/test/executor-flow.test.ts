@@ -7,6 +7,7 @@ import {
 } from '../src/modules/workflows/service.ts';
 import {
   buildTaskBlockedComment,
+  buildWikiPageReferenceFieldValue,
   buildIssueOutputWritePlan,
   buildCreateIssueRequest,
   hasTaskCommentSinceQueuedAt,
@@ -19,10 +20,12 @@ import {
   hasTaskStartedCommentSinceQueuedAt,
   isUserReferenceField,
   normalizeExecutePayloadValue,
+  selectConfiguredPostActionWorkflow,
   selectNextDispatchableTask,
   shouldSendTaskStartedComment,
   shouldBlockAfterConsecutiveFailures
 } from '../src/modules/agent-clients/service.ts';
+import { createWorkflowNodeSchema } from '../src/modules/workflows/dto.ts';
 import { extractAgentClientTaskAttachments } from '../src/modules/agent-clients/controller.ts';
 import {
   canRetryIssueAgentExecution,
@@ -97,6 +100,84 @@ test('validateWorkflowNodeExecutorBindings accepts shared executor', () => {
         }
       }
     ])
+  );
+});
+
+test('workflow node DTO keeps old nodes compatible without post-actions', () => {
+  const parsed = createWorkflowNodeSchema.parse({
+    project: { uuid: 'project-1', name: 'Project' },
+    issueType: { uuid: 'type-1', name: 'Requirement' },
+    status: { uuid: 'status-1', name: 'In progress' },
+    agentUUID: 'agent-1'
+  });
+
+  assert.deepEqual(parsed.postActions, []);
+});
+
+test('workflow node DTO rejects a post-action that keeps the trigger status', () => {
+  assert.throws(
+    () =>
+      createWorkflowNodeSchema.parse({
+        project: { uuid: 'project-1', name: 'Project' },
+        issueType: { uuid: 'type-1', name: 'Requirement' },
+        status: { uuid: 'status-1', name: 'In progress' },
+        agentUUID: 'agent-1',
+        postActions: [
+          {
+            type: 'transition_issue_status',
+            targetStatus: { uuid: 'status-1', name: 'In progress' }
+          }
+        ]
+      }),
+    /must differ from trigger status/u
+  );
+});
+
+test('configured post-action selects exactly one executable workflow', () => {
+  const workflow = selectConfiguredPostActionWorkflow(
+    [
+      {
+        id: 'workflow-1',
+        name: 'Approve',
+        start: 'status-1',
+        end: 'status-2'
+      }
+    ],
+    { uuid: 'status-2', name: 'Approved' },
+    'In progress'
+  );
+
+  assert.equal(workflow.id, 'workflow-1');
+  assert.throws(
+    () =>
+      selectConfiguredPostActionWorkflow(
+        [],
+        { uuid: 'status-2', name: 'Approved' },
+        'In progress'
+      ),
+    /No executable workflow found/u
+  );
+});
+
+test('Wiki output association appends and deduplicates multi-value fields', () => {
+  assert.deepEqual(
+    buildWikiPageReferenceFieldValue(
+      'multi_reference_object',
+      [
+        { uuid: 'page-1', name: 'Existing' },
+        { uuid: 'page-2', name: 'Created' }
+      ],
+      'page-2'
+    ),
+    ['page-1', 'page-2']
+  );
+  assert.equal(
+    buildWikiPageReferenceFieldValue(
+      'single_reference_object',
+      { uuid: 'page-1', name: 'Existing' },
+      'page-2'
+    ),
+    'page-2'
   );
 });
 

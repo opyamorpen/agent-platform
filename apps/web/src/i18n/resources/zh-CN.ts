@@ -853,6 +853,8 @@ export const zhCN = {
         issueTypeRequired: '请选择工作项类型',
         statusRequired: '请选择状态',
         agentRequired: '请选择 Agent',
+        targetStatusRequired: '请选择任务成功后的目标状态',
+        targetStatusMustDiffer: '任务成功后的目标状态不能与触发状态相同',
         incompleteSelection: '表单数据不完整，请重新选择'
       },
       actions: {
@@ -868,6 +870,9 @@ export const zhCN = {
         issueType: '工作项类型',
         status: '状态',
         agent: '绑定 Agent',
+        postAction: '成功后置动作',
+        transitionTo: '流转到「{{status}}」',
+        noPostAction: '无',
         actions: '操作'
       },
       dialog: {
@@ -892,6 +897,8 @@ export const zhCN = {
         agentPlaceholderLoading: 'Agent 加载中...',
         agentPlaceholder: '搜索或选择 Agent',
         agentEmpty: '没有匹配的 Agent',
+        successTransitionLabel: '任务成功后自动流转工作项状态',
+        successTransitionPlaceholder: '选择任务成功后的目标状态',
         saving: '保存中...',
         creating: '创建中...'
       },

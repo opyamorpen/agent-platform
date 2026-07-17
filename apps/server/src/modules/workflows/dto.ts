@@ -10,6 +10,11 @@ const refObjectSchema = z.object({
   name: z.string().min(1)
 });
 
+const workflowNodePostActionSchema = z.object({
+  type: z.literal('transition_issue_status'),
+  targetStatus: refObjectSchema
+});
+
 export const createWorkflowSchema = z.object({
   name: z.string().min(1)
 });
@@ -24,12 +29,27 @@ export const updateWorkflowSchema = z.object({
   }
 );
 
-export const createWorkflowNodeSchema = z.object({
-  project: refObjectSchema,
-  issueType: refObjectSchema,
-  status: refObjectSchema,
-  agentUUID: z.string().min(1)
-});
+export const createWorkflowNodeSchema = z
+  .object({
+    project: refObjectSchema,
+    issueType: refObjectSchema,
+    status: refObjectSchema,
+    agentUUID: z.string().min(1),
+    postActions: z.array(workflowNodePostActionSchema).max(1).default([])
+  })
+  .superRefine((value, context) => {
+    const transitionAction = value.postActions[0];
+    if (
+      transitionAction?.type === 'transition_issue_status' &&
+      transitionAction.targetStatus.uuid === value.status.uuid
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['postActions', 0, 'targetStatus'],
+        message: 'Post-action target status must differ from trigger status'
+      });
+    }
+  });
 
 export const updateWorkflowNodeSchema = createWorkflowNodeSchema;
 

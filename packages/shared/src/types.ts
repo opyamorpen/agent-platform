@@ -33,7 +33,16 @@ export interface WorkflowNode {
   issueType: RefObject;
   status: RefObject;
   agent: Agent;
+  postActions: WorkflowNodePostAction[];
 }
+
+export interface WorkflowNodeTransitionIssueStatusPostAction {
+  type: 'transition_issue_status';
+  targetStatus: RefObject;
+}
+
+export type WorkflowNodePostAction =
+  WorkflowNodeTransitionIssueStatusPostAction;
 
 export interface Agent {
   uuid: string;

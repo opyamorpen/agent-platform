@@ -927,6 +927,10 @@ export const jaJP = {
         issueTypeRequired: "課題タイプを選択してください",
         statusRequired: "ステータスを選択してください",
         agentRequired: "エージェントを選択してください",
+        targetStatusRequired:
+          "タスク成功後の遷移先ステータスを選択してください",
+        targetStatusMustDiffer:
+          "成功後の遷移先ステータスはトリガーステータスと異なる必要があります",
         incompleteSelection:
           "フォームデータが不完全です。オプションを再選択して、再試行してください。",
       },
@@ -943,6 +947,9 @@ export const jaJP = {
         issueType: "課題タイプ",
         status: "状態",
         agent: "バインドされたエージェント",
+        postAction: "成功後のアクション",
+        transitionTo: "「{{status}}」へ遷移",
+        noPostAction: "なし",
         actions: "アクション",
       },
       dialog: {
@@ -968,6 +975,8 @@ export const jaJP = {
         agentPlaceholderLoading: "エージェントをロード中...",
         agentPlaceholder: "エージェントを検索または選択します",
         agentEmpty: "一致するエージェントがありません",
+        successTransitionLabel: "タスク成功後に課題ステータスを自動遷移する",
+        successTransitionPlaceholder: "成功後の遷移先ステータスを選択",
         saving: "保存中...",
         creating: "作成...",
       },

@@ -2,6 +2,7 @@ import {
   createEntityStore,
   type HostedEntityEntry
 } from '../../lib/hosted-storage.js';
+import type { WorkflowNodePostAction } from '@ones-ai-workflow/shared';
 import type {
   CreateWorkflowNodeDTO,
   UpdateWorkflowDTO,
@@ -33,6 +34,7 @@ export type WorkflowNodeRecord = {
   statusUUID: string;
   statusName: string;
   agentUUID: string;
+  postActions: WorkflowNodePostAction[];
 };
 
 interface StoredWorkflowEntity {
@@ -99,6 +101,23 @@ function serializeAgentUUID(agentUUID: string): string {
   return compactUUID(agentUUID);
 }
 
+function serializeWorkflowNodeBinding(
+  agentUUID: string,
+  postActions: WorkflowNodePostAction[]
+): string {
+  const transitionAction = postActions[0];
+
+  if (transitionAction?.type !== 'transition_issue_status') {
+    return serializeAgentUUID(agentUUID);
+  }
+
+  return JSON.stringify({
+    a: compactUUID(agentUUID),
+    t: transitionAction.targetStatus.uuid,
+    n: transitionAction.targetStatus.name
+  });
+}
+
 function parseAgentUUIDText(value: string): string {
   if (!value) {
     return '';
@@ -119,11 +138,50 @@ function parseAgentUUIDText(value: string): string {
       return parsed;
     }
 
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      typeof (parsed as { a?: unknown }).a === 'string'
+    ) {
+      return expandCompactUUID((parsed as { a: string }).a);
+    }
+
     return '';
   } catch {
     // Comma-separated format: take the first UUID
     const first = value.split(',').map((item) => item.trim()).find(Boolean);
     return first ? expandCompactUUID(first) : '';
+  }
+}
+
+function parsePostActions(value: string): WorkflowNodePostAction[] {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      !Array.isArray(parsed) &&
+      typeof (parsed as { t?: unknown }).t === 'string' &&
+      typeof (parsed as { n?: unknown }).n === 'string'
+    ) {
+      return [
+        {
+          type: 'transition_issue_status',
+          targetStatus: {
+            uuid: (parsed as { t: string }).t,
+            name: (parsed as { n: string }).n
+          }
+        }
+      ];
+    }
+
+    return [];
+  } catch {
+    return [];
   }
 }
 
@@ -145,7 +203,8 @@ function toWorkflowNodeRecord(entry: StoredWorkflowNodeEntity): WorkflowNodeReco
     issueTypeName: entry.issue_type_name,
     statusUUID: entry.status_uuid,
     statusName: entry.status_name,
-    agentUUID: parseAgentUUIDText(entry.agent_uuids_text)
+    agentUUID: parseAgentUUIDText(entry.agent_uuids_text),
+    postActions: parsePostActions(entry.agent_uuids_text)
   };
 }
 
@@ -345,7 +404,10 @@ export async function createWorkflowNode(
     issue_type_name: node.issueType.name,
     status_uuid: node.status.uuid,
     status_name: node.status.name,
-    agent_uuids_text: serializeAgentUUID(node.agentUUID),
+    agent_uuids_text: serializeWorkflowNodeBinding(
+      node.agentUUID,
+      node.postActions
+    ),
     created_at: now,
     updated_at: now
   };
@@ -374,7 +436,10 @@ export async function updateWorkflowNode(
     issue_type_name: node.issueType.name,
     status_uuid: node.status.uuid,
     status_name: node.status.name,
-    agent_uuids_text: serializeAgentUUID(node.agentUUID),
+    agent_uuids_text: serializeWorkflowNodeBinding(
+      node.agentUUID,
+      node.postActions
+    ),
     updated_at: Date.now()
   };
 

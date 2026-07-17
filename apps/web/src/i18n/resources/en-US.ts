@@ -918,6 +918,9 @@ export const enUS = {
         issueTypeRequired: 'Select an issue type',
         statusRequired: 'Select a status',
         agentRequired: 'Select an agent',
+        targetStatusRequired: 'Select the target status after task success',
+        targetStatusMustDiffer:
+          'The success target status must differ from the trigger status',
         incompleteSelection:
           'The form data is incomplete. Reselect the options and try again.'
       },
@@ -934,6 +937,9 @@ export const enUS = {
         issueType: 'Issue type',
         status: 'Status',
         agent: 'Bound agent',
+        postAction: 'Success post-action',
+        transitionTo: 'Transition to "{{status}}"',
+        noPostAction: 'None',
         actions: 'Actions'
       },
       dialog: {
@@ -959,6 +965,8 @@ export const enUS = {
         agentPlaceholderLoading: 'Loading agents...',
         agentPlaceholder: 'Search or select an agent',
         agentEmpty: 'No matching agents',
+        successTransitionLabel: 'Transition issue status after task success',
+        successTransitionPlaceholder: 'Select the target status after success',
         saving: 'Saving...',
         creating: 'Creating...'
       },

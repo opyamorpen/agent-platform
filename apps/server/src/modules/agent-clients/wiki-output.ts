@@ -15,16 +15,26 @@ import { findKnowledgeSourcesByUUIDs } from '../knowledge-sources/repository.js'
 import type { WikiInputPageSnapshot } from './wiki-context.js';
 
 const MAX_WIKI_OUTPUT_BYTES = 256 * 1024;
+type WikiOutputFieldValueType =
+  | 'single_reference_object'
+  | 'multi_reference_object';
 
 export interface WikiWritePlan {
   outputFieldUUIDPath: string;
   outputFieldUUID: string;
+  outputFieldValueType: WikiOutputFieldValueType;
   action: 'create' | 'replace' | 'append';
   pageUUID: string | null;
   parentPageUUID: string | null;
   title: string | null;
   markdown: string;
   expectedUpdatedTime: number | null;
+}
+
+export interface AppliedWikiWrite {
+  log: string;
+  pageUUID: string;
+  pageTitle: string;
 }
 
 type WikiExecutionContext = {
@@ -113,6 +123,13 @@ export async function buildWikiWritePlan(input: {
     throw new Error('Wiki output content exceeds 256 KB');
   }
 
+  if (
+    input.field.field.valueType !== 'single_reference_object' &&
+    input.field.field.valueType !== 'multi_reference_object'
+  ) {
+    throw new Error('Wiki output field must be a reference field');
+  }
+
   const client = await createOnesOpenApiClient(input.onesContext);
   const executionContext = parseExecutionContext(input.executeOption);
   const inputPageUUIDs = new Set(
@@ -184,6 +201,7 @@ export async function buildWikiWritePlan(input: {
     return {
       outputFieldUUIDPath: input.output.fieldUUIDPath,
       outputFieldUUID: input.field.field.uuid,
+      outputFieldValueType: input.field.field.valueType,
       action: 'create',
       pageUUID: null,
       parentPageUUID,
@@ -226,6 +244,7 @@ export async function buildWikiWritePlan(input: {
   return {
     outputFieldUUIDPath: input.output.fieldUUIDPath,
     outputFieldUUID: input.field.field.uuid,
+    outputFieldValueType: input.field.field.valueType,
     action: input.output.action,
     pageUUID: current.id,
     parentPageUUID: null,
@@ -239,7 +258,7 @@ export async function buildWikiWritePlan(input: {
 export async function applyWikiWritePlan(
   plan: WikiWritePlan,
   onesContext: OnesOpenApiContext
-): Promise<string> {
+): Promise<AppliedWikiWrite> {
   const client = await createOnesOpenApiClient(onesContext);
 
   if (plan.action === 'create') {
@@ -248,7 +267,11 @@ export async function applyWikiWritePlan(
       title: plan.title as string,
       content: markdownToCollaborationContent(plan.markdown)
     });
-    return `[system] created Wiki page ${page.id} for output ${plan.outputFieldUUIDPath}`;
+    return {
+      log: `[system] created Wiki page ${page.id} for output ${plan.outputFieldUUIDPath}`,
+      pageUUID: page.id,
+      pageTitle: page.title
+    };
   }
 
   const page = await client.getWikiPage(plan.pageUUID as string);
@@ -273,5 +296,9 @@ export async function applyWikiWritePlan(
     ...(plan.title ? { title: plan.title } : {}),
     content
   });
-  return `[system] ${plan.action}ed Wiki page ${page.id} for output ${plan.outputFieldUUIDPath}`;
+  return {
+    log: `[system] ${plan.action}ed Wiki page ${page.id} for output ${plan.outputFieldUUIDPath}`,
+    pageUUID: page.id,
+    pageTitle: plan.title ?? page.title
+  };
 }

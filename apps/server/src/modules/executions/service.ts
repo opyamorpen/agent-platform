@@ -501,6 +501,25 @@ export function isLatestDispatchedIssueExecution(
   return dispatchedIssue.latestExecutionUUID === issueExecutionUUID;
 }
 
+export function compareDispatchedIssuesByLatestExecution(
+  left: Pick<DispatchedIssue, 'uuid' | 'lastDispatchedAt' | 'updatedAt'>,
+  right: Pick<DispatchedIssue, 'uuid' | 'lastDispatchedAt' | 'updatedAt'>
+): number {
+  const leftDispatchedAt = left.lastDispatchedAt
+    ? Date.parse(left.lastDispatchedAt)
+    : Number.NEGATIVE_INFINITY;
+  const rightDispatchedAt = right.lastDispatchedAt
+    ? Date.parse(right.lastDispatchedAt)
+    : Number.NEGATIVE_INFINITY;
+
+  if (leftDispatchedAt !== rightDispatchedAt) {
+    return rightDispatchedAt - leftDispatchedAt;
+  }
+
+  const updatedAtDifference = Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
+  return updatedAtDifference || left.uuid.localeCompare(right.uuid);
+}
+
 export async function getDispatchedIssues(
   teamUUID: string
 ): Promise<DispatchedIssue[]> {
@@ -509,12 +528,14 @@ export async function getDispatchedIssues(
     listDispatchedIssues(teamUUID)
   ]);
 
-  return issues.map((issue) =>
-    toDispatchedIssue(issue, {
-      onesBaseUrl: installationInfo.ones_base_url,
-      teamUUID
-    })
-  );
+  return issues
+    .map((issue) =>
+      toDispatchedIssue(issue, {
+        onesBaseUrl: installationInfo.ones_base_url,
+        teamUUID
+      })
+    )
+    .sort(compareDispatchedIssuesByLatestExecution);
 }
 
 export async function getDispatchedIssue(

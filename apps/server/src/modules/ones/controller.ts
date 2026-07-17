@@ -149,7 +149,7 @@ export async function searchOnesUsersHandler(c: Context) {
 
 export async function listOnesWikiSpacesHandler(c: Context) {
   try {
-    const session = await requireAdmin(c.req);
+    const session = await getWebSession(c.req);
     return c.json(success(await getOnesWikiSpaces(session)));
   } catch (error) {
     return handleOnesError(c, error);

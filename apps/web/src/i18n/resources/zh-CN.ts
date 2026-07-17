@@ -89,6 +89,8 @@ export const zhCN = {
       'agents.workspace_binding_not_found': 'Agent 绑定的工作区不存在。',
       'agents.skill_binding_not_found': 'Agent 绑定的技能不存在。',
       'agents.knowledge_binding_not_found': 'Agent 绑定的知识源不存在。',
+      'agents.wiki_write_target_required':
+        '关联 Wiki 页面输出必须配置写入页面组。',
       'agents.conflict': 'Agent 数据存在冲突，请刷新后重试。',
       'agents.uuid_required': '缺少 Agent 标识。',
       'agents.not_found': '未找到对应的 Agent。',
@@ -425,6 +427,7 @@ export const zhCN = {
       workspacesLoadFailed: '工作区列表加载失败',
       skillsLoadFailed: '技能列表加载失败',
       knowledgeSourcesLoadFailed: '知识源列表加载失败',
+      wikiSpacesLoadFailed: 'Wiki 页面组列表加载失败',
       executorSearchFailed: '执行身份搜索失败',
       basicConfigSaveFailed: '保存 Agent 基础配置失败',
       draftSaveFailed: '保存草稿失败',
@@ -443,7 +446,8 @@ export const zhCN = {
         notConfigured: '管理员尚未配置 AI 模型'
       },
       validation: {
-        nameRequired: '请输入 Agent 名称'
+        nameRequired: '请输入 Agent 名称',
+        wikiWriteTargetRequired: '请为关联 Wiki 页面输出选择写入页面组'
       },
       duplicateInputField: '已存在一级字段“{{name}}”的输入字段配置',
       duplicateOutputField: '已存在一级字段“{{name}}”的输出配置',
@@ -516,6 +520,11 @@ export const zhCN = {
         outputDescriptionPlaceholderObject:
           '描述这个输出字段整体要做什么，例如创建、更新或创建/更新 Issue 对象',
         outputDescriptionPlaceholderSimple: '描述这个输出字段在 Agent 中的作用',
+        wikiWriteTargetLabel: 'Wiki 写入页面组',
+        wikiWriteTargetPlaceholder: '选择结果写入的 Wiki 页面组',
+        wikiWriteTargetEmpty: '没有可写入的 Wiki 页面组',
+        wikiWriteTargetHelp:
+          '知识源只负责读取；创建或追加 Wiki 内容时只允许写入这里选择的页面组。',
         outputSubFieldDescriptionPlaceholder: '描述这个内部字段如何回写',
         editInternalFieldSummaryTitle: '编辑{{fieldName}}内部字段说明',
         outputSubFieldDialogDescription:

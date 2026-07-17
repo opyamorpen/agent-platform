@@ -88,6 +88,13 @@ export class AgentKnowledgeBindingNotFoundError extends Error {
   }
 }
 
+export class AgentWikiWriteTargetRequiredError extends Error {
+  constructor(fieldName: string) {
+    super(`Wiki output field requires a write target: ${fieldName}`);
+    this.name = 'AgentWikiWriteTargetRequiredError';
+  }
+}
+
 function normalizeExecutorBinding(
   executorUUID: string | null | undefined,
   executorName: string | null | undefined
@@ -316,6 +323,7 @@ export async function publishAgentDraft(
     draftConfig.knowledgeSourceUUIDs,
     teamUUID
   );
+  assertAgentWikiWriteTargetsConfigured(draftConfig);
 
   const latestVersion = await findLatestAgentVersion(uuid, teamUUID);
   const nextVersion = (latestVersion?.version ?? 0) + 1;
@@ -467,5 +475,15 @@ async function assertAgentKnowledgeSourcesExist(
 
   if (missingUUID) {
     throw new AgentKnowledgeBindingNotFoundError(missingUUID);
+  }
+}
+
+function assertAgentWikiWriteTargetsConfigured(config: AgentConfig): void {
+  const outputWithoutTarget = config.outputs.find(
+    (output) => output.kind === 'wiki_page' && !output.writeTarget
+  );
+
+  if (outputWithoutTarget?.kind === 'wiki_page') {
+    throw new AgentWikiWriteTargetRequiredError(outputWithoutTarget.field.name);
   }
 }

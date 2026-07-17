@@ -305,6 +305,16 @@ async function loadAgentConfig(
 function normalizeAgentConfig(config: AgentConfig): AgentConfig {
   return {
     ...config,
+    outputs: Array.isArray(config.outputs)
+      ? config.outputs.map((output) =>
+          output.kind === 'wiki_page'
+            ? {
+                ...output,
+                writeTarget: output.writeTarget ?? null
+              }
+            : output
+        )
+      : [],
     knowledgeSourceUUIDs: Array.isArray(config.knowledgeSourceUUIDs)
       ? config.knowledgeSourceUUIDs
       : []

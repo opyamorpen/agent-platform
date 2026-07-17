@@ -428,9 +428,15 @@ export function parseAgentOutputString(
         markdownValue === null ? '' : unwrapCdataIfPresent(markdownValue);
 
       if (rawAction === 'create') {
-        if ((!parentPageUUID && !spaceUUID) || !title || !markdown.trim()) {
+        if (
+          (!field.writeTarget && !parentPageUUID && !spaceUUID) ||
+          !title ||
+          !markdown.trim()
+        ) {
           throw new Error(
-            `Wiki create output "${fieldUUIDPath}" requires parent-page-uuid or space-uuid, title, and markdown`
+            field.writeTarget
+              ? `Wiki create output "${fieldUUIDPath}" requires title and markdown`
+              : `Wiki create output "${fieldUUIDPath}" requires parent-page-uuid or space-uuid, title, and markdown`
           );
         }
       } else {

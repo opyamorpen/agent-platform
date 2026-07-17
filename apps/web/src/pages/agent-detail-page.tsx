@@ -13,7 +13,8 @@ import type {
   ApiSuccess,
   OnesUserSummary,
   KnowledgeSource,
-  SkillSummary
+  SkillSummary,
+  WikiSpaceSummary
 } from '@ones-ai-workflow/shared';
 import { getApiErrorMessage, getErrorMessage } from '@/lib/api-error';
 import { Button } from '@/components/ui/button';
@@ -103,6 +104,7 @@ type OnesField = {
   readonly: boolean;
 };
 type OnesFieldsResponse = ApiSuccess<OnesField[]> | ApiError;
+type WikiSpacesResponse = ApiSuccess<WikiSpaceSummary[]> | ApiError;
 type SelectedAgentInputField = AgentInput;
 type SelectedAgentOutputField = AgentOutputField;
 type ExecutorOption = {
@@ -911,6 +913,7 @@ function InputFieldListEditor({
 
 function OutputFieldListEditor({
   availableFields,
+  wikiSpaces,
   selectedFieldUUID,
   onSelectedFieldUUIDChange,
   onAddSelectedField,
@@ -921,9 +924,12 @@ function OutputFieldListEditor({
   onChangeField,
   isLoadingAvailableFields,
   availableFieldsErrorMessage,
+  wikiSpacesErrorMessage,
+  isLoadingWikiSpaces,
   isDisabled = false
 }: {
   availableFields: OnesField[];
+  wikiSpaces: WikiSpaceSummary[];
   selectedFieldUUID?: string;
   onSelectedFieldUUIDChange: (value: string | undefined) => void;
   onAddSelectedField: () => void;
@@ -937,6 +943,8 @@ function OutputFieldListEditor({
   ) => void;
   isLoadingAvailableFields: boolean;
   availableFieldsErrorMessage: string | null;
+  wikiSpacesErrorMessage: string | null;
+  isLoadingWikiSpaces: boolean;
   isDisabled?: boolean;
 }) {
   const { t } = useTranslation();
@@ -965,6 +973,15 @@ function OutputFieldListEditor({
         ].filter(Boolean)
       })),
     [availableFields]
+  );
+  const wikiSpaceOptions = useMemo(
+    () =>
+      wikiSpaces.map((space) => ({
+        value: space.uuid,
+        label: space.name,
+        keywords: [space.description].filter(Boolean)
+      })),
+    [wikiSpaces]
   );
   const editingField = editingFieldDraft ?? undefined;
   const editingFieldUUID = editingField
@@ -1141,6 +1158,68 @@ function OutputFieldListEditor({
                             className="min-h-24"
                             disabled={isDisabled}
                           />
+                          {field.kind === 'wiki_page' ? (
+                            <div className="space-y-2 rounded-lg border border-input bg-muted/20 px-3 py-3 dark:bg-input/20">
+                              <div className="text-sm font-medium">
+                                {t(
+                                  'pages.agentDetail.fields.wikiWriteTargetLabel'
+                                )}
+                              </div>
+                              <SearchSelect
+                                options={
+                                  field.writeTarget &&
+                                  !wikiSpaces.some(
+                                    (space) =>
+                                      space.uuid ===
+                                      field.writeTarget?.spaceUUID
+                                  )
+                                    ? [
+                                        {
+                                          value: field.writeTarget.spaceUUID,
+                                          label: field.writeTarget.spaceName
+                                        },
+                                        ...wikiSpaceOptions
+                                      ]
+                                    : wikiSpaceOptions
+                                }
+                                value={field.writeTarget?.spaceUUID}
+                                onValueChange={(spaceUUID) => {
+                                  const space = wikiSpaces.find(
+                                    (item) => item.uuid === spaceUUID
+                                  );
+                                  onChangeField(fieldUUID, {
+                                    ...field,
+                                    writeTarget: space
+                                      ? {
+                                          type: 'space' as const,
+                                          spaceUUID: space.uuid,
+                                          spaceName: space.name,
+                                          homePageUUID: space.homePageUUID
+                                        }
+                                      : null
+                                  });
+                                }}
+                                placeholder={t(
+                                  'pages.agentDetail.fields.wikiWriteTargetPlaceholder'
+                                )}
+                                emptyText={t(
+                                  'pages.agentDetail.fields.wikiWriteTargetEmpty'
+                                )}
+                                disabled={
+                                  isDisabled ||
+                                  isLoadingWikiSpaces ||
+                                  Boolean(wikiSpacesErrorMessage)
+                                }
+                                className="w-full"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                {wikiSpacesErrorMessage ||
+                                  t(
+                                    'pages.agentDetail.fields.wikiWriteTargetHelp'
+                                  )}
+                              </p>
+                            </div>
+                          ) : null}
                           {canEditOutputDetails ? (
                             <div className="rounded-lg border border-input bg-muted/20 px-3 py-3 dark:bg-input/20">
                               <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -1418,6 +1497,11 @@ export function AgentDetailPage() {
   const [onesFields, setOnesFields] = useState<OnesField[]>([]);
   const [isLoadingOnesFields, setIsLoadingOnesFields] = useState(true);
   const [onesFieldsErrorMessage, setOnesFieldsErrorMessage] = useState<
+    string | null
+  >(null);
+  const [wikiSpaces, setWikiSpaces] = useState<WikiSpaceSummary[]>([]);
+  const [isLoadingWikiSpaces, setIsLoadingWikiSpaces] = useState(true);
+  const [wikiSpacesErrorMessage, setWikiSpacesErrorMessage] = useState<
     string | null
   >(null);
   const [workspaces, setWorkspaces] = useState<AgentWorkspace[]>([]);
@@ -1768,6 +1852,41 @@ export function AgentDetailPage() {
     }
 
     void loadOnesFields();
+  }, [t]);
+
+  useEffect(() => {
+    async function loadWikiSpaces() {
+      setIsLoadingWikiSpaces(true);
+      setWikiSpacesErrorMessage(null);
+
+      try {
+        const response = await fetch('/api/ones/wiki/spaces');
+        const payload = (await response.json()) as WikiSpacesResponse;
+
+        if (!response.ok || !payload.success) {
+          throw new Error(
+            payload.success
+              ? t('pages.agentDetail.wikiSpacesLoadFailed')
+              : getApiErrorMessage(
+                  payload,
+                  t,
+                  'pages.agentDetail.wikiSpacesLoadFailed'
+                )
+          );
+        }
+
+        setWikiSpaces(payload.data);
+      } catch (error) {
+        setWikiSpaces([]);
+        setWikiSpacesErrorMessage(
+          getErrorMessage(error, t, 'pages.agentDetail.wikiSpacesLoadFailed')
+        );
+      } finally {
+        setIsLoadingWikiSpaces(false);
+      }
+    }
+
+    void loadWikiSpaces();
   }, [t]);
 
   useEffect(() => {
@@ -2131,6 +2250,7 @@ export function AgentDetailPage() {
           mode: 'wiki_page',
           field: toAgentFieldMeta(selectedField),
           description: '',
+          writeTarget: null,
           subFields: []
         }
       : {
@@ -2170,6 +2290,17 @@ export function AgentDetailPage() {
         setBasicConfigError(validationError);
         setActiveStep('basic');
         throw new Error(validationError);
+      }
+
+      const wikiOutputWithoutTarget = outputs.find(
+        (output) => output.kind === 'wiki_page' && !output.writeTarget
+      );
+      if (wikiOutputWithoutTarget) {
+        const message = t(
+          'pages.agentDetail.validation.wikiWriteTargetRequired'
+        );
+        setActiveStep('outputs');
+        throw new Error(message);
       }
 
       const metadataResponse = await fetch(`/api/agents/${agentUUID}`, {
@@ -2244,7 +2375,8 @@ export function AgentDetailPage() {
       executorUUID,
       skillUUIDs,
       t,
-      workspaceUUID
+      workspaceUUID,
+      outputs
     ]
   );
 
@@ -2710,6 +2842,7 @@ export function AgentDetailPage() {
         {activeStep === 'outputs' ? (
           <OutputFieldListEditor
             availableFields={onesFields}
+            wikiSpaces={wikiSpaces}
             selectedFieldUUID={selectedOutputFieldUUID}
             onSelectedFieldUUIDChange={setSelectedOutputFieldUUID}
             onAddSelectedField={handleAddSelectedOutputField}
@@ -2724,6 +2857,8 @@ export function AgentDetailPage() {
             onChangeField={handleChangeOutputField}
             isLoadingAvailableFields={isLoadingOnesFields}
             availableFieldsErrorMessage={onesFieldsErrorMessage}
+            wikiSpacesErrorMessage={wikiSpacesErrorMessage}
+            isLoadingWikiSpaces={isLoadingWikiSpaces}
             isDisabled={isBusy || !isEditing}
           />
         ) : null}

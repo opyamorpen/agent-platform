@@ -114,6 +114,8 @@ export const jaJP = {
         "バインドされたエージェント スキルが見つかりませんでした。",
       "agents.knowledge_binding_not_found":
         "バインドされたナレッジソースが見つかりませんでした。",
+      "agents.wiki_write_target_required":
+        "関連 Wiki ページの出力には書き込み先が必要です。",
       "agents.conflict":
         "エージェントのデータが競合しています。更新して再試行してください。",
       "agents.uuid_required": "エージェント識別子がありません。",
@@ -478,6 +480,7 @@ export const jaJP = {
       workspacesLoadFailed: "ワークスペースのロードに失敗しました",
       skillsLoadFailed: "スキルのロードに失敗しました",
       knowledgeSourcesLoadFailed: "ナレッジソースの読み込みに失敗しました",
+      wikiSpacesLoadFailed: "Wiki ページグループの読み込みに失敗しました",
       executorSearchFailed: "実行者の検索に失敗しました",
       basicConfigSaveFailed: "エージェントの基本設定を保存できませんでした",
       draftSaveFailed: "下書きの保存に失敗しました",
@@ -498,6 +501,8 @@ export const jaJP = {
       },
       validation: {
         nameRequired: "エージェント名を入力してください",
+        wikiWriteTargetRequired:
+          "関連 Wiki ページの出力先ページグループを選択してください",
       },
       duplicateInputField:
         "最上位フィールド「{{name}}」には入力バインディングがすでに存在します。",
@@ -578,6 +583,11 @@ export const jaJP = {
           "この出力フィールドが全体的に何を行うべきかを説明します。たとえば、課題オブジェクトの作成、更新、作成/更新などです。",
         outputDescriptionPlaceholderSimple:
           "この出力フィールドがエージェントによってどのように使用されるかを説明します",
+        wikiWriteTargetLabel: "Wiki 書き込み先ページグループ",
+        wikiWriteTargetPlaceholder: "出力先の Wiki ページグループを選択",
+        wikiWriteTargetEmpty: "書き込み可能な Wiki ページグループがありません",
+        wikiWriteTargetHelp:
+          "ナレッジソースは読み取り専用です。Wiki の作成と追記は、ここで選択したページグループに制限されます。",
         outputSubFieldDescriptionPlaceholder:
           "この内部フィールドを書き戻す方法を説明します。",
         editInternalFieldSummaryTitle:

@@ -15,6 +15,7 @@ import {
   AgentDraftNotFoundError,
   AgentInUseError,
   AgentKnowledgeBindingNotFoundError,
+  AgentWikiWriteTargetRequiredError,
   AgentNotFoundError,
   AgentSkillBindingNotFoundError,
   AgentWorkspaceBindingNotFoundError,
@@ -319,6 +320,13 @@ export async function publishAgentDraftHandler(c: Context) {
 
     if (error instanceof AgentDraftNotFoundError) {
       return c.json(failure(error.message, 'agents.draft_not_found'), 400);
+    }
+
+    if (error instanceof AgentWikiWriteTargetRequiredError) {
+      return c.json(
+        failure(error.message, 'agents.wiki_write_target_required'),
+        400
+      );
     }
 
     throw error;

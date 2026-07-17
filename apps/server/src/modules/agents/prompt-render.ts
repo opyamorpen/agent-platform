@@ -432,19 +432,36 @@ function buildAgentOutputTemplateXml(fields: AgentOutputField[]): string {
           );
 
           if (field.kind === 'wiki_page') {
+            const configuredWriteTarget = field.writeTarget
+              ? [
+                  '    <configured-write-target>',
+                  '      <target-type>space</target-type>',
+                  `      <space-uuid>${escapeXmlText(field.writeTarget.spaceUUID)}</space-uuid>`,
+                  `      <space-name>${escapeXmlText(field.writeTarget.spaceName)}</space-name>`,
+                  '    </configured-write-target>'
+                ]
+              : [];
+            const createTargetFields = field.writeTarget
+              ? []
+              : [
+                  '      <parent-page-uuid></parent-page-uuid>',
+                  '      <space-uuid></space-uuid>'
+                ];
             return [
               '  <output>',
               `    <field-uuid>${escapeXmlText(field.field.uuid)}</field-uuid>`,
               `    <field-name>${escapeXmlText(field.field.name)}</field-name>`,
               '    <field-value-type>wiki_page</field-value-type>',
               `    <field-description>${escapeXmlText(description)}</field-description>`,
-              '    <!-- Emit exactly one action: create, replace, or append. Prefer UUID. Name lookup is restricted and ambiguous names are rejected. -->',
+              ...configuredWriteTarget,
+              field.writeTarget
+                ? '    <!-- Emit exactly one action: create, replace, or append. Create always uses the configured write target; do not invent a parent page or space UUID. -->'
+                : '    <!-- Emit exactly one action: create, replace, or append. Prefer UUID. Name lookup is restricted and ambiguous names are rejected. -->',
               '    <wiki-action>',
               '      <action></action>',
               '      <target-page-uuid></target-page-uuid>',
               '      <target-page-name></target-page-name>',
-              '      <parent-page-uuid></parent-page-uuid>',
-              '      <space-uuid></space-uuid>',
+              ...createTargetFields,
               '      <title></title>',
               '      <markdown><![CDATA[]]></markdown>',
               '    </wiki-action>',

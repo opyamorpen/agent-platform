@@ -86,6 +86,15 @@ export const agentWikiPageOutputFieldSchema = z.object({
   mode: z.literal('wiki_page'),
   field: agentFieldMetaSchema,
   description: z.string(),
+  writeTarget: z
+    .object({
+      type: z.literal('space'),
+      spaceUUID: z.string().trim().min(1),
+      spaceName: z.string().trim().min(1),
+      homePageUUID: z.string().trim().min(1)
+    })
+    .nullable()
+    .default(null),
   subFields: z.tuple([]).default([])
 });
 

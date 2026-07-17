@@ -209,11 +209,19 @@ export interface AgentOutputSetValueField {
   subFields: AgentOutputSetValueField[];
 }
 
+export interface AgentWikiPageWriteTarget {
+  type: 'space';
+  spaceUUID: string;
+  spaceName: string;
+  homePageUUID: string;
+}
+
 export interface AgentWikiPageOutputField {
   kind: 'wiki_page';
   mode: 'wiki_page';
   field: AgentFieldMeta;
   description: string;
+  writeTarget: AgentWikiPageWriteTarget | null;
   subFields: AgentOutputSetValueField[];
 }
 

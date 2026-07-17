@@ -103,7 +103,7 @@ function ComboboxContent({
   > &
   Pick<ComboboxPrimitive.Portal.Props, "container">) {
   const floatingLayerContainer = useFloatingLayerContainer()
-  const resolvedContainer = container ?? floatingLayerContainer
+  const resolvedContainer = container ?? floatingLayerContainer ?? undefined
 
   return (
     <ComboboxPrimitive.Portal container={resolvedContainer}>

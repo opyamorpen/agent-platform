@@ -2257,7 +2257,13 @@ export async function buildIssueOutputWritePlan(
                 : {
                     action: currentParsedOutput.action,
                     targetPageUUID: currentParsedOutput.targetPageUUID,
-                    targetPageName: currentParsedOutput.targetPageName
+                    targetPageName: currentParsedOutput.targetPageName,
+                    parentPageUUID: currentParsedOutput.parentPageUUID,
+                    spaceUUID: currentParsedOutput.spaceUUID,
+                    configuredWriteSpaceUUID:
+                      output.kind === 'wiki_page'
+                        ? (output.writeTarget?.spaceUUID ?? null)
+                        : null
                   }
             : null
         )

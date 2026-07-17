@@ -118,28 +118,45 @@ export async function buildWikiWritePlan(input: {
   const inputPageUUIDs = new Set(
     executionContext.inputPages.map((page) => page.uuid)
   );
-  const sources = await findKnowledgeSourcesByUUIDs(
-    input.knowledgeSourceUUIDs,
-    input.onesContext.teamUUID
-  );
+  const sources = input.field.writeTarget
+    ? []
+    : await findKnowledgeSourcesByUUIDs(
+        input.knowledgeSourceUUIDs,
+        input.onesContext.teamUUID
+      );
   const activeSources = sources.filter((source) => source.status === 'active');
   const knowledgePages = (
     await Promise.all(
       activeSources.map((source) => client.listWikiPages(source.spaceUUID))
     )
   ).flat();
+  const writeTargetPages =
+    input.field.writeTarget && input.output.action !== 'create'
+      ? await client.listWikiPages(input.field.writeTarget.spaceUUID)
+      : [];
   const inputPages = await Promise.all(
     executionContext.inputPages.map((page) => client.getWikiPage(page.uuid))
   );
   const candidates = Array.from(
     new Map(
-      [...inputPages, ...knowledgePages].map((page) => [page.id, page] as const)
+      [...inputPages, ...knowledgePages, ...writeTargetPages].map(
+        (page) => [page.id, page] as const
+      )
     ).values()
   );
 
   if (input.output.action === 'create') {
-    let parentPageUUID = input.output.parentPageUUID;
-    if (parentPageUUID) {
+    let parentPageUUID = input.field.writeTarget?.homePageUUID ?? null;
+    if (input.field.writeTarget) {
+      const parent = await client.getWikiPage(parentPageUUID as string);
+      if (parent.spaceID !== input.field.writeTarget.spaceUUID) {
+        throw new Error(
+          'Configured Wiki write target home page does not belong to its space'
+        );
+      }
+      assertWritablePage(parent);
+    } else if (input.output.parentPageUUID) {
+      parentPageUUID = input.output.parentPageUUID;
       const parent = candidates.find((page) => page.id === parentPageUUID);
       if (!parent) {
         throw new Error(
@@ -183,7 +200,9 @@ export async function buildWikiWritePlan(input: {
       : null;
   if (!target) {
     throw new Error(
-      'Wiki output target is outside the allowed input/knowledge scope'
+      input.field.writeTarget
+        ? 'Wiki output target is outside the allowed input/write-target scope'
+        : 'Wiki output target is outside the allowed input/knowledge scope'
     );
   }
   if (input.output.action === 'replace' && !inputPageUUIDs.has(target.id)) {

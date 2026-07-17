@@ -105,6 +105,8 @@ export const enUS = {
       'agents.skill_binding_not_found': 'The bound agent skill was not found.',
       'agents.knowledge_binding_not_found':
         'The bound knowledge source was not found.',
+      'agents.wiki_write_target_required':
+        'A related Wiki page output requires a write target.',
       'agents.conflict': 'Agent data is in conflict. Refresh and try again.',
       'agents.uuid_required': 'Missing agent identifier.',
       'agents.not_found': 'The requested agent was not found.',
@@ -466,6 +468,7 @@ export const enUS = {
       workspacesLoadFailed: 'Failed to load workspaces',
       skillsLoadFailed: 'Failed to load skills',
       knowledgeSourcesLoadFailed: 'Failed to load knowledge sources',
+      wikiSpacesLoadFailed: 'Failed to load Wiki spaces',
       executorSearchFailed: 'Failed to search executors',
       basicConfigSaveFailed: 'Failed to save agent basic settings',
       draftSaveFailed: 'Failed to save draft',
@@ -485,7 +488,9 @@ export const enUS = {
         notConfigured: 'The administrator has not configured an AI model'
       },
       validation: {
-        nameRequired: 'Enter an agent name'
+        nameRequired: 'Enter an agent name',
+        wikiWriteTargetRequired:
+          'Select a Wiki space for the related Wiki page output'
       },
       duplicateInputField:
         'An input binding already exists for top-level field "{{name}}"',
@@ -564,6 +569,11 @@ export const enUS = {
           'Describe what this output field should do overall, for example create, update, or create/update an Issue object',
         outputDescriptionPlaceholderSimple:
           'Describe how this output field is used by the agent',
+        wikiWriteTargetLabel: 'Wiki write target',
+        wikiWriteTargetPlaceholder: 'Select the Wiki space for output',
+        wikiWriteTargetEmpty: 'No writable Wiki spaces',
+        wikiWriteTargetHelp:
+          'Knowledge sources are read-only context. Wiki create and append actions are restricted to this selected space.',
         outputSubFieldDescriptionPlaceholder:
           'Describe how this internal field should be written back',
         editInternalFieldSummaryTitle:

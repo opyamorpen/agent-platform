@@ -5,11 +5,16 @@ import type {
   WorkflowNodeLoopPolicy
 } from '@ones-ai-workflow/shared';
 import {
+  buildLoopCompletionComment,
   buildLoopContextXml,
+  buildLoopRevisionComment,
   buildNextLoopAttemptUUID,
   calculateLoopBudget,
   decideLoopGate,
+  isAutomaticLoopAttempt,
   isLoopEscalationCommentText,
+  isLoopLifecycleCommentText,
+  isSameLoopLifecycleComment,
   isLoopPolicyRuntimeEligible
 } from '../src/modules/executions/loop-engineering.js';
 import type { IssueAgentExecutionHistoryRecord } from '../src/modules/executions/repository.js';
@@ -127,6 +132,79 @@ test('loop escalation comments are lifecycle comments', () => {
     true
   );
   assert.equal(isLoopEscalationCommentText('人工审核意见'), false);
+  assert.equal(
+    isLoopLifecycleCommentText('[AI自动修正][Agent][第1次尝试未通过]'),
+    true
+  );
+  assert.equal(
+    isLoopLifecycleCommentText('[AI自动修正完成][Agent][第2次尝试通过]'),
+    true
+  );
+  assert.equal(isLoopLifecycleCommentText('人工审核意见'), false);
+});
+
+test('loop revision and completion comments explain automatic attempts', () => {
+  const budget = calculateLoopBudget({
+    policy,
+    executionCreatedAt: new Date('2026-07-18T00:00:00Z'),
+    attempts: [attempt(100, 50)],
+    currentUsage: { inputTokens: 100, outputTokens: 50 },
+    reviewUsage: { inputTokens: 20, outputTokens: 10 },
+    now: new Date('2026-07-18T00:01:00Z')
+  });
+  const revisionComment = buildLoopRevisionComment({
+    agentName: '需求方案设计',
+    budget,
+    summary: '风险和验收标准不完整。',
+    findings: ['缺少风险说明', '缺少异常验收项']
+  });
+  assert.match(revisionComment, /^\[AI自动修正\]/u);
+  assert.match(revisionComment, /系统已开始第2次尝试/u);
+  assert.match(revisionComment, /缺少风险说明/u);
+  assert.match(revisionComment, /剩余预算：2 次尝试/u);
+
+  const completionComment = buildLoopCompletionComment({
+    agentName: '需求方案设计',
+    attemptNumber: 2,
+    summary: '候选输出已通过验收。',
+    actualWrites: ['更新「需求分析报告」', '状态流转至「方案评审-人」']
+  });
+  assert.match(completionComment, /^\[AI自动修正完成\]/u);
+  assert.match(completionComment, /第2次尝试通过/u);
+  assert.match(completionComment, /更新「需求分析报告」/u);
+});
+
+test('only automatic loop retries suppress the generic start comment', () => {
+  assert.equal(
+    isAutomaticLoopAttempt({
+      loopContext: { source: 'automatic', attemptNumber: 2 }
+    }),
+    true
+  );
+  assert.equal(
+    isAutomaticLoopAttempt({
+      loopContext: { source: 'manual', attemptNumber: 2 }
+    }),
+    false
+  );
+  assert.equal(isAutomaticLoopAttempt({}), false);
+});
+
+test('loop lifecycle comment idempotency uses the stable attempt prefix', () => {
+  assert.equal(
+    isSameLoopLifecycleComment(
+      '[AI自动修正][Agent][第1次尝试未通过]\n\n剩余 2 次',
+      '[AI自动修正][Agent][第1次尝试未通过]\n\n剩余 1 次'
+    ),
+    true
+  );
+  assert.equal(
+    isSameLoopLifecycleComment(
+      '[AI自动修正][Agent][第1次尝试未通过]',
+      '[AI自动修正完成][Agent][第2次尝试通过]'
+    ),
+    false
+  );
 });
 
 test('loop gate never bypasses missing review and escalates exhausted revisions', () => {

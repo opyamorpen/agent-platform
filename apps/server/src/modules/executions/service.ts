@@ -693,6 +693,7 @@ export async function retryIssueAgentExecutionHistory(
         executePayload: {},
         executeOption: toJsonObject({
           loopContext: {
+            source: 'manual',
             attemptNumber: issueExecution.agentExecutions.length + 1,
             previousAttemptUUID: agentExecution.uuid,
             previousCandidate: agentExecution.rawExecuteResult,

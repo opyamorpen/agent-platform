@@ -47,11 +47,15 @@ import {
 } from '../executions/repository.js';
 import { isLoopRuntimeEnabled } from '../loop-runtime-config/service.js';
 import {
+  buildLoopCompletionComment,
   buildLoopContextXml,
   buildLoopEscalationComment,
+  buildLoopRevisionComment,
   buildNextLoopAttemptUUID,
   calculateLoopBudget,
   decideLoopGate,
+  isAutomaticLoopAttempt,
+  isSameLoopLifecycleComment,
   isLoopPolicyRuntimeEligible,
   reviewLoopCandidate,
   type LoopBudgetSnapshot,
@@ -4275,9 +4279,10 @@ async function evaluateLoopGate(input: {
   };
 }
 
-async function maybeSendLoopEscalationComment(
+async function maybeSendLoopLifecycleComment(
   task: IssueAgentExecutionHistoryWithExecutionRecord,
   text: string,
+  commentKind: 'revision' | 'completion' | 'escalation',
   onesContext: OnesOpenApiContext
 ): Promise<'sent' | 'duplicate' | 'failed'> {
   try {
@@ -4286,7 +4291,11 @@ async function maybeSendLoopEscalationComment(
       onesContext,
       TASK_STARTED_COMMENT_FETCH_LIMIT
     );
-    if (comments.some((comment) => comment.text.trim() === text.trim())) {
+    if (
+      comments.some((comment) =>
+        isSameLoopLifecycleComment(comment.text, text)
+      )
+    ) {
       return 'duplicate';
     }
     await sendIssueComment(
@@ -4296,7 +4305,7 @@ async function maybeSendLoopEscalationComment(
     );
     return 'sent';
   } catch (error) {
-    logger.warn('[loop-engineering] failed to post escalation comment', {
+    logger.warn(`[loop-engineering] failed to post ${commentKind} comment`, {
       taskUUID: task.uuid,
       issueExecutionUUID: task.issueExecutionUUID,
       error: error instanceof Error ? error.message : String(error)
@@ -4356,6 +4365,8 @@ async function persistLoopGateResult(input: {
     budget: input.evaluation.budget
   };
   let escalationTransitionFailed = false;
+  let loopLifecycleCommentStatus: 'sent' | 'duplicate' | 'failed' | null =
+    null;
 
   if (input.evaluation.decision === 'revise') {
     const nextTaskUUID = buildNextLoopAttemptUUID(input.task.uuid);
@@ -4378,6 +4389,7 @@ async function persistLoopGateResult(input: {
             executePayload: {},
             executeOption: toJsonObject({
               loopContext: {
+                source: 'automatic',
                 attemptNumber: input.evaluation.budget.attemptNumber + 1,
                 previousAttemptUUID: input.task.uuid,
                 previousCandidate: input.report.executeResult,
@@ -4400,6 +4412,21 @@ async function persistLoopGateResult(input: {
     logs = appendLogMessage(
       logs,
       `[system] created loop attempt ${input.evaluation.budget.attemptNumber + 1}`
+    );
+    loopLifecycleCommentStatus = await maybeSendLoopLifecycleComment(
+      input.task,
+      buildLoopRevisionComment({
+        agentName: input.task.agentName,
+        budget: input.evaluation.budget,
+        summary: input.evaluation.summary,
+        findings: input.evaluation.findings
+      }),
+      'revision',
+      input.onesContext
+    );
+    logs = appendLogMessage(
+      logs,
+      `[system] loop revision comment: ${loopLifecycleCommentStatus}`
     );
   } else {
     try {
@@ -4424,14 +4451,15 @@ async function persistLoopGateResult(input: {
       summary: input.evaluation.summary,
       findings: input.evaluation.findings
     });
-    const commentStatus = await maybeSendLoopEscalationComment(
+    loopLifecycleCommentStatus = await maybeSendLoopLifecycleComment(
       input.task,
       comment,
+      'escalation',
       input.onesContext
     );
     logs = appendLogMessage(
       logs,
-      `[system] loop escalation comment: ${commentStatus}`
+      `[system] loop escalation comment: ${loopLifecycleCommentStatus}`
     );
   }
 
@@ -4442,7 +4470,10 @@ async function persistLoopGateResult(input: {
       logs: mergeLogHistory(input.task.logs, logs),
       executeResult: toJsonObject({
         ...input.preparedReport.executeResult,
-        loopEvaluation
+        loopEvaluation,
+        ...(loopLifecycleCommentStatus
+          ? { loopLifecycleComment: { status: loopLifecycleCommentStatus } }
+          : {})
       }),
       rawExecuteResult: input.report.executeResult,
       executeClientUUID: input.client.uuid,
@@ -4520,6 +4551,7 @@ async function applyTaskReport(
     teamUUID
   );
   let loopEvaluationToPersist: Record<string, unknown> | null = null;
+  let passedLoopEvaluation: LoopGateEvaluation | null = null;
   const loopEligible =
     runtimeAgentConfig !== null &&
     workflowNode.loopPolicy.enabled &&
@@ -4549,6 +4581,9 @@ async function applyTaskReport(
       reviewUsage: evaluation.reviewResult?.usage ?? null,
       budget: evaluation.budget
     };
+    if (evaluation.decision === 'pass') {
+      passedLoopEvaluation = evaluation;
+    }
 
     if (evaluation.decision !== 'pass') {
       await persistLoopGateResult({
@@ -4817,6 +4852,46 @@ async function applyTaskReport(
     }
   }
 
+  const actualWriteDescriptions = agentConfigForSummary
+    ? buildRevisionActualWriteDescriptions({
+        outputWritePlan: preparedReport.outputWritePlan,
+        agentConfig: agentConfigForSummary,
+        appliedWrites,
+        appliedWikiWrites,
+        appliedStatusTransitions
+      })
+    : [];
+
+  if (
+    finalStatus === 'success' &&
+    passedLoopEvaluation &&
+    isAutomaticLoopAttempt(task.executeOption)
+  ) {
+    const loopCompletionCommentStatus = await maybeSendLoopLifecycleComment(
+      task,
+      buildLoopCompletionComment({
+        agentName: task.agentName,
+        attemptNumber: passedLoopEvaluation.budget.attemptNumber,
+        summary: passedLoopEvaluation.summary,
+        actualWrites: actualWriteDescriptions
+      }),
+      'completion',
+      onesContext
+    );
+    executeResultToPersist = {
+      ...executeResultToPersist,
+      loopCompletionComment: { status: loopCompletionCommentStatus }
+    };
+    finalLogs = appendLogMessage(
+      finalLogs,
+      loopCompletionCommentStatus === 'failed'
+        ? '[system] could not post loop completion comment; execution remains successful'
+        : loopCompletionCommentStatus === 'duplicate'
+          ? '[system] skipped duplicate loop completion comment'
+          : '[system] posted loop completion comment'
+    );
+  }
+
   if (
     shouldSendRevisionSummaryComment({
       finalStatus,
@@ -4824,21 +4899,12 @@ async function applyTaskReport(
       triggerReason: task.issueExecution.triggerReason
     })
   ) {
-    const actualWrites = agentConfigForSummary
-      ? buildRevisionActualWriteDescriptions({
-          outputWritePlan: preparedReport.outputWritePlan,
-          agentConfig: agentConfigForSummary,
-          appliedWrites,
-          appliedWikiWrites,
-          appliedStatusTransitions
-        })
-      : [];
     const revisionSummaryComment = buildRevisionSummaryComment({
       agentName: task.agentName,
       iteration: task.issueExecution.iteration,
       feedbackCommentCount: getRevisionFeedbackCommentCount(task.executeOption),
       revisionSummary: preparedReport.executeResult.revisionSummary ?? null,
-      actualWrites
+      actualWrites: actualWriteDescriptions
     });
     const revisionSummaryCommentStatus = await maybeSendRevisionSummaryComment(
       task,
@@ -4886,7 +4952,10 @@ async function applyTaskReport(
     teamUUID
   );
 
-  if (shouldSendTaskStartedComment(task.status, finalStatus)) {
+  if (
+    shouldSendTaskStartedComment(task.status, finalStatus) &&
+    !isAutomaticLoopAttempt(task.executeOption)
+  ) {
     await maybeSendTaskStartedComment(task, onesContext);
   }
 

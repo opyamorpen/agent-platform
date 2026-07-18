@@ -10,6 +10,7 @@ import type { IssueAgentExecutionHistoryRecord } from './repository.js';
 
 const MAX_REVIEW_CANDIDATE_BYTES = 256 * 1024;
 const MAX_LOOP_CONTEXT_CHARS = 256 * 1024;
+const MAX_LOOP_COMMENT_CHARS = 8 * 1024;
 
 const loopAIReviewSchema = z.object({
   verdict: z.enum(['pass', 'revise', 'escalate']),
@@ -316,8 +317,106 @@ export function buildLoopEscalationComment(input: {
     .slice(0, 8 * 1024);
 }
 
+export function buildLoopRevisionComment(input: {
+  agentName: string;
+  budget: LoopBudgetSnapshot;
+  summary: string;
+  findings: string[];
+}): string {
+  const currentAttempt = input.budget.attemptNumber;
+  const nextAttempt = currentAttempt + 1;
+  const summary = normalizeCommentLine(input.summary);
+  const findings = input.findings
+    .map(normalizeCommentLine)
+    .filter(Boolean)
+    .slice(0, 5);
+
+  return [
+    `[AI自动修正][${normalizeAgentName(input.agentName)}][第${currentAttempt}次尝试未通过]`,
+    '',
+    summary || `第${currentAttempt}次候选结果未通过自动验收。`,
+    `系统已开始第${nextAttempt}次尝试，无需人工操作。`,
+    ...(findings.length > 0
+      ? ['', '未通过项：', ...findings.map((finding) => `- ${finding}`)]
+      : []),
+    '',
+    `剩余预算：${input.budget.remainingAttempts} 次尝试，${Math.ceil(input.budget.remainingMinutes)} 分钟，Token ${input.budget.remainingTokens ?? '未知'}`
+  ]
+    .join('\n')
+    .slice(0, MAX_LOOP_COMMENT_CHARS);
+}
+
+export function buildLoopCompletionComment(input: {
+  agentName: string;
+  attemptNumber: number;
+  summary: string;
+  actualWrites: string[];
+}): string {
+  const summary = normalizeCommentLine(input.summary);
+  const actualWrites = Array.from(
+    new Set(input.actualWrites.map(normalizeCommentLine).filter(Boolean))
+  ).slice(0, 8);
+
+  return [
+    `[AI自动修正完成][${normalizeAgentName(input.agentName)}][第${input.attemptNumber}次尝试通过]`,
+    '',
+    summary || `第${input.attemptNumber}次候选结果已通过自动验收。`,
+    ...(actualWrites.length > 0
+      ? ['', '实际写入：', ...actualWrites.map((write) => `- ${write}`)]
+      : [])
+  ]
+    .join('\n')
+    .slice(0, MAX_LOOP_COMMENT_CHARS);
+}
+
+export function isAutomaticLoopAttempt(executeOption: unknown): boolean {
+  if (
+    !executeOption ||
+    typeof executeOption !== 'object' ||
+    Array.isArray(executeOption)
+  ) {
+    return false;
+  }
+  const loopContext = (executeOption as { loopContext?: unknown }).loopContext;
+  if (
+    !loopContext ||
+    typeof loopContext !== 'object' ||
+    Array.isArray(loopContext)
+  ) {
+    return false;
+  }
+  const record = loopContext as Record<string, unknown>;
+  return record.source === 'automatic' && Number(record.attemptNumber) >= 2;
+}
+
 export function isLoopEscalationCommentText(value: string): boolean {
   return /^\[AI循环升级\]/u.test(value.trim());
+}
+
+export function isLoopLifecycleCommentText(value: string): boolean {
+  const text = value.trim();
+  return (
+    /^\[AI自动修正\]/u.test(text) ||
+    /^\[AI自动修正完成\]/u.test(text) ||
+    isLoopEscalationCommentText(text)
+  );
+}
+
+export function isSameLoopLifecycleComment(
+  existingText: string,
+  expectedText: string
+): boolean {
+  const existingKey = existingText.trim().split('\n')[0]?.trim() ?? '';
+  const expectedKey = expectedText.trim().split('\n')[0]?.trim() ?? '';
+  return Boolean(expectedKey) && existingKey === expectedKey;
+}
+
+function normalizeAgentName(value: string): string {
+  return normalizeCommentLine(value).replace(/[\[\]]/gu, '') || 'Agent';
+}
+
+function normalizeCommentLine(value: string): string {
+  return value.replace(/\s+/gu, ' ').trim();
 }
 
 export function buildNextLoopAttemptUUID(taskUUID: string): string {

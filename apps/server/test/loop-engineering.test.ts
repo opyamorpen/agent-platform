@@ -15,7 +15,8 @@ import {
   isLoopEscalationCommentText,
   isLoopLifecycleCommentText,
   isSameLoopLifecycleComment,
-  isLoopPolicyRuntimeEligible
+  isLoopPolicyRuntimeEligible,
+  localizeLoopDeterministicError
 } from '../src/modules/executions/loop-engineering.js';
 import type { IssueAgentExecutionHistoryRecord } from '../src/modules/executions/repository.js';
 
@@ -179,6 +180,23 @@ test('loop revision and completion comments explain automatic attempts', () => {
   assert.match(completionComment, /^\[AI自动修正完成\]/u);
   assert.match(completionComment, /第2次尝试通过/u);
   assert.match(completionComment, /更新「需求分析报告」/u);
+});
+
+test('loop deterministic errors are localized without HTML-like XML tags', () => {
+  assert.equal(
+    localizeLoopDeterministicError('Missing <outputs> block'),
+    'Agent 输出缺少必需的 outputs 根节点'
+  );
+  assert.equal(
+    localizeLoopDeterministicError(
+      'Missing <field-uuid> in <output> block'
+    ),
+    'Agent 输出的 output 节点缺少 field-uuid 子节点'
+  );
+  assert.equal(
+    localizeLoopDeterministicError('Unknown output field "field016"'),
+    'Agent 输出包含未配置字段：field016'
+  );
 });
 
 test('only automatic loop retries suppress the generic start comment', () => {

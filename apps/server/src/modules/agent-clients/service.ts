@@ -57,6 +57,7 @@ import {
   isAutomaticLoopAttempt,
   isSameLoopLifecycleComment,
   isLoopPolicyRuntimeEligible,
+  localizeLoopDeterministicError,
   reviewLoopCandidate,
   type LoopBudgetSnapshot,
   type LoopFailureDetails,
@@ -4242,7 +4243,9 @@ async function evaluateLoopGate(input: {
     ) ?? [];
   const failureDetails: LoopFailureDetails = {
     runtimeErrors,
-    deterministicErrors: deterministicValidation.errors,
+    deterministicErrors: deterministicValidation.errors.map(
+      localizeLoopDeterministicError
+    ),
     acceptanceFindings
   };
   const decision = decideLoopGate({

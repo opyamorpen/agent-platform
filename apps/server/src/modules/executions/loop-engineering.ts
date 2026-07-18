@@ -69,6 +69,41 @@ export interface LoopFailureDetails {
   acceptanceFindings: string[];
 }
 
+export function localizeLoopDeterministicError(value: string): string {
+  const normalized = normalizeCommentLine(value);
+  const missingRootBlock = normalized.match(/^Missing <([^>]+)> block$/u);
+  if (missingRootBlock) {
+    const nodeName = missingRootBlock[1] ?? 'unknown';
+    return nodeName === 'outputs'
+      ? 'Agent 输出缺少必需的 outputs 根节点'
+      : `Agent 输出缺少必需的 ${nodeName} 节点`;
+  }
+
+  const missingChildBlock = normalized.match(
+    /^Missing <([^>]+)> in <([^>]+)> block$/u
+  );
+  if (missingChildBlock) {
+    return `Agent 输出的 ${missingChildBlock[2]} 节点缺少 ${missingChildBlock[1]} 子节点`;
+  }
+
+  const missingForTarget = normalized.match(/^Missing <([^>]+)> for (.+)$/u);
+  if (missingForTarget) {
+    return `Agent 输出缺少 ${missingForTarget[1]} 节点：${stripXmlTagSyntax(missingForTarget[2] ?? '')}`;
+  }
+
+  const duplicatedField = normalized.match(/^Duplicated output field "(.+)"$/u);
+  if (duplicatedField) {
+    return `Agent 输出包含重复字段：${duplicatedField[1]}`;
+  }
+
+  const unknownField = normalized.match(/^Unknown output field "(.+)"$/u);
+  if (unknownField) {
+    return `Agent 输出包含未配置字段：${unknownField[1]}`;
+  }
+
+  return stripXmlTagSyntax(normalized);
+}
+
 export function decideLoopGate(input: {
   deterministicPassed: boolean;
   forceEscalation: boolean;
@@ -448,6 +483,10 @@ function normalizeAgentName(value: string): string {
 
 function normalizeCommentLine(value: string): string {
   return value.replace(/\s+/gu, ' ').trim();
+}
+
+function stripXmlTagSyntax(value: string): string {
+  return value.replace(/<([^>]+)>/gu, '$1');
 }
 
 export function buildNextLoopAttemptUUID(taskUUID: string): string {

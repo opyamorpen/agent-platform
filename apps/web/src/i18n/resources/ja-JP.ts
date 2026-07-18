@@ -495,6 +495,7 @@ export const jaJP = {
       onesFieldsLoadFailed: 'ONES フィールドのロードに失敗しました',
       resourcesLoadFailed: 'エージェントバインディングのロードに失敗しました',
       workspacesLoadFailed: 'ワークスペースのロードに失敗しました',
+      agentClientsLoadFailed: 'Agent Client の読み込みに失敗しました',
       skillsLoadFailed: 'スキルのロードに失敗しました',
       knowledgeSourcesLoadFailed: 'ナレッジソースの読み込みに失敗しました',
       verificationProfilesLoadFailed: 'コード検証設定の読み込みに失敗しました',
@@ -521,7 +522,10 @@ export const jaJP = {
         nameRequired: 'エージェント名を入力してください',
         wikiWriteTargetRequired:
           '関連 Wiki ページの出力先ページグループを選択してください',
-        acceptanceCriterionRequired: '受入基準の名前と説明は必須です'
+        acceptanceCriterionRequired: '受入基準の名前と説明は必須です',
+        executionTargetRequired: '有効な Agent 実行方式を選択してください',
+        organizationModelWorkspace:
+          '組織既定 AI モデルではコードワークスペースを使用できません'
       },
       duplicateInputField:
         '最上位フィールド「{{name}}」には入力バインディングがすでに存在します。',
@@ -550,6 +554,24 @@ export const jaJP = {
         descriptionLabel: 'ビジネス目標',
         descriptionPlaceholder:
           'エージェントの責任、目標、主要ルール、完了基準を説明します',
+        executionTargetLabel: '実行方式',
+        executionTargetPlaceholder:
+          '組織モデルまたは特定の Agent Client を選択',
+        executionTargetEmpty: '利用可能な Agent Client がありません',
+        executionTargetOrganizationModel: '組織既定 AI モデル',
+        executionTargetLegacyAnyClient:
+          '任意の Agent Client（旧バージョン互換）',
+        executionTargetHelpLabel: '実行方式',
+        executionTargetHelpContent:
+          '組織モデルは Server 上で実行され、コードリポジトリの読み取りやコマンド実行はできません。Client を指定すると、その Client だけがタスクを取得できます。',
+        executionTargetModelNotConfigured:
+          '管理者が組織既定 AI モデルを設定していないため、この構成は公開できません。',
+        executionTargetLegacyWarning:
+          '旧バージョン互換モードです。任意のオンライン Client がタスクを取得できます。組織モデルまたは特定の Client を選択してください。',
+        clientRuntimeStatus: {
+          online: 'オンライン',
+          offline: 'オフライン'
+        },
         executorLabel: '実行者',
         executorPlaceholder: 'ONESユーザーを検索',
         executorSearchLoading: '検索中...',

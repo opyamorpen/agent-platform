@@ -13,6 +13,7 @@ import {
 import {
   AgentConflictError,
   AgentDraftNotFoundError,
+  AgentExecutionTargetBindingError,
   AgentInUseError,
   AgentKnowledgeBindingNotFoundError,
   AgentWikiWriteTargetRequiredError,
@@ -279,6 +280,13 @@ export async function saveAgentDraftHandler(c: Context) {
       );
     }
 
+    if (error instanceof AgentExecutionTargetBindingError) {
+      return c.json(
+        failure(error.message, 'agents.execution_target_invalid'),
+        400
+      );
+    }
+
     if (error instanceof AgentNotFoundError) {
       return c.json(failure(error.message, 'agents.not_found'), 404);
     }
@@ -325,6 +333,13 @@ export async function publishAgentDraftHandler(c: Context) {
     if (error instanceof AgentVerificationProfileBindingError) {
       return c.json(
         failure(error.message, 'agents.verification_profile_binding_invalid'),
+        400
+      );
+    }
+
+    if (error instanceof AgentExecutionTargetBindingError) {
+      return c.json(
+        failure(error.message, 'agents.execution_target_invalid'),
         400
       );
     }

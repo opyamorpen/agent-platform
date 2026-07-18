@@ -220,7 +220,18 @@ export interface AgentConfig {
   outputs: AgentOutputField[];
   knowledgeSourceUUIDs: string[];
   acceptancePolicy: AgentAcceptancePolicy;
+  executionTarget: AgentExecutionTarget;
 }
+
+export type AgentExecutionTarget =
+  | {
+      mode: 'organization_model';
+    }
+  | {
+      mode: 'agent_client';
+      clientUUID: string | null;
+      clientName: string | null;
+    };
 
 export interface AgentAcceptanceCriterion {
   uuid: string;
@@ -389,6 +400,11 @@ export interface AgentClient {
 export interface AgentClientSummary {
   uuid: string;
   name: string;
+}
+
+export interface AgentClientOption extends AgentClientSummary {
+  version: string;
+  runtimeStatus: AgentClientRuntimeStatus;
 }
 
 export type AgentExecutionStatus =

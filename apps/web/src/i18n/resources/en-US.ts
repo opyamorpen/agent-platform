@@ -483,6 +483,7 @@ export const enUS = {
       onesFieldsLoadFailed: 'Failed to load ONES fields',
       resourcesLoadFailed: 'Failed to load agent bindings',
       workspacesLoadFailed: 'Failed to load workspaces',
+      agentClientsLoadFailed: 'Failed to load Agent Clients',
       skillsLoadFailed: 'Failed to load skills',
       knowledgeSourcesLoadFailed: 'Failed to load knowledge sources',
       verificationProfilesLoadFailed: 'Failed to load code verification profiles',
@@ -510,7 +511,10 @@ export const enUS = {
         wikiWriteTargetRequired:
           'Select a Wiki space for the related Wiki page output',
         acceptanceCriterionRequired:
-          'Acceptance criterion names and descriptions are required'
+          'Acceptance criterion names and descriptions are required',
+        executionTargetRequired: 'Select a valid Agent execution target',
+        organizationModelWorkspace:
+          'The organization AI model cannot use a code workspace'
       },
       duplicateInputField:
         'An input binding already exists for top-level field "{{name}}"',
@@ -539,6 +543,24 @@ export const enUS = {
         descriptionLabel: 'Business goal',
         descriptionPlaceholder:
           'Describe the Agent responsibility, objective, key rules, and completion criteria',
+        executionTargetLabel: 'Execution',
+        executionTargetPlaceholder:
+          'Choose the organization model or a specific Agent Client',
+        executionTargetEmpty: 'No Agent Clients are available',
+        executionTargetOrganizationModel: 'Organization default AI model',
+        executionTargetLegacyAnyClient:
+          'Any Agent Client (legacy compatibility)',
+        executionTargetHelpLabel: 'Execution target',
+        executionTargetHelpContent:
+          'The organization model runs on the Server and cannot read code repositories or execute commands. When a Client is selected, only that Client can claim the task.',
+        executionTargetModelNotConfigured:
+          'The administrator has not configured the organization AI model, so this configuration cannot be published.',
+        executionTargetLegacyWarning:
+          'This is a legacy compatibility mode. Any online Client may claim the task. Select the organization model or a specific Client.',
+        clientRuntimeStatus: {
+          online: 'Online',
+          offline: 'Offline'
+        },
         executorLabel: 'Executor',
         executorPlaceholder: 'Search ONES users',
         executorSearchLoading: 'Searching...',

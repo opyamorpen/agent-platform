@@ -10,6 +10,7 @@ import type {
   AgentOutputField,
   AgentOutputSetValueField,
   AgentClient,
+  AgentClientOption,
   AgentClientConnectPollResponse,
   AgentClientConnectRequest,
   AgentClientConnectResponse,
@@ -150,6 +151,34 @@ type AgentTaskBindings = {
   readableEnvKeys: string[];
 };
 type AgentTaskBindingsCache = Map<string, AgentTaskBindings>;
+type TaskClaimTarget =
+  | { mode: 'organization_model' }
+  | { mode: 'agent_client'; clientUUID: string };
+
+export const ORGANIZATION_MODEL_EXECUTOR = {
+  uuid: 'organization-default-ai-model',
+  name: '组织默认 AI 模型',
+  hostname: 'ones-hosted-app',
+  version: 'server'
+} as const;
+
+export function canClaimAgentExecutionTarget(
+  config: AgentConfig,
+  target: TaskClaimTarget
+): boolean {
+  if (config.executionTarget.mode === 'organization_model') {
+    return target.mode === 'organization_model';
+  }
+
+  if (target.mode !== 'agent_client') {
+    return false;
+  }
+
+  return (
+    config.executionTarget.clientUUID === null ||
+    config.executionTarget.clientUUID === target.clientUUID
+  );
+}
 type ScopedIssueFieldValue = {
   issueUUID: string;
   fieldUUID: string;
@@ -545,6 +574,19 @@ export async function getAgentClients(): Promise<AgentClient[]> {
   const now = new Date();
 
   return agentClients.map((agentClient) => toAgentClient(agentClient, now));
+}
+
+export async function getSelectableAgentClients(): Promise<
+  AgentClientOption[]
+> {
+  return (await getAgentClients())
+    .filter((client) => client.connectionStatus === 'active')
+    .map((client) => ({
+      uuid: client.uuid,
+      name: client.name,
+      version: client.version,
+      runtimeStatus: client.runtimeStatus
+    }));
 }
 
 export async function approveAgentClientConnection(
@@ -5180,6 +5222,7 @@ async function toAgentClientTask(
 async function dispatchTasks(
   availableSlots: number,
   client: { uuid: string; name: string },
+  claimTarget: TaskClaimTarget,
   clientCapabilities: Set<AgentClientCapability>,
   workflowNodeMap: WorkflowNodeMap,
   agentConfigCache: AgentConfigCache,
@@ -5237,6 +5280,10 @@ async function dispatchTasks(
           agentVersion: nextTask.agentVersion
         }
       );
+      continue;
+    }
+
+    if (!canClaimAgentExecutionTarget(agentConfig, claimTarget)) {
       continue;
     }
 
@@ -5564,6 +5611,7 @@ export async function claimAgentClientTasks(
     const teamTasks = await dispatchTasks(
       remainingSlots,
       client,
+      { mode: 'agent_client', clientUUID: client.uuid },
       clientCapabilities,
       workflowNodeMap,
       agentConfigCache,
@@ -5578,6 +5626,42 @@ export async function claimAgentClientTasks(
   return {
     tasks
   };
+}
+
+export async function claimOrganizationModelTasks(input: {
+  availableSlots: number;
+}): Promise<AgentClientTask[]> {
+  const exchangeAt = new Date();
+  const workflowNodeMapCache = new Map<string, WorkflowNodeMap>();
+  const agentConfigCache: AgentConfigCache = new Map();
+  const agentTaskBindingsCache: AgentTaskBindingsCache = new Map();
+  const tasks: AgentClientTask[] = [];
+  const teamUUIDs = await listWorkflowTeamUUIDs();
+
+  for (const teamUUID of teamUUIDs) {
+    if (tasks.length >= input.availableSlots) {
+      break;
+    }
+
+    const workflowNodeMap = await getWorkflowNodeMap(
+      teamUUID,
+      workflowNodeMapCache
+    );
+    const teamTasks = await dispatchTasks(
+      input.availableSlots - tasks.length,
+      ORGANIZATION_MODEL_EXECUTOR,
+      { mode: 'organization_model' },
+      new Set<AgentClientCapability>(),
+      workflowNodeMap,
+      agentConfigCache,
+      agentTaskBindingsCache,
+      exchangeAt,
+      teamUUID
+    );
+    tasks.push(...teamTasks);
+  }
+
+  return tasks;
 }
 
 export async function getAgentClientTaskRuntimeEnv(

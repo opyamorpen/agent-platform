@@ -303,6 +303,22 @@ async function loadAgentConfig(
 }
 
 function normalizeAgentConfig(config: AgentConfig): AgentConfig {
+  const configuredExecutionTarget = config.executionTarget;
+  const executionTarget =
+    configuredExecutionTarget?.mode === 'organization_model'
+      ? { mode: 'organization_model' as const }
+      : configuredExecutionTarget?.mode === 'agent_client'
+        ? {
+            mode: 'agent_client' as const,
+            clientUUID: configuredExecutionTarget.clientUUID?.trim() || null,
+            clientName: configuredExecutionTarget.clientName?.trim() || null
+          }
+        : {
+            mode: 'agent_client' as const,
+            clientUUID: null,
+            clientName: null
+          };
+
   return {
     ...config,
     outputs: Array.isArray(config.outputs)
@@ -331,7 +347,8 @@ function normalizeAgentConfig(config: AgentConfig): AgentConfig {
       )
         ? config.acceptancePolicy.verificationProfileUUIDs
         : []
-    }
+    },
+    executionTarget
   };
 }
 

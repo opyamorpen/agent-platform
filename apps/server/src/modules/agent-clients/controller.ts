@@ -6,6 +6,7 @@ import {
 } from '../../lib/agent-client-auth.js';
 import { getLogger } from '../../lib/logger.js';
 import { requireAdmin } from '../../lib/web-access.js';
+import { getWebSession } from '../../lib/web-session.js';
 import {
   createSkillDownloadUrlPackage,
   getSkillManifest,
@@ -28,6 +29,7 @@ import {
   getAgentClientTaskRuntimeEnv,
   getAgentClientPreviousWorkspacePatchDownload,
   getAgentClients,
+  getSelectableAgentClients,
   InvalidAgentClientConnectionRequestError,
   InvalidAgentClientTaskReportError,
   pollAgentClientConnection,
@@ -57,6 +59,11 @@ type AttachmentFormDataValue =
 export async function listAgentClientsHandler(c: Context) {
   await requireAdmin(c.req);
   return c.json(success(await getAgentClients()));
+}
+
+export async function listSelectableAgentClientsHandler(c: Context) {
+  await getWebSession(c.req);
+  return c.json(success(await getSelectableAgentClients()));
 }
 
 export async function connectAgentClientHandler(c: Context) {

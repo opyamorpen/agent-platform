@@ -125,6 +125,7 @@ export async function completeAIChatCompletion(input: {
     | 'skill-generation'
     | 'skill-repair'
     | 'connection-test'
+    | 'agent-execution'
     | 'loop-review'
     | 'loop-review-repair';
   messages: AIChatMessage[];

@@ -441,6 +441,7 @@ export const zhCN = {
       onesFieldsLoadFailed: 'ONES 字段列表加载失败',
       resourcesLoadFailed: 'Agent 绑定资源加载失败',
       workspacesLoadFailed: '工作区列表加载失败',
+      agentClientsLoadFailed: 'Agent Client 列表加载失败',
       skillsLoadFailed: '技能列表加载失败',
       knowledgeSourcesLoadFailed: '知识源列表加载失败',
       verificationProfilesLoadFailed: '代码验证配置加载失败',
@@ -465,7 +466,9 @@ export const zhCN = {
       validation: {
         nameRequired: '请输入 Agent 名称',
         wikiWriteTargetRequired: '请为关联 Wiki 页面输出选择写入页面组',
-        acceptanceCriterionRequired: '验收标准的名称和说明不能为空'
+        acceptanceCriterionRequired: '验收标准的名称和说明不能为空',
+        executionTargetRequired: '请选择有效的 Agent 执行方式',
+        organizationModelWorkspace: '组织默认 AI 模型不能使用代码工作区'
       },
       duplicateInputField: '已存在一级字段“{{name}}”的输入字段配置',
       duplicateOutputField: '已存在一级字段“{{name}}”的输出配置',
@@ -491,6 +494,22 @@ export const zhCN = {
         descriptionLabel: '业务目标',
         descriptionPlaceholder:
           '说明 Agent 的职责、处理目标、关键规则和完成标准',
+        executionTargetLabel: '执行方式',
+        executionTargetPlaceholder: '选择组织模型或指定 Agent Client',
+        executionTargetEmpty: '没有可用的 Agent Client',
+        executionTargetOrganizationModel: '组织默认 AI 模型',
+        executionTargetLegacyAnyClient: '任意 Agent Client（旧版本兼容）',
+        executionTargetHelpLabel: '执行方式',
+        executionTargetHelpContent:
+          '组织默认模型由 Server 直接执行，不能读取代码仓或运行命令；指定 Client 后，只有该 Client 可以领取任务。',
+        executionTargetModelNotConfigured:
+          '管理员尚未配置组织默认 AI 模型，当前配置无法发布。',
+        executionTargetLegacyWarning:
+          '这是旧版本兼容模式，任意在线 Client 都可能领取任务。建议改为组织默认模型或指定 Client。',
+        clientRuntimeStatus: {
+          online: '在线',
+          offline: '离线'
+        },
         executorLabel: '执行身份',
         executorPlaceholder: '搜索 ONES 用户',
         executorSearchLoading: '搜索中...',

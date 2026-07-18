@@ -37,6 +37,8 @@ import { listWorkspaceCredentialsByWorkspaceUUID } from '../agent-workspaces/cre
 import { findSkillsByUUIDs } from '../skills/repository.js';
 import { findKnowledgeSourcesByUUIDs } from '../knowledge-sources/repository.js';
 import { findWorkspaceVerificationProfilesByUUIDs } from '../workspace-verification-profiles/repository.js';
+import { findAgentClientByUUID } from '../agent-clients/repository.js';
+import { getAIModelConfigStatus } from '../ai-model-config/service.js';
 import type { RefObject } from '@ones-ai-workflow/shared';
 import { buildAgentPrompt } from './prompt-render.js';
 
@@ -100,6 +102,13 @@ export class AgentWikiWriteTargetRequiredError extends Error {
   constructor(fieldName: string) {
     super(`Wiki output field requires a write target: ${fieldName}`);
     this.name = 'AgentWikiWriteTargetRequiredError';
+  }
+}
+
+export class AgentExecutionTargetBindingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AgentExecutionTargetBindingError';
   }
 }
 
@@ -302,16 +311,22 @@ export async function saveAgentDraft(
     agent.workspaceUUID,
     teamUUID
   );
+  const config = await resolveAgentExecutionTarget(
+    payload.config,
+    agent.workspaceUUID,
+    teamUUID,
+    false
+  );
 
   const updatedAgent = await updateAgentDraftConfig(
     uuid,
-    payload.config,
+    config,
     teamUUID
   );
 
   return {
     uuid: updatedAgent.uuid,
-    draftConfig: payload.config
+    draftConfig: config
   };
 }
 
@@ -341,7 +356,13 @@ export async function publishAgentDraft(
     agent.workspaceUUID,
     teamUUID
   );
-  assertAgentWikiWriteTargetsConfigured(draftConfig);
+  const publishedConfig = await resolveAgentExecutionTarget(
+    draftConfig,
+    agent.workspaceUUID,
+    teamUUID,
+    true
+  );
+  assertAgentWikiWriteTargetsConfigured(publishedConfig);
 
   const latestVersion = await findLatestAgentVersion(uuid, teamUUID);
   const nextVersion = (latestVersion?.version ?? 0) + 1;
@@ -350,7 +371,7 @@ export async function publishAgentDraft(
       uuid: randomUUID(),
       agentUUID: uuid,
       version: nextVersion,
-      config: draftConfig,
+      config: publishedConfig,
       createdBy: payload.createdBy,
       note: payload.note
     },
@@ -359,14 +380,14 @@ export async function publishAgentDraft(
   await publishAgentVersion(uuid, nextVersion, teamUUID);
   await replaceAgentKnowledgeBindings(
     uuid,
-    draftConfig.knowledgeSourceUUIDs,
+    publishedConfig.knowledgeSourceUUIDs,
     teamUUID
   );
 
   return {
     uuid,
     currentVersion: nextVersion,
-    config: draftConfig
+    config: publishedConfig
   };
 }
 
@@ -529,6 +550,67 @@ async function assertAgentVerificationProfilesExist(
       );
     }
   }
+}
+
+async function resolveAgentExecutionTarget(
+  config: AgentConfig,
+  workspaceUUID: string | null,
+  teamUUID: string,
+  requireConfiguredModel: boolean
+): Promise<AgentConfig> {
+  if (config.executionTarget.mode === 'organization_model') {
+    if (workspaceUUID) {
+      throw new AgentExecutionTargetBindingError(
+        'Organization AI model execution cannot use an Agent workspace'
+      );
+    }
+    if (config.acceptancePolicy.verificationProfileUUIDs.length > 0) {
+      throw new AgentExecutionTargetBindingError(
+        'Organization AI model execution cannot use workspace verification profiles'
+      );
+    }
+    if (requireConfiguredModel) {
+      const status = await getAIModelConfigStatus(teamUUID);
+      if (!status.configured) {
+        throw new AgentExecutionTargetBindingError(
+          'The organization AI model is not configured'
+        );
+      }
+    }
+    return {
+      ...config,
+      executionTarget: { mode: 'organization_model' }
+    };
+  }
+
+  if (!config.executionTarget.clientUUID) {
+    return {
+      ...config,
+      executionTarget: {
+        mode: 'agent_client',
+        clientUUID: null,
+        clientName: null
+      }
+    };
+  }
+
+  const client = await findAgentClientByUUID(
+    config.executionTarget.clientUUID
+  );
+  if (!client || client.connectionStatus !== 'active') {
+    throw new AgentExecutionTargetBindingError(
+      `Agent Client is not active: ${config.executionTarget.clientUUID}`
+    );
+  }
+
+  return {
+    ...config,
+    executionTarget: {
+      mode: 'agent_client',
+      clientUUID: client.uuid,
+      clientName: client.name
+    }
+  };
 }
 
 function assertAgentWikiWriteTargetsConfigured(config: AgentConfig): void {

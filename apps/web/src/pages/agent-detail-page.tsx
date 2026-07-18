@@ -3,7 +3,9 @@ import type {
   AIModelConfigStatus,
   AgentAcceptancePolicy,
   AgentConfig,
+  AgentClientOption,
   AgentDraft,
+  AgentExecutionTarget,
   AgentFieldMeta,
   AgentInput,
   AgentInputField,
@@ -132,7 +134,8 @@ const DEFAULT_CONFIG: AgentConfig = {
     criteria: [],
     knowledgeRequirement: 'optional',
     verificationProfileUUIDs: []
-  }
+  },
+  executionTarget: { mode: 'organization_model' }
 };
 
 const STEP_ORDER: StepKey[] = [
@@ -1518,6 +1521,7 @@ export function AgentDetailPage() {
     string | null
   >(null);
   const [workspaces, setWorkspaces] = useState<AgentWorkspace[]>([]);
+  const [agentClients, setAgentClients] = useState<AgentClientOption[]>([]);
   const [skills, setSkills] = useState<SkillSummary[]>([]);
   const [knowledgeSources, setKnowledgeSources] = useState<KnowledgeSource[]>(
     []
@@ -1550,6 +1554,9 @@ export function AgentDetailPage() {
   const [outputs, setOutputs] = useState<SelectedAgentOutputField[]>([]);
   const [acceptancePolicy, setAcceptancePolicy] =
     useState<AgentAcceptancePolicy>(DEFAULT_CONFIG.acceptancePolicy);
+  const [executionTarget, setExecutionTarget] = useState<AgentExecutionTarget>(
+    DEFAULT_CONFIG.executionTarget
+  );
   const [prompt, setPrompt] = useState(DEFAULT_CONFIG.prompt);
   const [selectedInputFieldUUID, setSelectedInputFieldUUID] =
     useState<string>();
@@ -1593,6 +1600,13 @@ export function AgentDetailPage() {
     setAcceptancePolicy(
       nextConfig.acceptancePolicy ?? DEFAULT_CONFIG.acceptancePolicy
     );
+    setExecutionTarget(
+      nextConfig.executionTarget ?? {
+        mode: 'agent_client',
+        clientUUID: null,
+        clientName: null
+      }
+    );
     setPrompt(nextConfig.prompt);
   }
 
@@ -1612,11 +1626,13 @@ export function AgentDetailPage() {
       inputs,
       outputs,
       knowledgeSourceUUIDs,
-      acceptancePolicy
+      acceptancePolicy,
+      executionTarget
     }),
     [
       acceptancePolicy,
       description,
+      executionTarget,
       inputs,
       knowledgeSourceUUIDs,
       outputs,
@@ -1835,6 +1851,54 @@ export function AgentDetailPage() {
     return Array.from(optionMap.values());
   }, [executorName, executorOptions, executorUUID]);
 
+  const executionTargetValue =
+    executionTarget.mode === 'organization_model'
+      ? 'organization_model'
+      : executionTarget.clientUUID
+        ? `agent_client:${executionTarget.clientUUID}`
+        : 'legacy_any_client';
+  const executionTargetOptions = useMemo(() => {
+    const options: SearchFieldOption[] = [
+      {
+        value: 'organization_model',
+        label: t('pages.agentDetail.basic.executionTargetOrganizationModel')
+      }
+    ];
+
+    if (
+      executionTarget.mode === 'agent_client' &&
+      !executionTarget.clientUUID
+    ) {
+      options.push({
+        value: 'legacy_any_client',
+        label: t('pages.agentDetail.basic.executionTargetLegacyAnyClient')
+      });
+    }
+
+    for (const client of agentClients) {
+      options.push({
+        value: `agent_client:${client.uuid}`,
+        label: `${client.name} · ${t(`pages.agentDetail.basic.clientRuntimeStatus.${client.runtimeStatus}`)}`,
+        keywords: [client.uuid, client.version]
+      });
+    }
+
+    if (
+      executionTarget.mode === 'agent_client' &&
+      executionTarget.clientUUID &&
+      !agentClients.some((client) => client.uuid === executionTarget.clientUUID)
+    ) {
+      options.push({
+        value: `agent_client:${executionTarget.clientUUID}`,
+        label:
+          executionTarget.clientName ?? executionTarget.clientUUID,
+        keywords: [executionTarget.clientUUID]
+      });
+    }
+
+    return options;
+  }, [agentClients, executionTarget, t]);
+
   const stepItems = useMemo(
     () => [
       {
@@ -1939,12 +2003,14 @@ export function AgentDetailPage() {
       try {
         const [
           workspacesResponse,
+          agentClientsResponse,
           skillsResponse,
           knowledgeResponse,
           verificationProfilesResponse
         ] =
           await Promise.all([
             fetch('/api/agent-workspaces'),
+            fetch('/api/agent-clients/options'),
             fetch('/api/skills'),
             fetch('/api/knowledge-sources'),
             fetch('/api/workspace-verification-profiles')
@@ -1952,6 +2018,10 @@ export function AgentDetailPage() {
         const workspacesPayload =
           (await workspacesResponse.json()) as AgentResourcesResponse<
             AgentWorkspace[]
+          >;
+        const agentClientsPayload =
+          (await agentClientsResponse.json()) as AgentResourcesResponse<
+            AgentClientOption[]
           >;
         const skillsPayload =
           (await skillsResponse.json()) as AgentResourcesResponse<
@@ -1990,6 +2060,10 @@ export function AgentDetailPage() {
           );
         }
 
+        if (!agentClientsResponse.ok || !agentClientsPayload.success) {
+          throw new Error(t('pages.agentDetail.agentClientsLoadFailed'));
+        }
+
         if (!knowledgeResponse.ok || !knowledgePayload.success) {
           throw new Error(
             knowledgePayload.success
@@ -2010,11 +2084,13 @@ export function AgentDetailPage() {
         }
 
         setWorkspaces(workspacesPayload.data);
+        setAgentClients(agentClientsPayload.data);
         setSkills(skillsPayload.data);
         setKnowledgeSources(knowledgePayload.data);
         setVerificationProfiles(verificationProfilesPayload.data);
       } catch (error) {
         setWorkspaces([]);
+        setAgentClients([]);
         setSkills([]);
         setKnowledgeSources([]);
         setVerificationProfiles([]);
@@ -2163,6 +2239,17 @@ export function AgentDetailPage() {
   function validateBasicConfig(): string | null {
     if (!agentName.trim()) {
       return t('pages.agentDetail.validation.nameRequired');
+    }
+
+    if (
+      executionTarget.mode === 'agent_client' &&
+      Boolean(executionTarget.clientUUID) !== Boolean(executionTarget.clientName)
+    ) {
+      return t('pages.agentDetail.validation.executionTargetRequired');
+    }
+
+    if (executionTarget.mode === 'organization_model' && workspaceUUID) {
+      return t('pages.agentDetail.validation.organizationModelWorkspace');
     }
 
     return null;
@@ -2714,6 +2801,90 @@ export function AgentDetailPage() {
                   orientation="vertical"
                   className="gap-3 md:flex-row md:items-start md:gap-6"
                 >
+                  <FieldLabel className="md:w-24 md:shrink-0 md:justify-end md:pt-2 md:whitespace-nowrap">
+                    {t('pages.agentDetail.basic.executionTargetLabel')}
+                  </FieldLabel>
+                  <FieldContent className="gap-2 md:w-[420px] md:flex-none">
+                    <div className="flex items-start gap-2">
+                      <SearchSelect
+                        options={executionTargetOptions}
+                        value={executionTargetValue}
+                        onValueChange={(value) => {
+                          if (value === 'organization_model') {
+                            setExecutionTarget({ mode: 'organization_model' });
+                            setWorkspaceUUID('');
+                            setAcceptancePolicy((current) => ({
+                              ...current,
+                              verificationProfileUUIDs: []
+                            }));
+                            return;
+                          }
+
+                          if (value === 'legacy_any_client') {
+                            setExecutionTarget({
+                              mode: 'agent_client',
+                              clientUUID: null,
+                              clientName: null
+                            });
+                            return;
+                          }
+
+                          const clientUUID = value?.startsWith('agent_client:')
+                            ? value.slice('agent_client:'.length)
+                            : '';
+                          const client = agentClients.find(
+                            (item) => item.uuid === clientUUID
+                          );
+                          if (client) {
+                            setExecutionTarget({
+                              mode: 'agent_client',
+                              clientUUID: client.uuid,
+                              clientName: client.name
+                            });
+                          }
+                        }}
+                        placeholder={t(
+                          'pages.agentDetail.basic.executionTargetPlaceholder'
+                        )}
+                        emptyText={t(
+                          'pages.agentDetail.basic.executionTargetEmpty'
+                        )}
+                        disabled={isBusy || isLoadingResources || !isEditing}
+                        className="w-full md:shrink-0"
+                        portalContainer={basicConfigContentElement}
+                      />
+                      <FieldHelpTooltip
+                        label={t(
+                          'pages.agentDetail.basic.executionTargetHelpLabel'
+                        )}
+                        content={t(
+                          'pages.agentDetail.basic.executionTargetHelpContent'
+                        )}
+                      />
+                    </div>
+                    {executionTarget.mode === 'organization_model' &&
+                    !isAIConfigured ? (
+                      <p className="text-xs text-destructive">
+                        {t(
+                          'pages.agentDetail.basic.executionTargetModelNotConfigured'
+                        )}
+                      </p>
+                    ) : null}
+                    {executionTarget.mode === 'agent_client' &&
+                    !executionTarget.clientUUID ? (
+                      <p className="text-xs text-muted-foreground">
+                        {t(
+                          'pages.agentDetail.basic.executionTargetLegacyWarning'
+                        )}
+                      </p>
+                    ) : null}
+                  </FieldContent>
+                </FormField>
+
+                <FormField
+                  orientation="vertical"
+                  className="gap-3 md:flex-row md:items-start md:gap-6"
+                >
                   <FieldLabel
                     htmlFor="agent-description"
                     className="md:w-24 md:shrink-0 md:justify-end md:pt-2 md:whitespace-nowrap"
@@ -2819,7 +2990,12 @@ export function AgentDetailPage() {
                             : t('pages.agentDetail.basic.workspacePlaceholder')
                         }
                         emptyText={t('pages.agentDetail.basic.workspaceEmpty')}
-                        disabled={isBusy || isLoadingResources || !isEditing}
+                        disabled={
+                          isBusy ||
+                          isLoadingResources ||
+                          !isEditing ||
+                          executionTarget.mode === 'organization_model'
+                        }
                         clearable
                         className="w-full md:shrink-0"
                         portalContainer={basicConfigContentElement}

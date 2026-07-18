@@ -121,6 +121,30 @@ export const agentAcceptancePolicySchema = z.object({
     .default([])
 });
 
+export const agentExecutionTargetSchema = z
+  .union([
+    z.object({
+      mode: z.literal('organization_model')
+    }),
+    z.object({
+      mode: z.literal('agent_client'),
+      clientUUID: z.string().trim().min(1).nullable(),
+      clientName: z.string().trim().min(1).nullable()
+    })
+  ])
+  .superRefine((value, ctx) => {
+    if (
+      value.mode === 'agent_client' &&
+      Boolean(value.clientUUID) !== Boolean(value.clientName)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: value.clientUUID ? ['clientName'] : ['clientUUID'],
+        message: 'Agent Client target requires both uuid and name'
+      });
+    }
+  });
+
 function validateInputFieldNode(
   value: z.infer<typeof agentInputFieldSchema>,
   ctx: z.RefinementCtx,
@@ -242,6 +266,9 @@ export const agentConfigSchema = z
       criteria: [],
       knowledgeRequirement: 'optional',
       verificationProfileUUIDs: []
+    }),
+    executionTarget: agentExecutionTargetSchema.default({
+      mode: 'organization_model'
     })
   })
   .superRefine((value, ctx) => {

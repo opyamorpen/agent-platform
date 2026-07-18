@@ -8,6 +8,7 @@ import {
   downloadAgentClientPreviousWorkspacePatchHandler,
   getAgentClientSkillsManifestHandler,
   listAgentClientsHandler,
+  listSelectableAgentClientsHandler,
   pollAgentClientConnectionHandler,
   reportAgentClientTasksHandler,
   uploadAgentClientTaskAttachmentsHandler,
@@ -24,6 +25,7 @@ agentClientsRoutes.get(
   '/skills/:uuid/versions/:version/download',
   downloadAgentClientSkillVersionHandler
 );
+agentClientsRoutes.get('/options', listSelectableAgentClientsHandler);
 agentClientsRoutes.get('/', listAgentClientsHandler);
 agentClientsRoutes.post('/:uuid/approve', approveAgentClientHandler);
 agentClientsRoutes.post('/:uuid/revoke', revokeAgentClientHandler);

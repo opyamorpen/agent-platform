@@ -425,10 +425,22 @@ function buildHermesArguments(input: {
   }
 
   if (input.toolsets?.trim()) {
-    args.push('--toolsets', input.toolsets.trim());
+    args.push('--toolsets', normalizeHermesToolsets(input.toolsets));
   }
 
   return args;
+}
+
+function normalizeHermesToolsets(value: string): string {
+  return Array.from(
+    new Set(
+      value
+        .split(',')
+        .map((toolset) => toolset.trim())
+        .filter(Boolean)
+        .map((toolset) => (toolset === 'filesystem' ? 'file' : toolset))
+    )
+  ).join(',');
 }
 
 async function buildHermesPrompt(

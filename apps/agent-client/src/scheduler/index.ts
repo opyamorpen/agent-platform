@@ -149,6 +149,16 @@ export class Scheduler {
         });
       } catch (error) {
         if (error instanceof TaskServerReportError) {
+          if (report.status === 'running') {
+            logger.warn(
+              'Keeping running task after non-retryable progress report rejection',
+              {
+                taskUUID: report.taskUUID,
+                error: error.message
+              }
+            );
+            continue;
+          }
           logger.warn('Discarding task after non-retryable report rejection', {
             taskUUID: report.taskUUID,
             status: report.status,

@@ -59,6 +59,7 @@ import {
   isLoopPolicyRuntimeEligible,
   reviewLoopCandidate,
   type LoopBudgetSnapshot,
+  type LoopFailureDetails,
   type LoopReviewResult
 } from '../executions/loop-engineering.js';
 import {
@@ -4044,8 +4045,14 @@ type LoopGateEvaluation = {
   reviewResult: LoopReviewResult | null;
   budget: LoopBudgetSnapshot;
   summary: string;
-  findings: string[];
+  failureDetails: LoopFailureDetails;
 };
+
+export function shouldEvaluateLoopGate(
+  status: AgentClientTaskReport['status']
+): boolean {
+  return status === 'success' || status === 'failure';
+}
 
 function summarizeOutputWritePlan(
   plan: OutputWritePlan
@@ -4168,6 +4175,7 @@ async function evaluateLoopGate(input: {
   let forceEscalation =
     input.report.status === 'blocked' ||
     deterministicValidation.requiresEscalation;
+  const runtimeErrors: string[] = [];
 
   if (input.report.status === 'success' && deterministicValidation.passed) {
     try {
@@ -4187,10 +4195,10 @@ async function evaluateLoopGate(input: {
     }
   } else if (input.report.status !== 'success') {
     deterministicValidation.passed = false;
-    deterministicValidation.errors.push(
+    runtimeErrors.push(
       input.report.status === 'blocked'
-        ? 'Agent Client reported a blocked execution'
-        : 'Agent Client execution failed'
+        ? 'Agent Client 报告任务已阻断，未进入验收标准评审'
+        : 'Agent Client 执行失败，未进入验收标准评审'
     );
   }
 
@@ -4210,8 +4218,8 @@ async function evaluateLoopGate(input: {
       });
     } catch (error) {
       forceEscalation = true;
-      deterministicValidation.errors.push(
-        `AI review unavailable: ${error instanceof Error ? error.message : String(error)}`
+      runtimeErrors.push(
+        `AI 验收评审不可用：${error instanceof Error ? error.message : String(error)}`
       );
     }
   }
@@ -4228,13 +4236,15 @@ async function evaluateLoopGate(input: {
     now: input.exchangeAt
   });
   const reviewDecision = reviewResult?.review.verdict ?? null;
-  const findings = [
-    ...deterministicValidation.errors,
-    ...(reviewResult?.review.findings.map(
+  const acceptanceFindings =
+    reviewResult?.review.findings.map(
       (finding) => `${finding.message}；修改要求：${finding.repairInstruction}`
-    ) ?? [])
-  ];
-
+    ) ?? [];
+  const failureDetails: LoopFailureDetails = {
+    runtimeErrors,
+    deterministicErrors: deterministicValidation.errors,
+    acceptanceFindings
+  };
   const decision = decideLoopGate({
     deterministicPassed: deterministicValidation.passed,
     forceEscalation,
@@ -4252,8 +4262,10 @@ async function evaluateLoopGate(input: {
         reviewResult?.review.summary ??
         (budget.exhaustedBy.length > 0
           ? `自动修正预算已耗尽：${budget.exhaustedBy.join(', ')}`
-          : '自动修正需要人工接管。'),
-      findings
+          : runtimeErrors.length > 0
+            ? 'Agent 运行失败，自动修正需要人工接管。'
+            : '自动修正需要人工接管。'),
+      failureDetails
     };
   }
 
@@ -4264,8 +4276,11 @@ async function evaluateLoopGate(input: {
       reviewResult,
       budget,
       summary:
-        reviewResult?.review.summary ?? '候选输出未通过确定性校验，需要修正。',
-      findings
+        reviewResult?.review.summary ??
+        (runtimeErrors.length > 0
+          ? 'Agent 运行失败，系统将重新执行。'
+          : '候选输出未通过确定性校验，需要修正。'),
+      failureDetails
     };
   }
 
@@ -4275,7 +4290,7 @@ async function evaluateLoopGate(input: {
     reviewResult,
     budget,
     summary: reviewResult?.review.summary ?? '候选输出已通过验收。',
-    findings
+    failureDetails
   };
 }
 
@@ -4359,6 +4374,7 @@ async function persistLoopGateResult(input: {
   );
   const loopEvaluation = {
     decision: input.evaluation.decision,
+    failureDetails: input.evaluation.failureDetails,
     deterministicValidation: input.evaluation.deterministicValidation,
     aiReview: input.evaluation.reviewResult?.review ?? null,
     reviewUsage: input.evaluation.reviewResult?.usage ?? null,
@@ -4393,6 +4409,7 @@ async function persistLoopGateResult(input: {
                 attemptNumber: input.evaluation.budget.attemptNumber + 1,
                 previousAttemptUUID: input.task.uuid,
                 previousCandidate: input.report.executeResult,
+                runtimeErrors: input.evaluation.failureDetails.runtimeErrors,
                 deterministicValidation:
                   input.evaluation.deterministicValidation,
                 aiReview: input.evaluation.reviewResult?.review ?? null
@@ -4419,7 +4436,7 @@ async function persistLoopGateResult(input: {
         agentName: input.task.agentName,
         budget: input.evaluation.budget,
         summary: input.evaluation.summary,
-        findings: input.evaluation.findings
+        failureDetails: input.evaluation.failureDetails
       }),
       'revision',
       input.onesContext
@@ -4449,7 +4466,7 @@ async function persistLoopGateResult(input: {
       agentName: input.task.agentName,
       budget: input.evaluation.budget,
       summary: input.evaluation.summary,
-      findings: input.evaluation.findings
+      failureDetails: input.evaluation.failureDetails
     });
     loopLifecycleCommentStatus = await maybeSendLoopLifecycleComment(
       input.task,
@@ -4553,6 +4570,7 @@ async function applyTaskReport(
   let loopEvaluationToPersist: Record<string, unknown> | null = null;
   let passedLoopEvaluation: LoopGateEvaluation | null = null;
   const loopEligible =
+    shouldEvaluateLoopGate(report.status) &&
     runtimeAgentConfig !== null &&
     workflowNode.loopPolicy.enabled &&
     isLoopPolicyRuntimeEligible({
@@ -4576,6 +4594,7 @@ async function applyTaskReport(
     });
     loopEvaluationToPersist = {
       decision: evaluation.decision,
+      failureDetails: evaluation.failureDetails,
       deterministicValidation: evaluation.deterministicValidation,
       aiReview: evaluation.reviewResult?.review ?? null,
       reviewUsage: evaluation.reviewResult?.usage ?? null,

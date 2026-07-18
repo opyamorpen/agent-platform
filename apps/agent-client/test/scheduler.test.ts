@@ -395,6 +395,44 @@ test('Scheduler discards only the rejected task when report returns non-retryabl
   ]);
 });
 
+test('Scheduler keeps a running task when a progress report is rejected', async () => {
+  const events: string[] = [];
+  const scheduler = new Scheduler(
+    createAuthStub(),
+    createTaskStoreStub({
+      getLatestReports() {
+        return [
+          {
+            taskUUID: 'task-running',
+            status: 'running',
+            logs: 'still running',
+            executeResult: '',
+            startedAt: '2025-01-01T00:00:00.000Z',
+            finishedAt: null
+          }
+        ];
+      },
+      removeTasks(taskUUIDs) {
+        events.push(`remove:${taskUUIDs.join(',')}`);
+      }
+    }),
+    createTaskServerStub({
+      async reportTasks({ tasks }) {
+        events.push(`report:${tasks[0]?.taskUUID}`);
+        throw new TaskServerReportError('invalid running report');
+      }
+    }),
+    createWorkspaceStub(),
+    createSkillStub(),
+    createCodexHomeStub()
+  );
+
+  await scheduler.reloadPromise;
+  await (scheduler as SchedulerWithInternals).flushLatestReports();
+
+  assert.deepEqual(events, ['report:task-running']);
+});
+
 type SchedulerWithInternals = Scheduler & {
   claimNewTasks(): Promise<void>;
   flushLatestReports(): Promise<void>;

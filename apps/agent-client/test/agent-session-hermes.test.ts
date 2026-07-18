@@ -73,7 +73,7 @@ test('HermesAgentSession runs official oneshot CLI without placing a large promp
     assert.ok(capturedArguments.includes('--usage-file'));
     assert.ok(capturedArguments.includes('deepseek-v4-flash'));
     assert.ok(capturedArguments.includes('deepseek'));
-    assert.ok(capturedArguments.includes('terminal,filesystem'));
+    assert.ok(capturedArguments.includes('terminal,file'));
     assert.ok(prompt.includes(taskPrompt));
     assert.ok(prompt.includes('<task-skill name="review-skill"'));
     assert.ok(prompt.includes(`${skillRoot}/references/checklist.md`));

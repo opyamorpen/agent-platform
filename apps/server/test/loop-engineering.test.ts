@@ -156,11 +156,18 @@ test('loop revision and completion comments explain automatic attempts', () => {
     agentName: '需求方案设计',
     budget,
     summary: '风险和验收标准不完整。',
-    findings: ['缺少风险说明', '缺少异常验收项']
+    failureDetails: {
+      runtimeErrors: [],
+      deterministicErrors: ['输出字段 UUID 无效'],
+      acceptanceFindings: ['缺少风险说明', '缺少异常验收项']
+    }
   });
   assert.match(revisionComment, /^\[AI自动修正\]/u);
   assert.match(revisionComment, /系统已开始第2次尝试/u);
   assert.match(revisionComment, /缺少风险说明/u);
+  assert.match(revisionComment, /确定性校验错误：/u);
+  assert.match(revisionComment, /验收标准未通过：/u);
+  assert.doesNotMatch(revisionComment, /未通过项：/u);
   assert.match(revisionComment, /剩余预算：2 次尝试/u);
 
   const completionComment = buildLoopCompletionComment({

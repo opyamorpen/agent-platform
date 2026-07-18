@@ -63,6 +63,12 @@ export interface LoopReviewResult {
   };
 }
 
+export interface LoopFailureDetails {
+  runtimeErrors: string[];
+  deterministicErrors: string[];
+  acceptanceFindings: string[];
+}
+
 export function decideLoopGate(input: {
   deterministicPassed: boolean;
   forceEscalation: boolean;
@@ -287,6 +293,7 @@ export function buildLoopContextXml(value: unknown): string {
     `  <attempt-number>${escapeXmlText(String(record.attemptNumber ?? ''))}</attempt-number>`,
     `  <previous-attempt-uuid>${escapeXmlText(String(record.previousAttemptUUID ?? ''))}</previous-attempt-uuid>`,
     `  <previous-candidate>${wrapXmlCdata(truncate(stringify(record.previousCandidate), MAX_LOOP_CONTEXT_CHARS))}</previous-candidate>`,
+    `  <runtime-errors>${wrapXmlCdata(truncate(stringify(record.runtimeErrors ?? []), 8_000))}</runtime-errors>`,
     `  <deterministic-validation>${wrapXmlCdata(truncate(stringify(record.deterministicValidation), 8_000))}</deterministic-validation>`,
     `  <ai-review>${wrapXmlCdata(truncate(stringify(record.aiReview), 8_000))}</ai-review>`,
     '</loop-context>'
@@ -297,19 +304,13 @@ export function buildLoopEscalationComment(input: {
   agentName: string;
   budget: LoopBudgetSnapshot;
   summary: string;
-  findings: string[];
+  failureDetails: LoopFailureDetails;
 }): string {
   return [
     `[AI循环升级][${input.agentName}][第${input.budget.attemptNumber}次尝试]`,
     '',
     input.summary.trim() || '自动修正循环需要人工接管。',
-    ...(input.findings.length > 0
-      ? [
-          '',
-          '待处理问题：',
-          ...input.findings.slice(0, 8).map((item) => `- ${item}`)
-        ]
-      : []),
+    ...buildFailureDetailSections(input.failureDetails, 8),
     '',
     `预算：${input.budget.attemptNumber}/${input.budget.maxAttempts} 次，${Math.ceil(input.budget.elapsedMinutes)}/${input.budget.maxDurationMinutes} 分钟，Token ${input.budget.totalTokens ?? '未知'}/${input.budget.maxTotalTokens}`
   ]
@@ -321,29 +322,59 @@ export function buildLoopRevisionComment(input: {
   agentName: string;
   budget: LoopBudgetSnapshot;
   summary: string;
-  findings: string[];
+  failureDetails: LoopFailureDetails;
 }): string {
   const currentAttempt = input.budget.attemptNumber;
   const nextAttempt = currentAttempt + 1;
   const summary = normalizeCommentLine(input.summary);
-  const findings = input.findings
-    .map(normalizeCommentLine)
-    .filter(Boolean)
-    .slice(0, 5);
-
   return [
     `[AI自动修正][${normalizeAgentName(input.agentName)}][第${currentAttempt}次尝试未通过]`,
     '',
     summary || `第${currentAttempt}次候选结果未通过自动验收。`,
     `系统已开始第${nextAttempt}次尝试，无需人工操作。`,
-    ...(findings.length > 0
-      ? ['', '未通过项：', ...findings.map((finding) => `- ${finding}`)]
-      : []),
+    ...buildFailureDetailSections(input.failureDetails, 5),
     '',
     `剩余预算：${input.budget.remainingAttempts} 次尝试，${Math.ceil(input.budget.remainingMinutes)} 分钟，Token ${input.budget.remainingTokens ?? '未知'}`
   ]
     .join('\n')
     .slice(0, MAX_LOOP_COMMENT_CHARS);
+}
+
+function buildFailureDetailSections(
+  details: LoopFailureDetails,
+  maxItemsPerSection: number
+): string[] {
+  return [
+    ...buildFailureDetailSection(
+      '运行错误：',
+      details.runtimeErrors,
+      maxItemsPerSection
+    ),
+    ...buildFailureDetailSection(
+      '确定性校验错误：',
+      details.deterministicErrors,
+      maxItemsPerSection
+    ),
+    ...buildFailureDetailSection(
+      '验收标准未通过：',
+      details.acceptanceFindings,
+      maxItemsPerSection
+    )
+  ];
+}
+
+function buildFailureDetailSection(
+  title: string,
+  values: string[],
+  maxItems: number
+): string[] {
+  const normalizedValues = values
+    .map(normalizeCommentLine)
+    .filter(Boolean)
+    .slice(0, maxItems);
+  return normalizedValues.length > 0
+    ? ['', title, ...normalizedValues.map((value) => `- ${value}`)]
+    : [];
 }
 
 export function buildLoopCompletionComment(input: {

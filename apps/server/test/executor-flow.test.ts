@@ -25,6 +25,7 @@ import {
   normalizeExecutePayloadValue,
   selectConfiguredPostActionWorkflow,
   selectNextDispatchableTask,
+  shouldEvaluateLoopGate,
   shouldSendRevisionSummaryComment,
   shouldSendTaskStartedComment,
   shouldBlockAfterConsecutiveFailures
@@ -105,6 +106,13 @@ test('buildListWorkflowIssuesQuery rejects empty workflow filters', () => {
     () => buildListWorkflowIssuesQuery(20, []),
     /At least one workflow issue filter is required/
   );
+});
+
+test('loop quality gate evaluates only terminal Agent Client reports', () => {
+  assert.equal(shouldEvaluateLoopGate('queued'), false);
+  assert.equal(shouldEvaluateLoopGate('running'), false);
+  assert.equal(shouldEvaluateLoopGate('success'), true);
+  assert.equal(shouldEvaluateLoopGate('failure'), true);
 });
 
 test('validateWorkflowNodeExecutorBindings accepts shared executor', () => {

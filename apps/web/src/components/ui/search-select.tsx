@@ -166,9 +166,7 @@ function SearchSelect({
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen)
 
-    if (!nextOpen) {
-      setInputValue(selectedOption?.label ?? "")
-    }
+    setInputValue(nextOpen ? "" : selectedOption?.label ?? "")
   }
 
   return (

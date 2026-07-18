@@ -359,7 +359,7 @@ export const zhCN = {
       empty: '暂无工作流数据',
       actions: {
         create: '新增工作流',
-        edit: '编辑',
+        edit: '重命名',
         configureNodes: '节点配置',
         delete: '删除',
         save: '保存',
@@ -378,7 +378,7 @@ export const zhCN = {
         actions: '操作'
       },
       dialog: {
-        editTitle: '编辑工作流名称',
+        editTitle: '重命名工作流',
         createTitle: '新增工作流',
         editDescription: '更新列表中的工作流展示名称，不影响已有执行节点配置。',
         createDescription: '创建一个工作流，后续再配置触发条件和执行节点。',
@@ -548,9 +548,9 @@ export const zhCN = {
         title: '验收策略',
         description: '自动修正循环会逐条检查这里定义的验收标准。',
         addCriterion: '添加标准',
-        knowledgeRequirement: '知识要求',
+        knowledgeRequirement: '知识依据要求',
         knowledgeOptional: '知识可选',
-        knowledgeRequired: '必须引用知识',
+        knowledgeRequired: '知识必需',
         empty: '尚未配置验收标准。未配置时不会启用自动修正循环。',
         namePlaceholder: '验收标准 {{index}}',
         descriptionPlaceholder: '描述可验证的通过条件和质量要求'

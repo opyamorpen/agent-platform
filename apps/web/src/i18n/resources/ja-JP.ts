@@ -411,7 +411,7 @@ export const jaJP = {
       empty: 'ワークフローデータがありません',
       actions: {
         create: '新しいワークフロー',
-        edit: '編集',
+        edit: '名前を変更',
         configureNodes: 'ノード設定',
         delete: '削除',
         save: '保存',
@@ -430,7 +430,7 @@ export const jaJP = {
         actions: 'アクション'
       },
       dialog: {
-        editTitle: 'ワークフロー名の編集',
+        editTitle: 'ワークフロー名を変更',
         createTitle: '新しいワークフロー',
         editDescription:
           '既存の実行ノード設定に影響を与えずに、リストに表示される表示名を更新します。',
@@ -614,9 +614,9 @@ export const jaJP = {
         title: '受入ポリシー',
         description: '自動修正ループは、ここで定義した各受入基準を確認します。',
         addCriterion: '基準を追加',
-        knowledgeRequirement: 'ナレッジ要件',
-        knowledgeOptional: 'ナレッジは任意',
-        knowledgeRequired: 'ナレッジ引用が必須',
+        knowledgeRequirement: 'ナレッジ根拠要件',
+        knowledgeOptional: 'ナレッジ根拠は任意',
+        knowledgeRequired: 'ナレッジ根拠が必須',
         empty:
           '受入基準が未設定です。この Agent では自動修正は有効になりません。',
         namePlaceholder: '受入基準 {{index}}',

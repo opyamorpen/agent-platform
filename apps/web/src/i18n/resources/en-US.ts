@@ -399,7 +399,7 @@ export const enUS = {
       empty: 'No workflow data',
       actions: {
         create: 'New workflow',
-        edit: 'Edit',
+        edit: 'Rename',
         configureNodes: 'Node settings',
         delete: 'Delete',
         save: 'Save',
@@ -418,7 +418,7 @@ export const enUS = {
         actions: 'Actions'
       },
       dialog: {
-        editTitle: 'Edit workflow name',
+        editTitle: 'Rename workflow',
         createTitle: 'New workflow',
         editDescription:
           'Update the display name shown in the list without affecting existing execution node settings.',
@@ -602,9 +602,9 @@ export const enUS = {
         description:
           'The automatic correction loop checks every acceptance criterion defined here.',
         addCriterion: 'Add criterion',
-        knowledgeRequirement: 'Knowledge requirement',
-        knowledgeOptional: 'Knowledge optional',
-        knowledgeRequired: 'Knowledge citation required',
+        knowledgeRequirement: 'Knowledge grounding requirement',
+        knowledgeOptional: 'Knowledge grounding optional',
+        knowledgeRequired: 'Knowledge grounding required',
         empty:
           'No acceptance criteria configured. Automatic correction remains disabled for this agent.',
         namePlaceholder: 'Acceptance criterion {{index}}',

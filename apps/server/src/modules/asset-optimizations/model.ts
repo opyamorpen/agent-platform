@@ -127,6 +127,13 @@ export async function generateAssetCandidates(input: {
     description: string;
     spaceName: string;
   }>;
+  experiencePatterns: Array<{
+    type: string;
+    title: string;
+    repairStrategy: string;
+    evidenceCount: number;
+    confidence: number;
+  }>;
   samples: unknown[];
 }): Promise<{ analysis: string; candidates: GeneratedAssetCandidate[] }> {
   const context = JSON.stringify(input, null, 2);

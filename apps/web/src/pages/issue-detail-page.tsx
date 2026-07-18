@@ -7,7 +7,9 @@ import type {
   AgentClientVerificationProfileResult,
   AgentClientWorkspacePatchUpload,
   IssueAgentExecutionHistory,
-  IssueExecutionHistory
+  IssueExecutionHistory,
+  LoopTrace,
+  ExecutionFeedback
 } from '@ones-ai-workflow/shared';
 import { getApiErrorMessage, getErrorMessage } from '@/lib/api-error';
 import {
@@ -38,12 +40,14 @@ import {
 } from '@/components/ui/table';
 import { formatDateTime } from '@/lib/date-time';
 import { DEFAULT_LOCALE, resolveLocale } from '@/lib/locale';
-import { useHeaderActions } from '@/layouts/app-layout';
+import { useHeaderActions, useTeamContext } from '@/layouts/app-layout';
 import {
   CheckCircle2Icon,
   DownloadIcon,
   FileTextIcon,
   RotateCcwIcon,
+  GitBranchIcon,
+  BanIcon,
   XCircleIcon
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -60,6 +64,8 @@ type AgentExecutionLogsResponse =
   | ApiSuccess<IssueAgentExecutionHistory>
   | ApiError;
 type AgentExecutionRawView = 'input' | 'output';
+type LoopTraceResponse = ApiSuccess<LoopTrace> | ApiError;
+type ExecutionFeedbackResponse = ApiSuccess<ExecutionFeedback[]> | ApiError;
 
 function getAgentExecutionStatusMeta(
   status: IssueExecutionHistory['agentExecutions'][number]['status'],
@@ -123,6 +129,7 @@ export function IssueDetailPage() {
     resolveLocale(i18n.resolvedLanguage ?? i18n.language) ?? DEFAULT_LOCALE;
   const { uuid } = useParams<{ uuid: string }>();
   const { setActions, setTitle } = useHeaderActions();
+  const { isAdmin } = useTeamContext();
   const [issue, setIssue] = useState<DispatchedIssue | null>(null);
   const [histories, setHistories] = useState<IssueExecutionHistory[]>([]);
   const [selectedAgentExecutionLogs, setSelectedAgentExecutionLogs] = useState<
@@ -140,6 +147,11 @@ export function IssueDetailPage() {
   const [pendingRetryAgentExecution, setPendingRetryAgentExecution] = useState<
     IssueExecutionHistory['agentExecutions'][number] | null
   >(null);
+  const [selectedTrace, setSelectedTrace] = useState<LoopTrace | null>(null);
+  const [selectedTraceFeedback, setSelectedTraceFeedback] = useState<
+    ExecutionFeedback[]
+  >([]);
+  const [isLoadingTrace, setIsLoadingTrace] = useState(false);
   const [selectedVerificationExecution, setSelectedVerificationExecution] =
     useState<IssueAgentExecutionHistory | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -345,6 +357,62 @@ export function IssueDetailPage() {
     }
   }
 
+  async function openLoopTrace(historyUUID: string) {
+    setIsLoadingTrace(true);
+    try {
+      const [traceResponse, feedbackResponse] = await Promise.all([
+        fetch(`/api/executions/histories/${historyUUID}/trace`),
+        fetch(`/api/executions/histories/${historyUUID}/feedback`)
+      ]);
+      const [tracePayload, feedbackPayload] = (await Promise.all([
+        traceResponse.json(),
+        feedbackResponse.json()
+      ])) as [LoopTraceResponse, ExecutionFeedbackResponse];
+      if (!traceResponse.ok || !tracePayload.success) {
+        throw new Error(t('pages.issueDetail.trace.loadFailed'));
+      }
+      setSelectedTrace(tracePayload.data);
+      setSelectedTraceFeedback(
+        feedbackResponse.ok && feedbackPayload.success
+          ? feedbackPayload.data
+          : []
+      );
+    } catch (error) {
+      toast.error(
+        getErrorMessage(error, t, 'pages.issueDetail.trace.loadFailed')
+      );
+    } finally {
+      setIsLoadingTrace(false);
+    }
+  }
+
+  async function cancelSelectedTrace() {
+    if (!selectedTrace) return;
+    try {
+      const response = await fetch(
+        `/api/executions/histories/${selectedTrace.issueExecutionUUID}/cancel`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reason: t('pages.issueDetail.trace.cancelReason')
+          })
+        }
+      );
+      const payload = (await response.json()) as LoopTraceResponse;
+      if (!response.ok || !payload.success) {
+        throw new Error(t('pages.issueDetail.trace.cancelFailed'));
+      }
+      setSelectedTrace(payload.data);
+      toast.success(t('pages.issueDetail.trace.cancelSuccess'));
+      await loadIssueDetail();
+    } catch (error) {
+      toast.error(
+        getErrorMessage(error, t, 'pages.issueDetail.trace.cancelFailed')
+      );
+    }
+  }
+
   function handleDownloadAgentExecutionLogs() {
     if (!selectedAgentExecutionLogs || !selectedAgentExecutionDetail) {
       return;
@@ -474,7 +542,7 @@ export function IssueDetailPage() {
       return history.agentExecutions.map((agentExecution, attemptIndex) => ({
         history,
         agentExecution,
-        attemptNumber: attemptIndex + 1,
+        attemptNumber: agentExecution.attemptNumber || attemptIndex + 1,
         canReset:
           latestAgentExecutionUUID === agentExecution.uuid &&
           (agentExecution.status === 'blocked' ||
@@ -602,6 +670,16 @@ export function IssueDetailPage() {
                                 variant="outline"
                                 size="sm"
                                 type="button"
+                                disabled={isLoadingTrace}
+                                onClick={() => void openLoopTrace(history.uuid)}
+                              >
+                                <GitBranchIcon />
+                                {t('pages.issueDetail.actions.viewTrace')}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                type="button"
                                 onClick={() =>
                                   openAgentExecutionLogs(agentExecution)
                                 }
@@ -620,7 +698,9 @@ export function IssueDetailPage() {
                                     )
                                   }
                                 >
-                                  {t('pages.issueDetail.actions.viewVerification')}
+                                  {t(
+                                    'pages.issueDetail.actions.viewVerification'
+                                  )}
                                 </Button>
                               ) : null}
                               {workspacePatch ? (
@@ -719,19 +799,39 @@ export function IssueDetailPage() {
                         <Table>
                           <TableHeader className="bg-muted">
                             <TableRow>
-                              <TableHead className="px-4">{t('pages.issueDetail.verificationDialog.step')}</TableHead>
-                              <TableHead>{t('pages.issueDetail.verificationDialog.status')}</TableHead>
-                              <TableHead>{t('pages.issueDetail.verificationDialog.duration')}</TableHead>
-                              <TableHead>{t('pages.issueDetail.verificationDialog.output')}</TableHead>
+                              <TableHead className="px-4">
+                                {t('pages.issueDetail.verificationDialog.step')}
+                              </TableHead>
+                              <TableHead>
+                                {t(
+                                  'pages.issueDetail.verificationDialog.status'
+                                )}
+                              </TableHead>
+                              <TableHead>
+                                {t(
+                                  'pages.issueDetail.verificationDialog.duration'
+                                )}
+                              </TableHead>
+                              <TableHead>
+                                {t(
+                                  'pages.issueDetail.verificationDialog.output'
+                                )}
+                              </TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {profile.steps.map((step) => (
                               <TableRow key={step.stepUUID}>
-                                <TableCell className="px-4 font-medium">{step.stepName}</TableCell>
+                                <TableCell className="px-4 font-medium">
+                                  {step.stepName}
+                                </TableCell>
                                 <TableCell>{step.status}</TableCell>
                                 <TableCell>{step.durationMs} ms</TableCell>
-                                <TableCell className="max-w-lg whitespace-pre-wrap font-mono text-xs">{step.stderr || step.stdout || t('common.fallback.emptyValue')}</TableCell>
+                                <TableCell className="max-w-lg whitespace-pre-wrap font-mono text-xs">
+                                  {step.stderr ||
+                                    step.stdout ||
+                                    t('common.fallback.emptyValue')}
+                                </TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
@@ -742,6 +842,200 @@ export function IssueDetailPage() {
                 )
               : null}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={selectedTrace !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedTrace(null);
+            setSelectedTraceFeedback([]);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t('pages.issueDetail.trace.title')}</DialogTitle>
+          </DialogHeader>
+          {selectedTrace ? (
+            <div className="space-y-5">
+              <div className="grid gap-3 border-y py-3 text-sm sm:grid-cols-4">
+                <div>
+                  <div className="text-xs text-muted-foreground">Trace</div>
+                  <div className="break-all font-mono text-xs">
+                    {selectedTrace.uuid}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">
+                    {t('pages.issueDetail.trace.iteration')}
+                  </div>
+                  <div>{selectedTrace.iteration}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">
+                    {t('pages.issueDetail.trace.attempts')}
+                  </div>
+                  <div>{selectedTrace.attempts.length}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">
+                    {t('pages.issueDetail.trace.feedback')}
+                  </div>
+                  <div>{selectedTrace.feedbackCount}</div>
+                </div>
+              </div>
+              {selectedTrace.blockReason ? (
+                <p className="border-l-2 border-destructive px-3 text-sm text-destructive">
+                  {selectedTrace.blockReason}
+                </p>
+              ) : null}
+              <div className="space-y-2">
+                {selectedTrace.attempts.map((attempt) => (
+                  <div key={attempt.uuid} className="border p-3 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium">
+                        {t('pages.issueDetail.table.attemptNumber', {
+                          count: attempt.attemptNumber
+                        })}
+                      </span>
+                      <Badge
+                        variant={
+                          attempt.status === 'success'
+                            ? 'default'
+                            : attempt.status === 'blocked' ||
+                                attempt.status === 'failure'
+                              ? 'destructive'
+                              : 'secondary'
+                        }
+                      >
+                        {t(`pages.issueDetail.status.${attempt.status}`)}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+                      <span>{attempt.executeClient?.name ?? '-'}</span>
+                      <span>
+                        {attempt.durationMs === null
+                          ? '-'
+                          : `${Math.round(attempt.durationMs / 1000)}s`}
+                      </span>
+                      <span>
+                        Token:{' '}
+                        {attempt.usage
+                          ? (attempt.usage.inputTokens ?? 0) +
+                            (attempt.usage.outputTokens ?? 0)
+                          : '-'}
+                      </span>
+                    </div>
+                    <div className="mt-2 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+                      <span>
+                        {t('pages.issueDetail.trace.modelDuration')}:{' '}
+                        {attempt.modelDurationMs === null
+                          ? '-'
+                          : `${attempt.modelDurationMs}ms`}
+                      </span>
+                      <span>
+                        {t('pages.issueDetail.trace.recoveredAt')}:{' '}
+                        {attempt.recoveredAt
+                          ? formatDateTime(attempt.recoveredAt, locale)
+                          : '-'}
+                      </span>
+                      <span className="break-all">
+                        {t('pages.issueDetail.trace.failureSignature')}:{' '}
+                        {attempt.failureSignature ?? '-'}
+                      </span>
+                    </div>
+                    {attempt.verification.length > 0 ? (
+                      <div className="mt-3">
+                        <div className="mb-1 text-xs font-medium">
+                          {t('pages.issueDetail.trace.verification')}
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {attempt.verification.map((verification) => (
+                            <Badge
+                              key={verification.profileUUID}
+                              variant={
+                                verification.status === 'passed'
+                                  ? 'default'
+                                  : 'destructive'
+                              }
+                            >
+                              {verification.profileName}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                    {attempt.writeTargets.length > 0 ? (
+                      <div className="mt-3">
+                        <div className="mb-1 text-xs font-medium">
+                          {t('pages.issueDetail.trace.writeTargets')}
+                        </div>
+                        <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                          {attempt.writeTargets.map((target) => (
+                            <li key={target}>{target}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {attempt.evaluation ? (
+                      <details className="mt-3 border-t pt-2">
+                        <summary className="cursor-pointer text-xs font-medium">
+                          {t('pages.issueDetail.trace.evaluation')}
+                        </summary>
+                        <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words bg-muted p-2 text-xs">
+                          {JSON.stringify(attempt.evaluation, null, 2)}
+                        </pre>
+                      </details>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+              {selectedTraceFeedback.length > 0 ? (
+                <section>
+                  <h3 className="mb-2 text-sm font-semibold">
+                    {t('pages.issueDetail.trace.feedback')}
+                  </h3>
+                  <div className="space-y-2">
+                    {selectedTraceFeedback.map((feedback) => (
+                      <div key={feedback.uuid} className="border p-3 text-sm">
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <Badge variant="outline">{feedback.status}</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {feedback.commentUUID ?? feedback.source}
+                          </span>
+                        </div>
+                        <p>{feedback.excerpt}</p>
+                        {feedback.resolution ? (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            {feedback.resolution}
+                          </p>
+                        ) : null}
+                        {feedback.writeTargets.length > 0 ? (
+                          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                            {feedback.writeTargets.map((target) => (
+                              <li key={target}>{target}</li>
+                            ))}
+                          </ul>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+              {isAdmin &&
+              ['created', 'executing'].includes(selectedTrace.status) ? (
+                <Button
+                  variant="destructive"
+                  onClick={() => void cancelSelectedTrace()}
+                >
+                  <BanIcon />
+                  {t('pages.issueDetail.trace.cancel')}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
 

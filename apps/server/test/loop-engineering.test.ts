@@ -7,6 +7,7 @@ import type {
 import {
   buildLoopCompletionComment,
   buildLoopContextXml,
+  buildLoopFailureSignature,
   buildLoopRevisionComment,
   buildNextLoopAttemptUUID,
   calculateLoopBudget,
@@ -16,6 +17,7 @@ import {
   isLoopLifecycleCommentText,
   isSameLoopLifecycleComment,
   isLoopPolicyRuntimeEligible,
+  hasRepeatedLoopFailure,
   localizeLoopDeterministicError
 } from '../src/modules/executions/loop-engineering.js';
 import type { IssueAgentExecutionHistoryRecord } from '../src/modules/executions/repository.js';
@@ -203,9 +205,7 @@ test('loop deterministic errors are localized without HTML-like XML tags', () =>
     'Agent 输出缺少必需的 outputs 根节点'
   );
   assert.equal(
-    localizeLoopDeterministicError(
-      'Missing <field-uuid> in <output> block'
-    ),
+    localizeLoopDeterministicError('Missing <field-uuid> in <output> block'),
     'Agent 输出的 output 节点缺少 field-uuid 子节点'
   );
   assert.equal(
@@ -244,6 +244,29 @@ test('loop lifecycle comment idempotency uses the stable attempt prefix', () => 
       '[AI自动修正完成][Agent][第2次尝试通过]'
     ),
     false
+  );
+});
+
+test('loop failure signatures are stable and repeated failures stop early', () => {
+  const signature = buildLoopFailureSignature({
+    runtimeErrors: [],
+    deterministicErrors: ['Unknown field A'],
+    acceptanceFindings: ['Missing risk section']
+  });
+  assert.equal(
+    signature,
+    buildLoopFailureSignature({
+      runtimeErrors: [],
+      deterministicErrors: ['Unknown field A'],
+      acceptanceFindings: ['Missing risk section']
+    })
+  );
+  assert.equal(
+    hasRepeatedLoopFailure({
+      currentSignature: signature,
+      attempts: [{ failureSignature: signature }, { failureSignature: null }]
+    }),
+    true
   );
 });
 

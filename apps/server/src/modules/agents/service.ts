@@ -41,6 +41,7 @@ import { findAgentClientByUUID } from '../agent-clients/repository.js';
 import { getAIModelConfigStatus } from '../ai-model-config/service.js';
 import type { RefObject } from '@ones-ai-workflow/shared';
 import { buildAgentPrompt } from './prompt-render.js';
+import { finalizePendingAgentReleases } from '../asset-effects/service.js';
 
 export class AgentNotFoundError extends Error {
   constructor(uuid: string) {
@@ -318,11 +319,7 @@ export async function saveAgentDraft(
     false
   );
 
-  const updatedAgent = await updateAgentDraftConfig(
-    uuid,
-    config,
-    teamUUID
-  );
+  const updatedAgent = await updateAgentDraftConfig(uuid, config, teamUUID);
 
   return {
     uuid: updatedAgent.uuid,
@@ -383,6 +380,12 @@ export async function publishAgentDraft(
     publishedConfig.knowledgeSourceUUIDs,
     teamUUID
   );
+  await finalizePendingAgentReleases({
+    teamUUID,
+    agentUUID: uuid,
+    publishedVersion: nextVersion,
+    userUUID: payload.createdBy ?? 'system'
+  });
 
   return {
     uuid,
@@ -594,9 +597,7 @@ async function resolveAgentExecutionTarget(
     };
   }
 
-  const client = await findAgentClientByUUID(
-    config.executionTarget.clientUUID
-  );
+  const client = await findAgentClientByUUID(config.executionTarget.clientUUID);
   if (!client || client.connectionStatus !== 'active') {
     throw new AgentExecutionTargetBindingError(
       `Agent Client is not active: ${config.executionTarget.clientUUID}`

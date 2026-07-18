@@ -18,6 +18,7 @@ export interface AIModelUsage {
 export interface AIStreamResult {
   content: string;
   usage: AIModelUsage;
+  durationMs: number;
 }
 
 export class AIModelRequestError extends Error {
@@ -94,7 +95,7 @@ export async function streamAIChatCompletion(input: {
         inputTokens: result.usage.inputTokens,
         outputTokens: result.usage.outputTokens
       });
-      return result;
+      return { ...result, durationMs: Date.now() - startedAt };
     } catch (error) {
       const normalized = normalizeRequestError(error);
       const canRetry = attempt === 0 && !emitted && normalized.retryable;
@@ -131,7 +132,8 @@ export async function completeAIChatCompletion(input: {
     | 'asset-optimization'
     | 'asset-optimization-repair'
     | 'asset-replay'
-    | 'asset-replay-repair';
+    | 'asset-replay-repair'
+    | 'asset-shadow-replay';
   messages: AIChatMessage[];
   signal?: AbortSignal;
   temperature?: number;
@@ -185,7 +187,7 @@ export async function completeAIChatCompletion(input: {
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens
       });
-      return { content, usage };
+      return { content, usage, durationMs: Date.now() - startedAt };
     } catch (error) {
       const normalized = normalizeRequestError(error);
       if (attempt === 0 && normalized.retryable && !input.signal?.aborted) {
@@ -254,7 +256,7 @@ async function fetchWithTimeout(
 async function consumeOpenAIStream(
   body: ReadableStream<Uint8Array>,
   onDelta: (delta: string) => Promise<void>
-): Promise<AIStreamResult> {
+): Promise<Omit<AIStreamResult, 'durationMs'>> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';

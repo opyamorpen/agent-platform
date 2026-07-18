@@ -3,6 +3,7 @@ import { listInstallationSecrets } from '../../lib/app-auth.js';
 import { getLogger } from '../../lib/logger.js';
 import { listWorkflowTeamUUIDs } from '../workflows/repository.js';
 import { pollWorkflowIssueExecutionsOnce } from './service.js';
+import { recoverExpiredTaskLeases } from '../agent-clients/service.js';
 
 let isRunning = false;
 let timer: NodeJS.Timeout | null = null;
@@ -39,6 +40,13 @@ async function runPollCycle() {
       logger.info('[workflow-execution] polling team workflows', {
         teamUUID
       });
+      const leaseResult = await recoverExpiredTaskLeases(teamUUID);
+      if (leaseResult.recovered > 0 || leaseResult.blocked > 0) {
+        logger.warn('[workflow-execution] expired task leases handled', {
+          teamUUID,
+          ...leaseResult
+        });
+      }
       await pollWorkflowIssueExecutionsOnce(teamUUID);
     }
   } catch (error) {

@@ -10,6 +10,8 @@ import {
   selectReplaySamples,
   shouldCreateAutomaticAssetOptimization
 } from '../src/modules/asset-optimizations/service.js';
+import { buildAssetEffectSnapshot } from '../src/modules/asset-effects/service.js';
+import { getShadowReplayUnsupportedReason } from '../src/modules/asset-optimizations/shadow-replay-service.js';
 
 test('asset optimization automatic thresholds trigger at 20 successes or 5 problems', () => {
   assert.equal(shouldCreateAutomaticAssetOptimization(19, 4), false);
@@ -59,5 +61,105 @@ test('candidate mutation DTOs parse optimistic revision timestamps', () => {
   assert.equal(
     dismiss.expectedUpdatedAt.toISOString(),
     '2026-07-18T00:00:00.000Z'
+  );
+});
+
+test('asset effects require real samples and detect negative outcomes', () => {
+  const baseline = {
+    metrics: {
+      totalSamples: 20,
+      successCount: 18,
+      failureCount: 1,
+      blockedCount: 1,
+      problemCount: 2,
+      retryCount: 1,
+      averageAttempts: 1.1,
+      totalTokens: 10_000,
+      replaySampleCount: 5
+    },
+    outcomes: {
+      revisionRate: 0.2,
+      knowledgeHitRate: 0.8,
+      wikiWriteSuccessRate: 0.9,
+      acceptancePassRate: 0.85
+    }
+  };
+  assert.equal(
+    buildAssetEffectSnapshot(
+      'release-1',
+      baseline,
+      {
+        totalSamples: 4,
+        successCount: 4,
+        blockedCount: 0,
+        averageAttempts: 1,
+        totalTokens: 2_000
+      },
+      {
+        revisionRate: 0,
+        knowledgeHitRate: 1,
+        wikiWriteSuccessRate: 1,
+        acceptancePassRate: 1
+      }
+    ).verdict,
+    'insufficient_samples'
+  );
+  assert.equal(
+    buildAssetEffectSnapshot(
+      'release-1',
+      baseline,
+      {
+        totalSamples: 10,
+        successCount: 6,
+        blockedCount: 2,
+        averageAttempts: 1.5,
+        totalTokens: 8_000
+      },
+      {
+        revisionRate: 0.4,
+        knowledgeHitRate: 0.5,
+        wikiWriteSuccessRate: 0.6,
+        acceptancePassRate: 0.5
+      }
+    ).verdict,
+    'negative'
+  );
+});
+
+test('shadow replay rejects code workspaces and Agent Client execution', () => {
+  const baseConfig = {
+    description: '',
+    prompt: '',
+    inputs: [],
+    outputs: [],
+    knowledgeSourceUUIDs: [],
+    acceptancePolicy: {
+      criteria: [],
+      knowledgeRequirement: 'optional' as const,
+      verificationProfileUUIDs: []
+    },
+    executionTarget: { mode: 'organization_model' as const }
+  };
+  assert.match(
+    getShadowReplayUnsupportedReason('workspace-1', baseConfig, {
+      type: 'prompt',
+      prompt: 'test'
+    }) ?? '',
+    /Code workspace/u
+  );
+  assert.match(
+    getShadowReplayUnsupportedReason(
+      null,
+      {
+        ...baseConfig,
+        executionTarget: {
+          mode: 'agent_client' as const,
+          clientUUID: null,
+          clientName: null
+        }
+      },
+      { type: 'prompt', prompt: 'test' }
+    ) ?? '',
+    /Agent Client/u
   );
 });

@@ -2,7 +2,7 @@
   "app": {
     "id": "app_onesaiworkflow01",
     "name": "ones-ai-workflow",
-    "version": "v0.3.4",
+    "version": "v0.4.2",
     "desc": "ONES hosted AI workflow management app with external agent workers.",
     "auth": {
       "type": "jwt"
@@ -74,6 +74,8 @@
             },
             "sample_count": { "type": "integer", "required": true },
             "success_count": { "type": "integer", "required": true },
+            "failure_count": { "type": "integer", "required": true },
+            "blocked_count": { "type": "integer", "required": true },
             "problem_count": { "type": "integer", "required": true },
             "retry_count": { "type": "integer", "required": true },
             "average_attempts": { "type": "float", "required": true },
@@ -136,6 +138,196 @@
             { "name": "idx_team_uuid", "range_attribute": "team_uuid" },
             { "name": "idx_run_uuid", "range_attribute": "run_uuid" },
             { "name": "idx_target_uuid", "range_attribute": "target_uuid" }
+          ]
+        },
+        {
+          "name": "execution_feedback",
+          "attributes": {
+            "team_uuid": { "type": "string", "length": 36, "required": true },
+            "uuid": { "type": "string", "length": 36, "required": true },
+            "issue_execution_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "loop_trace_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "dispatched_issue_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "iteration": { "type": "integer", "required": true },
+            "comment_uuid": {
+              "type": "string",
+              "length": 64,
+              "required": true
+            },
+            "source": { "type": "string", "length": 32, "required": true },
+            "status": { "type": "string", "length": 32, "required": true },
+            "excerpt": { "type": "string", "length": 512, "required": true },
+            "content_hash": {
+              "type": "string",
+              "length": 64,
+              "required": true
+            },
+            "detail_object_key": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "created_at": { "type": "integer", "required": true },
+            "updated_at": { "type": "integer", "required": true }
+          },
+          "indexes": [
+            { "name": "idx_team_uuid", "range_attribute": "team_uuid" },
+            {
+              "name": "idx_issue_execution_uuid",
+              "range_attribute": "issue_execution_uuid"
+            },
+            {
+              "name": "idx_loop_trace_uuid",
+              "range_attribute": "loop_trace_uuid"
+            },
+            { "name": "idx_content_hash", "range_attribute": "content_hash" }
+          ]
+        },
+        {
+          "name": "shadow_replay_run",
+          "attributes": {
+            "team_uuid": { "type": "string", "length": 36, "required": true },
+            "uuid": { "type": "string", "length": 36, "required": true },
+            "candidate_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "agent_uuid": { "type": "string", "length": 36, "required": true },
+            "agent_name": { "type": "string", "length": 256, "required": true },
+            "agent_version": { "type": "integer", "required": true },
+            "status": { "type": "string", "length": 32, "required": true },
+            "sample_count": { "type": "integer", "required": true },
+            "passed_count": { "type": "integer", "required": true },
+            "total_tokens": { "type": "integer", "required": true },
+            "tokens_known": { "type": "boolean", "required": true },
+            "results_object_key": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "error_message": {
+              "type": "string",
+              "length": 512,
+              "required": true
+            },
+            "created_by": { "type": "string", "length": 36, "required": true },
+            "created_at": { "type": "integer", "required": true },
+            "completed_at": { "type": "integer", "required": true }
+          },
+          "indexes": [
+            { "name": "idx_team_uuid", "range_attribute": "team_uuid" },
+            {
+              "name": "idx_candidate_uuid",
+              "range_attribute": "candidate_uuid"
+            },
+            { "name": "idx_agent_uuid", "range_attribute": "agent_uuid" }
+          ]
+        },
+        {
+          "name": "experience_pattern",
+          "attributes": {
+            "team_uuid": { "type": "string", "length": 36, "required": true },
+            "uuid": { "type": "string", "length": 36, "required": true },
+            "pattern_key": { "type": "string", "length": 64, "required": true },
+            "type": { "type": "string", "length": 32, "required": true },
+            "agent_uuid": { "type": "string", "length": 36, "required": true },
+            "agent_name": { "type": "string", "length": 256, "required": true },
+            "workflow_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "workflow_name": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "issue_type_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "detail_object_key": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "evidence_count": { "type": "integer", "required": true },
+            "success_count": { "type": "integer", "required": true },
+            "confidence": { "type": "float", "required": true },
+            "prompt_enabled": { "type": "boolean", "required": true },
+            "candidate_enabled": { "type": "boolean", "required": true },
+            "runtime_enabled": { "type": "boolean", "required": true },
+            "first_seen_at": { "type": "integer", "required": true },
+            "last_seen_at": { "type": "integer", "required": true },
+            "expires_at": { "type": "integer", "required": true }
+          },
+          "indexes": [
+            { "name": "idx_team_uuid", "range_attribute": "team_uuid" },
+            { "name": "idx_agent_uuid", "range_attribute": "agent_uuid" },
+            { "name": "idx_pattern_key", "range_attribute": "pattern_key" }
+          ]
+        },
+        {
+          "name": "asset_release",
+          "attributes": {
+            "team_uuid": { "type": "string", "length": 36, "required": true },
+            "uuid": { "type": "string", "length": 36, "required": true },
+            "candidate_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "agent_uuid": { "type": "string", "length": 36, "required": true },
+            "asset_type": { "type": "string", "length": 16, "required": true },
+            "asset_uuid": { "type": "string", "length": 36, "required": true },
+            "base_version": { "type": "integer", "required": true },
+            "published_version": { "type": "integer", "required": true },
+            "status": { "type": "string", "length": 32, "required": true },
+            "baseline_object_key": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "effect_object_key": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "rollback_object_key": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
+            "published_by": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "published_at": { "type": "integer", "required": true },
+            "created_at": { "type": "integer", "required": true },
+            "updated_at": { "type": "integer", "required": true }
+          },
+          "indexes": [
+            { "name": "idx_team_uuid", "range_attribute": "team_uuid" },
+            {
+              "name": "idx_candidate_uuid",
+              "range_attribute": "candidate_uuid"
+            },
+            { "name": "idx_agent_uuid", "range_attribute": "agent_uuid" }
           ]
         },
         {
@@ -1155,6 +1347,20 @@
               "length": 256,
               "required": true
             },
+            "loop_trace_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "cancel_requested_at": {
+              "type": "integer",
+              "required": true
+            },
+            "cancel_reason": {
+              "type": "string",
+              "length": 256,
+              "required": true
+            },
             "current_agent_uuid": {
               "type": "string",
               "length": 36,
@@ -1276,6 +1482,32 @@
             "execute_client_name": {
               "type": "string",
               "length": 256,
+              "required": true
+            },
+            "attempt_number": {
+              "type": "integer",
+              "required": true
+            },
+            "previous_attempt_uuid": {
+              "type": "string",
+              "length": 36,
+              "required": true
+            },
+            "lease_expires_at": {
+              "type": "integer",
+              "required": true
+            },
+            "recovered_at": {
+              "type": "integer",
+              "required": true
+            },
+            "cancel_requested_at": {
+              "type": "integer",
+              "required": true
+            },
+            "failure_signature": {
+              "type": "string",
+              "length": 128,
               "required": true
             },
             "queued_at": {

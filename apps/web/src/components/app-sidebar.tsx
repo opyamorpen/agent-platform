@@ -22,7 +22,8 @@ import {
   BookOpenIcon,
   Repeat2Icon,
   ShieldCheckIcon,
-  ChartNoAxesCombinedIcon
+  ChartNoAxesCombinedIcon,
+  BrainCircuitIcon
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -74,6 +75,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         name: t('navigation.items.assetOptimizations'),
         url: '/settings/asset-optimizations',
         icon: <ChartNoAxesCombinedIcon />
+      },
+      {
+        name: t('navigation.items.experiencePatterns'),
+        url: '/settings/experience-patterns',
+        icon: <BrainCircuitIcon />
       },
       {
         name: t('navigation.items.workspaceVerificationProfiles'),

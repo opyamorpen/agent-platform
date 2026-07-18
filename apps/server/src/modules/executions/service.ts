@@ -5,6 +5,7 @@ import type {
   IssueAgentExecutionHistory,
   IssueExecutionHistory,
   IssueExecutionStatus,
+  LoopTrace,
   RefObject
 } from '@ones-ai-workflow/shared';
 import { getLogger } from '../../lib/logger.js';
@@ -44,6 +45,11 @@ import {
   upsertDispatchedIssue
 } from './repository.js';
 import {
+  listExecutionFeedbackByExecution,
+  listExecutionFeedbackByTrace
+} from './feedback-repository.js';
+import { removeAgentClientTaskAttachments } from '../agent-clients/attachment-staging.js';
+import {
   listAllWorkflowNodes,
   listWorkflows
 } from '../workflows/repository.js';
@@ -76,6 +82,13 @@ export class IssueAgentExecutionHistoryRetryNotAllowedError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'IssueAgentExecutionHistoryRetryNotAllowedError';
+  }
+}
+
+export class IssueExecutionCancelNotAllowedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'IssueExecutionCancelNotAllowedError';
   }
 }
 
@@ -310,6 +323,11 @@ function toIssueAgentExecutionHistorySummary(
             name: agentExecution.executeClientName
           }
         : null,
+    attemptNumber: agentExecution.attemptNumber,
+    previousAttemptUUID: agentExecution.previousAttemptUUID,
+    failureSignature: agentExecution.failureSignature,
+    leaseExpiresAt: agentExecution.leaseExpiresAt?.toISOString() ?? null,
+    recoveredAt: agentExecution.recoveredAt?.toISOString() ?? null,
     createdAt: agentExecution.createdAt.toISOString(),
     startedAt: agentExecution.startedAt?.toISOString() ?? null,
     finishedAt: agentExecution.finishedAt?.toISOString() ?? null
@@ -344,6 +362,10 @@ function toIssueExecutionHistorySummary(
     iteration: record.iteration,
     triggerReason: record.triggerReason,
     previousExecutionUUID: record.previousExecutionUUID,
+    loopTraceUUID: record.loopTraceUUID,
+    blockReason: record.blockReason,
+    cancelRequestedAt: record.cancelRequestedAt?.toISOString() ?? null,
+    cancelReason: record.cancelReason,
     createdAt: record.createdAt.toISOString(),
     currentAgentUUID: record.currentAgentUUID,
     startedAt: record.startedAt?.toISOString() ?? null,
@@ -587,6 +609,211 @@ export async function getIssueExecutionHistory(
   return toIssueExecutionHistory(issueExecutionHistory);
 }
 
+function getLoopEvaluation(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const evaluation = (value as { loopEvaluation?: unknown }).loopEvaluation;
+  return evaluation &&
+    typeof evaluation === 'object' &&
+    !Array.isArray(evaluation)
+    ? (evaluation as Record<string, unknown>)
+    : null;
+}
+
+function getAttemptModelDuration(value: unknown): number | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const duration = (value as { modelDurationMs?: unknown }).modelDurationMs;
+  return typeof duration === 'number' && Number.isFinite(duration)
+    ? duration
+    : null;
+}
+
+function getAttemptVerification(
+  value: unknown
+): LoopTrace['attempts'][number]['verification'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+  const results = (value as { verificationResults?: unknown })
+    .verificationResults;
+  if (!Array.isArray(results)) return [];
+  return results.flatMap((result) => {
+    if (!result || typeof result !== 'object' || Array.isArray(result))
+      return [];
+    const record = result as Record<string, unknown>;
+    if (
+      typeof record.profileUUID !== 'string' ||
+      typeof record.profileName !== 'string' ||
+      (record.status !== 'passed' && record.status !== 'failed')
+    ) {
+      return [];
+    }
+    return [
+      {
+        profileUUID: record.profileUUID,
+        profileName: record.profileName,
+        status: record.status
+      }
+    ];
+  });
+}
+
+function getAttemptWriteTargets(value: unknown): string[] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+  const values = (value as { writeTargets?: unknown }).writeTargets;
+  return Array.isArray(values)
+    ? values.filter((item): item is string => typeof item === 'string')
+    : [];
+}
+
+export async function getIssueExecutionLoopTrace(
+  uuid: string,
+  teamUUID: string
+): Promise<LoopTrace> {
+  const execution = await findIssueExecutionHistoryByUUID(uuid, teamUUID);
+  if (!execution) throw new IssueExecutionHistoryNotFoundError(uuid);
+  const feedback = await listExecutionFeedbackByTrace(
+    execution.loopTraceUUID,
+    teamUUID
+  );
+  return {
+    uuid: execution.loopTraceUUID,
+    issueExecutionUUID: execution.uuid,
+    dispatchedIssueUUID: execution.dispatchedIssueUUID,
+    workflow: { uuid: execution.workflowUUID, name: execution.workflowName },
+    workflowNode: {
+      uuid: execution.workflowNodeUUID,
+      name: execution.workflowNodeName
+    },
+    iteration: execution.iteration,
+    triggerReason: execution.triggerReason,
+    status: execution.status as LoopTrace['status'],
+    blockReason: execution.blockReason,
+    cancelRequestedAt: execution.cancelRequestedAt?.toISOString() ?? null,
+    cancelReason: execution.cancelReason,
+    attempts: execution.agentExecutions.map((attempt, index) => ({
+      uuid: attempt.uuid,
+      attemptNumber: attempt.attemptNumber || index + 1,
+      previousAttemptUUID: attempt.previousAttemptUUID,
+      status: attempt.status as LoopTrace['attempts'][number]['status'],
+      executor:
+        attempt.executorUUID && attempt.executorName
+          ? { uuid: attempt.executorUUID, name: attempt.executorName }
+          : null,
+      executeClient:
+        attempt.executeClientUUID && attempt.executeClientName
+          ? {
+              uuid: attempt.executeClientUUID,
+              name: attempt.executeClientName
+            }
+          : null,
+      failureSignature: attempt.failureSignature,
+      leaseExpiresAt: attempt.leaseExpiresAt?.toISOString() ?? null,
+      recoveredAt: attempt.recoveredAt?.toISOString() ?? null,
+      startedAt: attempt.startedAt?.toISOString() ?? null,
+      finishedAt: attempt.finishedAt?.toISOString() ?? null,
+      durationMs:
+        attempt.startedAt && attempt.finishedAt
+          ? Math.max(
+              0,
+              attempt.finishedAt.getTime() - attempt.startedAt.getTime()
+            )
+          : null,
+      modelDurationMs: getAttemptModelDuration(attempt.executeResult),
+      usage: {
+        inputTokens: attempt.usageInputTokens,
+        outputTokens: attempt.usageOutputTokens
+      },
+      evaluation: getLoopEvaluation(attempt.executeResult),
+      verification: getAttemptVerification(attempt.executeResult),
+      writeTargets: getAttemptWriteTargets(attempt.executeResult)
+    })),
+    feedbackCount: feedback.length,
+    createdAt: execution.createdAt.toISOString(),
+    startedAt: execution.startedAt?.toISOString() ?? null,
+    finishedAt: execution.finishedAt?.toISOString() ?? null
+  };
+}
+
+export async function getIssueExecutionFeedback(
+  uuid: string,
+  teamUUID: string
+) {
+  const execution = await findIssueExecutionHistoryByUUID(uuid, teamUUID);
+  if (!execution) throw new IssueExecutionHistoryNotFoundError(uuid);
+  return listExecutionFeedbackByExecution(uuid, teamUUID);
+}
+
+export async function cancelIssueExecution(
+  uuid: string,
+  reason: string,
+  teamUUID: string
+): Promise<LoopTrace> {
+  const execution = await findIssueExecutionHistoryByUUID(uuid, teamUUID);
+  if (!execution) throw new IssueExecutionHistoryNotFoundError(uuid);
+  if (!['created', 'executing'].includes(execution.status)) {
+    throw new IssueExecutionCancelNotAllowedError(
+      `Issue execution "${uuid}" cannot be cancelled from status "${execution.status}"`
+    );
+  }
+  const now = new Date();
+  await Promise.all(
+    execution.agentExecutions
+      .filter((attempt) =>
+        ['created', 'queued', 'running'].includes(attempt.status)
+      )
+      .map(async (attempt) => {
+        let resourceReleaseLog = '[system] staged resources released';
+        try {
+          await removeAgentClientTaskAttachments(attempt.uuid);
+        } catch (error) {
+          resourceReleaseLog = `[system] staged resource release failed: ${error instanceof Error ? error.message : String(error)}`;
+        }
+        await updateIssueAgentExecutionHistory(
+          {
+            uuid: attempt.uuid,
+            status: 'blocked',
+            logs: `${attempt.logs}${attempt.logs ? '\n' : ''}[system] execution cancelled by administrator: ${reason}\n${resourceReleaseLog}`,
+            executeResult: toJsonObject(
+              typeof attempt.executeResult === 'object' &&
+                attempt.executeResult !== null &&
+                !Array.isArray(attempt.executeResult)
+                ? (attempt.executeResult as Record<string, unknown>)
+                : {}
+            ),
+            executeClientUUID: attempt.executeClientUUID,
+            executeClientName: attempt.executeClientName,
+            leaseExpiresAt: null,
+            cancelRequestedAt: now,
+            lastReportedAt: attempt.lastReportedAt,
+            startedAt: attempt.startedAt,
+            finishedAt: now
+          },
+          teamUUID
+        );
+      })
+  );
+  await updateIssueExecutionHistory(
+    {
+      uuid,
+      status: 'blocked',
+      currentAgentUUID: execution.currentAgentUUID,
+      blockReason: 'loop_cancelled',
+      cancelRequestedAt: now,
+      cancelReason: reason,
+      startedAt: execution.startedAt,
+      finishedAt: now
+    },
+    teamUUID
+  );
+  await updateDispatchedIssueLatestExecution(
+    {
+      uuid: execution.dispatchedIssueUUID,
+      latestExecutionUUID: execution.uuid,
+      latestExecutionStatus: 'blocked'
+    },
+    teamUUID
+  );
+  return getIssueExecutionLoopTrace(uuid, teamUUID);
+}
+
 export async function getIssueAgentExecutionHistory(
   uuid: string,
   teamUUID: string
@@ -709,7 +936,9 @@ export async function retryIssueAgentExecutionHistory(
         status: 'created',
         logs: '',
         executeClientUUID: null,
-        executeClientName: null
+        executeClientName: null,
+        attemptNumber: issueExecution.agentExecutions.length + 1,
+        previousAttemptUUID: agentExecution.uuid
       }
     ],
     teamUUID

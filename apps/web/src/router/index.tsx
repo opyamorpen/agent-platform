@@ -21,6 +21,7 @@ import { KnowledgeSourcesPage } from '@/pages/knowledge-sources-page';
 import { LoopRuntimeConfigPage } from '@/pages/loop-runtime-config-page';
 import { WorkspaceVerificationProfilesPage } from '@/pages/workspace-verification-profiles-page';
 import { AssetOptimizationsPage } from '@/pages/asset-optimizations-page';
+import { ExperiencePatternsPage } from '@/pages/experience-patterns-page';
 
 export const router = createHashRouter([
   {
@@ -112,6 +113,14 @@ export const router = createHashRouter([
         element: (
           <AdminRouteGuard>
             <AssetOptimizationsPage />
+          </AdminRouteGuard>
+        )
+      },
+      {
+        path: 'settings/experience-patterns',
+        element: (
+          <AdminRouteGuard>
+            <ExperiencePatternsPage />
           </AdminRouteGuard>
         )
       },

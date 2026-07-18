@@ -209,6 +209,7 @@ export const jaJP = {
       agentClients: 'エージェントクライアント',
       loopRuntimeConfig: 'ループエンジニアリング',
       assetOptimizations: 'アセット最適化',
+      experiencePatterns: '組織経験',
       workspaceVerificationProfiles: 'ワークスペース検証',
       aiModelConfig: 'AI モデル',
       members: 'メンバー'
@@ -226,7 +227,8 @@ export const jaJP = {
       agentKnowledge: 'エージェントナレッジ',
       loopRuntimeConfig: 'ループエンジニアリング',
       aiModelConfig: 'AI モデル設定',
-      assetOptimizations: 'アセット最適化'
+      assetOptimizations: 'アセット最適化',
+      experiencePatterns: '組織経験'
     },
     descriptions: {
       workflowExecution:
@@ -368,7 +370,8 @@ export const jaJP = {
         refreshLogs: 'ログを更新する',
         downloadLogs: 'ログをダウンロードする',
         viewVerification: '検証結果',
-        downloadPatch: 'Patch をダウンロード'
+        downloadPatch: 'Patch をダウンロード',
+        viewTrace: 'ループ詳細'
       },
       states: {
         logsRefreshing: '更新中...',
@@ -397,6 +400,23 @@ export const jaJP = {
         success: '成功',
         failure: '失敗',
         blocked: 'ブロックされました'
+      },
+      trace: {
+        title: 'ループ実行詳細',
+        loadFailed: 'ループ詳細の読み込みに失敗しました',
+        iteration: '人による修正ラウンド',
+        attempts: 'システム試行数',
+        feedback: '構造化フィードバック',
+        modelDuration: 'モデル所要時間',
+        recoveredAt: '復旧時刻',
+        failureSignature: '失敗シグネチャ',
+        verification: 'コード検証',
+        writeTargets: '実際の書き込み',
+        evaluation: '検証、AIレビュー、予算',
+        cancel: 'ループを停止',
+        cancelReason: '管理者が実行詳細からループを停止しました',
+        cancelFailed: 'ループの停止に失敗しました',
+        cancelSuccess: 'ループを停止しました'
       },
       logsDialog: {
         titleWithAgent: '{{name}} ログ',
@@ -616,7 +636,8 @@ export const jaJP = {
         knowledgePlaceholder: '最大 5 件のナレッジソースを検索または選択',
         knowledgeEmpty: 'バインド可能なナレッジソースはありません',
         knowledgeHelp:
-          'バインド変更は再公開後に有効になります。Wiki 内容の更新には再公開は不要です。'
+          'バインド変更は再公開後に有効になります。Wiki 内容の更新には再公開は不要です。',
+        experienceTitle: 'この Agent の組織経験'
       },
       fields: {
         pickerPlaceholder: 'フィールドを検索または選択します',
@@ -1058,6 +1079,51 @@ export const jaJP = {
         tokens: 'Token 変化',
         findings: '評価根拠'
       },
+      shadow: {
+        action: '実シャドーリプレイ',
+        running: 'シャドー実行中',
+        title: '実シャドーリプレイ',
+        failed: 'シャドーリプレイに失敗しました',
+        samples: '実サンプル',
+        passed: '合格サンプル',
+        pass: '合格',
+        fail: '不合格',
+        status: {
+          running: '組織モデルが書き込みなしで実行中です。',
+          completed: '実モデルによるシャドーリプレイが完了しました。',
+          failed: 'シャドーリプレイに失敗しました。',
+          unsupported:
+            'この Agent または候補は組織モデルのシャドーリプレイに対応していません。'
+        }
+      },
+      effect: {
+        action: '効果を表示',
+        title: '公開後の効果',
+        failed: '公開効果の読み込みに失敗しました',
+        noData: '比較可能な公開後データはまだありません。',
+        awaitingPublication:
+          '候補は Agent ドラフトにあります。公開後に観測を開始します。',
+        samples: '公開後サンプル',
+        successRate: '成功率',
+        attempts: '平均試行回数',
+        blockedRate: 'ブロック率',
+        revisionRate: '人手差し戻し率',
+        knowledgeHitRate: 'ナレッジヒット率',
+        wikiWriteRate: 'Wiki 書き込み成功率',
+        acceptanceRate: '受入基準合格率',
+        createRollback: 'ロールバック提案を作成',
+        rollbackCreated: '自動ロールバックなしで提案を作成しました',
+        rollbackDraftReady:
+          '管理者確認用のロールバック提案を作成しました。自動ロールバックは実行されません。',
+        rollbackFailed: 'ロールバック提案の作成に失敗しました',
+        verdict: {
+          effective: '公開後の効果が改善しました。',
+          no_change: '公開後に大きな変化はありません。',
+          negative:
+            '負の影響を検出しました。手動でロールバックを検討してください。',
+          insufficient_samples: '結論に必要なサンプルが不足しています。'
+        }
+      },
       applyDialog: {
         title: 'この候補を処理しますか？',
         description:
@@ -1075,6 +1141,33 @@ export const jaJP = {
       dismissDialog: {
         title: 'この候補を除外しますか？',
         description: '候補は履歴に残りますが、適用できなくなります。'
+      }
+    },
+    experiencePatterns: {
+      title: '組織経験',
+      description:
+        '実行失敗、レビュー、修復戦略を推奨とアセット候補向けに蓄積します。',
+      loadFailed: '組織経験の読み込みに失敗しました',
+      agentPlaceholder: 'すべての Agent',
+      agentEmpty: '選択可能な Agent がありません',
+      workflowPlaceholder: 'すべてのワークフロー',
+      workflowEmpty: '選択可能なワークフローがありません',
+      empty: '再利用可能な経験はありません',
+      table: {
+        pattern: '問題パターン',
+        type: '種類',
+        agent: 'Agent',
+        workflow: 'ワークフロー',
+        evidence: '証拠数',
+        confidence: '信頼度',
+        strategy: '修復戦略'
+      },
+      type: {
+        deterministic_error: '決定論的エラー',
+        acceptance_failure: '受入失敗',
+        human_feedback: '人によるフィードバック',
+        knowledge_gap: 'ナレッジ不足',
+        verification_failure: 'コード検証失敗'
       }
     },
     loopRuntimeConfig: {

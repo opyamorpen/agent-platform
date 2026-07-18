@@ -40,6 +40,7 @@ import {
   findIssueExecutionHistoryByUUID,
   createIssueAgentExecutionHistories,
   listIssueExecutionHistoriesByDispatchedIssueUUID,
+  listExpiredIssueAgentExecutionLeases,
   listRunnableIssueExecutionHistories,
   updateDispatchedIssueLatestExecution,
   updateIssueAgentExecutionHistory,
@@ -54,11 +55,13 @@ import {
   buildLoopCompletionComment,
   buildLoopContextXml,
   buildLoopEscalationComment,
+  buildLoopFailureSignature,
   buildLoopRevisionComment,
   buildNextLoopAttemptUUID,
   calculateLoopBudget,
   decideLoopGate,
   isAutomaticLoopAttempt,
+  hasRepeatedLoopFailure,
   isSameLoopLifecycleComment,
   isLoopPolicyRuntimeEligible,
   localizeLoopDeterministicError,
@@ -114,6 +117,14 @@ import {
   type AppliedWriteSnapshot
 } from '../executions/revision-context.js';
 import { buildRevisionSummaryComment } from '../executions/revision-summary.js';
+import {
+  listExecutionFeedbackByExecution,
+  resolveExecutionFeedback
+} from '../executions/feedback-repository.js';
+import {
+  learnExperiencePatternsFromFeedback,
+  learnKnowledgeGap
+} from '../experience-patterns/service.js';
 import {
   loadAgentClientTaskAttachment,
   removeAgentClientTaskAttachments,
@@ -338,6 +349,7 @@ const ATTACHMENT_LOCAL_PATH_FIELD_UUID = 'local_path';
 const SINGLE_REFERENCE_OBJECT_VALUE_TYPE = 'single_reference_object';
 const MULTI_REFERENCE_OBJECT_VALUE_TYPE = 'multi_reference_object';
 const AGENT_CLIENT_OFFLINE_THRESHOLD_MS = 10_000;
+const TASK_LEASE_DURATION_MS = 2 * 60 * 1000;
 const TASK_STARTED_COMMENT_FETCH_LIMIT = 100;
 const logger = getLogger('agent-client-exchange');
 type OutputWriteStage =
@@ -1295,6 +1307,36 @@ function getRevisionFeedbackCommentCount(executeOption: unknown): number {
     (revisionContext as { feedbackCommentCount?: unknown }).feedbackCommentCount
   );
   return Number.isFinite(value) && value > 0 ? Math.trunc(value) : 0;
+}
+
+function getRevisionFeedbackUUIDs(executeOption: unknown): string[] {
+  if (
+    !executeOption ||
+    typeof executeOption !== 'object' ||
+    Array.isArray(executeOption)
+  ) {
+    return [];
+  }
+  const revisionContext = (executeOption as { revisionContext?: unknown })
+    .revisionContext;
+  if (
+    !revisionContext ||
+    typeof revisionContext !== 'object' ||
+    Array.isArray(revisionContext)
+  ) {
+    return [];
+  }
+  const values = (revisionContext as { feedbackUUIDs?: unknown }).feedbackUUIDs;
+  return Array.isArray(values)
+    ? Array.from(
+        new Set(
+          values.filter(
+            (value): value is string =>
+              typeof value === 'string' && Boolean(value.trim())
+          )
+        )
+      )
+    : [];
 }
 
 function getOutputDisplayName(
@@ -4107,6 +4149,8 @@ type LoopGateEvaluation = {
   budget: LoopBudgetSnapshot;
   summary: string;
   failureDetails: LoopFailureDetails;
+  failureSignature: string | null;
+  repeatedFailure: boolean;
 };
 
 export function shouldEvaluateLoopGate(
@@ -4148,7 +4192,10 @@ function getTaskReportArtifacts(
     ...(report.verificationResults
       ? { verificationResults: report.verificationResults }
       : {}),
-    ...(report.workspacePatch ? { workspacePatch: report.workspacePatch } : {})
+    ...(report.workspacePatch ? { workspacePatch: report.workspacePatch } : {}),
+    ...(report.modelDurationMs === undefined
+      ? {}
+      : { modelDurationMs: report.modelDurationMs })
   };
 }
 
@@ -4363,9 +4410,14 @@ async function evaluateLoopGate(input: {
     ),
     acceptanceFindings
   };
+  const failureSignature = buildLoopFailureSignature(failureDetails);
+  const repeatedFailure = hasRepeatedLoopFailure({
+    currentSignature: failureSignature,
+    attempts: input.issueExecution.agentExecutions
+  });
   const decision = decideLoopGate({
     deterministicPassed: deterministicValidation.passed,
-    forceEscalation,
+    forceEscalation: forceEscalation || repeatedFailure,
     reviewVerdict: reviewDecision,
     budgetExhausted: budget.exhaustedBy.length > 0
   });
@@ -4376,14 +4428,17 @@ async function evaluateLoopGate(input: {
       deterministicValidation,
       reviewResult,
       budget,
-      summary:
-        reviewResult?.review.summary ??
-        (budget.exhaustedBy.length > 0
-          ? `自动修正预算已耗尽：${budget.exhaustedBy.join(', ')}`
-          : runtimeErrors.length > 0
-            ? 'Agent 运行失败，自动修正需要人工接管。'
-            : '自动修正需要人工接管。'),
-      failureDetails
+      summary: repeatedFailure
+        ? '相同问题连续两次出现，系统已提前停止自动修正并升级人工。'
+        : (reviewResult?.review.summary ??
+          (budget.exhaustedBy.length > 0
+            ? `自动修正预算已耗尽：${budget.exhaustedBy.join(', ')}`
+            : runtimeErrors.length > 0
+              ? 'Agent 运行失败，自动修正需要人工接管。'
+              : '自动修正需要人工接管。')),
+      failureDetails,
+      failureSignature,
+      repeatedFailure
     };
   }
 
@@ -4398,7 +4453,9 @@ async function evaluateLoopGate(input: {
         (runtimeErrors.length > 0
           ? 'Agent 运行失败，系统将重新执行。'
           : '候选输出未通过确定性校验，需要修正。'),
-      failureDetails
+      failureDetails,
+      failureSignature,
+      repeatedFailure
     };
   }
 
@@ -4408,7 +4465,9 @@ async function evaluateLoopGate(input: {
     reviewResult,
     budget,
     summary: reviewResult?.review.summary ?? '候选输出已通过验收。',
-    failureDetails
+    failureDetails,
+    failureSignature,
+    repeatedFailure
   };
 }
 
@@ -4425,9 +4484,7 @@ async function maybeSendLoopLifecycleComment(
       TASK_STARTED_COMMENT_FETCH_LIMIT
     );
     if (
-      comments.some((comment) =>
-        isSameLoopLifecycleComment(comment.text, text)
-      )
+      comments.some((comment) => isSameLoopLifecycleComment(comment.text, text))
     ) {
       return 'duplicate';
     }
@@ -4496,11 +4553,12 @@ async function persistLoopGateResult(input: {
     deterministicValidation: input.evaluation.deterministicValidation,
     aiReview: input.evaluation.reviewResult?.review ?? null,
     reviewUsage: input.evaluation.reviewResult?.usage ?? null,
-    budget: input.evaluation.budget
+    budget: input.evaluation.budget,
+    failureSignature: input.evaluation.failureSignature,
+    repeatedFailure: input.evaluation.repeatedFailure
   };
   let escalationTransitionFailed = false;
-  let loopLifecycleCommentStatus: 'sent' | 'duplicate' | 'failed' | null =
-    null;
+  let loopLifecycleCommentStatus: 'sent' | 'duplicate' | 'failed' | null = null;
 
   if (input.evaluation.decision === 'revise') {
     const nextTaskUUID = buildNextLoopAttemptUUID(input.task.uuid);
@@ -4538,7 +4596,9 @@ async function persistLoopGateResult(input: {
             status: 'created',
             logs: '',
             executeClientUUID: null,
-            executeClientName: null
+            executeClientName: null,
+            attemptNumber: input.evaluation.budget.attemptNumber + 1,
+            previousAttemptUUID: input.task.uuid
           }
         ],
         input.teamUUID
@@ -4616,6 +4676,8 @@ async function persistLoopGateResult(input: {
       executeClientName: input.client.name,
       usageInputTokens: input.report.usage?.inputTokens ?? null,
       usageOutputTokens: input.report.usage?.outputTokens ?? null,
+      failureSignature: input.evaluation.failureSignature,
+      leaseExpiresAt: null,
       lastReportedAt: input.exchangeAt,
       startedAt: input.preparedReport.startedAt,
       finishedAt: input.preparedReport.finishedAt ?? input.exchangeAt
@@ -5001,6 +5063,12 @@ async function applyTaskReport(
         appliedStatusTransitions
       })
     : [];
+  if (actualWriteDescriptions.length > 0) {
+    executeResultToPersist = {
+      ...executeResultToPersist,
+      writeTargets: actualWriteDescriptions
+    };
+  }
 
   if (
     finalStatus === 'success' &&
@@ -5068,6 +5136,44 @@ async function applyTaskReport(
     );
   }
 
+  if (finalStatus === 'success') {
+    const feedbackUUIDs = getRevisionFeedbackUUIDs(task.executeOption);
+    if (feedbackUUIDs.length > 0) {
+      const resolution =
+        preparedReport.executeResult.revisionSummary?.summary ??
+        '返工执行成功，反馈已处理。';
+      await resolveExecutionFeedback(
+        feedbackUUIDs,
+        resolution,
+        actualWriteDescriptions,
+        teamUUID
+      ).catch((error) => {
+        finalLogs = appendLogMessage(
+          finalLogs,
+          `[system] could not update structured feedback status: ${error instanceof Error ? error.message : String(error)}`
+        );
+      });
+      const feedback = (
+        await listExecutionFeedbackByExecution(
+          preparedReport.issueExecutionUUID,
+          teamUUID
+        ).catch(() => [])
+      ).filter((item) => feedbackUUIDs.includes(item.uuid));
+      await learnExperiencePatternsFromFeedback({
+        teamUUID,
+        agentUUID: task.agentUUID,
+        agentName: task.agentName,
+        feedback,
+        resolution
+      }).catch((error) => {
+        finalLogs = appendLogMessage(
+          finalLogs,
+          `[system] could not learn from structured feedback: ${error instanceof Error ? error.message : String(error)}`
+        );
+      });
+    }
+  }
+
   const mergedLogs = mergeLogHistory(task.logs, finalLogs);
 
   await updateIssueAgentExecutionHistory(
@@ -5087,7 +5193,11 @@ async function applyTaskReport(
           : task.queuedAt,
       lastReportedAt: exchangeAt,
       startedAt: preparedReport.startedAt,
-      finishedAt: preparedReport.finishedAt
+      finishedAt: preparedReport.finishedAt,
+      leaseExpiresAt:
+        finalStatus === 'queued' || finalStatus === 'running'
+          ? new Date(exchangeAt.getTime() + TASK_LEASE_DURATION_MS)
+          : null
     },
     teamUUID
   );
@@ -5320,11 +5430,10 @@ async function dispatchTasks(
       teamUUID,
       agentTaskBindingsCache
     );
-    const verificationProfiles =
-      await findWorkspaceVerificationProfilesByUUIDs(
-        agentConfig.acceptancePolicy.verificationProfileUUIDs,
-        teamUUID
-      );
+    const verificationProfiles = await findWorkspaceVerificationProfilesByUUIDs(
+      agentConfig.acceptancePolicy.verificationProfileUUIDs,
+      teamUUID
+    );
 
     let executePayload: Record<string, unknown>;
     let inputContextXml: string;
@@ -5398,6 +5507,15 @@ async function dispatchTasks(
         error instanceof RevisionContextBuildError
           ? error.code
           : 'wiki_or_input_context_error';
+      if (blockReason === 'wiki_or_input_context_error') {
+        await learnKnowledgeGap({
+          teamUUID,
+          agentUUID: nextTask.agentUUID,
+          agentName: nextTask.agentName,
+          issueExecutionUUID: nextTask.issueExecutionUUID,
+          message: error instanceof Error ? error.message : String(error)
+        }).catch(() => undefined);
+      }
       await updateIssueAgentExecutionHistory(
         {
           uuid: nextTask.uuid,
@@ -5473,6 +5591,7 @@ async function dispatchTasks(
         executeClientName: client.name,
         queuedAt: exchangeAt,
         lastReportedAt: exchangeAt,
+        leaseExpiresAt: new Date(exchangeAt.getTime() + TASK_LEASE_DURATION_MS),
         startedAt: nextTask.startedAt,
         finishedAt: nextTask.finishedAt
       },
@@ -5568,6 +5687,88 @@ export async function reportAgentClientTasks(
   return {
     accepted: true
   };
+}
+
+export async function recoverExpiredTaskLeases(teamUUID: string): Promise<{
+  recovered: number;
+  blocked: number;
+}> {
+  const expired = await listExpiredIssueAgentExecutionLeases(
+    teamUUID,
+    new Date()
+  );
+  if (expired.length === 0) return { recovered: 0, blocked: 0 };
+  const workflowNodeMap = new Map(
+    (await listAllWorkflowNodes(teamUUID)).map((node) => [node.uuid, node])
+  );
+  let recovered = 0;
+  let blocked = 0;
+
+  for (const task of expired) {
+    const now = new Date();
+    if (task.status === 'queued' && !task.startedAt) {
+      await updateIssueAgentExecutionHistory(
+        {
+          uuid: task.uuid,
+          status: 'created',
+          logs: appendLogMessage(
+            task.logs,
+            '[system] task lease expired before execution started; returned to the dispatch queue'
+          ),
+          executeResult: toJsonObject(
+            typeof task.executeResult === 'object' &&
+              task.executeResult !== null &&
+              !Array.isArray(task.executeResult)
+              ? (task.executeResult as Record<string, unknown>)
+              : {}
+          ),
+          executeClientUUID: null,
+          executeClientName: null,
+          leaseExpiresAt: null,
+          recoveredAt: now,
+          lastReportedAt: task.lastReportedAt,
+          startedAt: null,
+          finishedAt: null
+        },
+        teamUUID
+      );
+      recovered += 1;
+      continue;
+    }
+
+    await updateIssueAgentExecutionHistory(
+      {
+        uuid: task.uuid,
+        status: 'blocked',
+        logs: appendLogMessage(
+          task.logs,
+          '[system] task lease expired while running; blocked to prevent duplicate side effects'
+        ),
+        executeResult: toJsonObject(
+          typeof task.executeResult === 'object' &&
+            task.executeResult !== null &&
+            !Array.isArray(task.executeResult)
+            ? (task.executeResult as Record<string, unknown>)
+            : {}
+        ),
+        executeClientUUID: task.executeClientUUID,
+        executeClientName: task.executeClientName,
+        leaseExpiresAt: null,
+        lastReportedAt: task.lastReportedAt,
+        startedAt: task.startedAt,
+        finishedAt: now
+      },
+      teamUUID
+    );
+    await refreshIssueExecutionAggregate(
+      task.issueExecutionUUID,
+      workflowNodeMap,
+      'execution_lease_expired',
+      teamUUID
+    );
+    blocked += 1;
+  }
+  return { recovered, blocked };
 }
 
 export async function claimAgentClientTasks(
@@ -5710,7 +5911,9 @@ async function getAssignedAgentClientTask(
 }> {
   const teamUUID = await findIssueAgentExecutionHistoryTeamUUID(taskUUID);
   if (!teamUUID) {
-    throw new AgentClientInvalidWorkspacePatchError(`Invalid task: ${taskUUID}`);
+    throw new AgentClientInvalidWorkspacePatchError(
+      `Invalid task: ${taskUUID}`
+    );
   }
   const task = await findIssueAgentExecutionHistoryByUUID(taskUUID, teamUUID);
   if (
@@ -5730,10 +5933,7 @@ export async function uploadAgentClientTaskWorkspacePatch(
   taskUUID: string,
   bytes: Uint8Array
 ): Promise<{ patch: AgentClientWorkspacePatchUpload }> {
-  const { teamUUID } = await getAssignedAgentClientTask(
-    client.uuid,
-    taskUUID
-  );
+  const { teamUUID } = await getAssignedAgentClientTask(client.uuid, taskUUID);
   try {
     return {
       patch: await uploadAgentClientWorkspacePatch({

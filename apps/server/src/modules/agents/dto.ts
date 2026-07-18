@@ -301,6 +301,7 @@ export const agentPromptPreviewSchema = z.object({
 });
 
 export const agentPromptRecommendationSchema = z.object({
+  agentUUID: z.string().trim().min(1).max(64).optional(),
   name: z.string().trim().min(1).max(256),
   description: z.string().max(20_000),
   skillUUIDs: z.array(z.string().trim().min(1)).max(20),

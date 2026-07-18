@@ -4,8 +4,10 @@ import type {
   ApiError,
   ApiSuccess,
   AssetCandidate,
+  AssetRelease,
   AssetOptimizationRun,
-  AssetOptimizationRunSummary
+  AssetOptimizationRunSummary,
+  ShadowReplayRun
 } from '@ones-ai-workflow/shared';
 import {
   AlertDialog,
@@ -48,6 +50,9 @@ import {
   PackageIcon,
   RefreshCwIcon,
   SparklesIcon,
+  FlaskConicalIcon,
+  GaugeIcon,
+  Undo2Icon,
   XIcon
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -58,6 +63,8 @@ type RunsResponse = ApiSuccess<AssetOptimizationRunSummary[]> | ApiError;
 type CreateRunResponse = ApiSuccess<AssetOptimizationRunSummary> | ApiError;
 type RunResponse = ApiSuccess<AssetOptimizationRun> | ApiError;
 type CandidateResponse = ApiSuccess<AssetCandidate> | ApiError;
+type ShadowReplayResponse = ApiSuccess<ShadowReplayRun> | ApiError;
+type AssetEffectResponse = ApiSuccess<AssetRelease> | ApiError;
 
 function getRunStatusVariant(status: AssetOptimizationRunSummary['status']) {
   if (status === 'failed') return 'destructive' as const;
@@ -69,6 +76,12 @@ function getCandidateStatusVariant(status: AssetCandidate['status']) {
   if (status === 'conflict') return 'destructive' as const;
   if (status === 'applied' || status === 'reviewed') return 'default' as const;
   return 'secondary' as const;
+}
+
+function formatRateChange(before: number | null, after: number | null): string {
+  const format = (value: number | null) =>
+    value === null ? '-' : `${Math.round(value * 100)}%`;
+  return `${format(before)} → ${format(after)}`;
 }
 
 function CandidateTypeIcon({ type }: { type: AssetCandidate['type'] }) {
@@ -102,6 +115,16 @@ export function AssetOptimizationsPage() {
     string | null
   >(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [shadowReplay, setShadowReplay] = useState<ShadowReplayRun | null>(
+    null
+  );
+  const [assetRelease, setAssetRelease] = useState<AssetRelease | null>(null);
+  const [shadowReplayCandidateUUID, setShadowReplayCandidateUUID] = useState<
+    string | null
+  >(null);
+  const [effectCandidateUUID, setEffectCandidateUUID] = useState<string | null>(
+    null
+  );
 
   const agentOptions = useMemo(
     () =>
@@ -334,6 +357,101 @@ export function AssetOptimizationsPage() {
         </pre>
       </div>
     );
+  }
+
+  async function runShadowReplay(candidate: AssetCandidate) {
+    setShadowReplayCandidateUUID(candidate.uuid);
+    try {
+      const response = await fetch('/api/asset-optimizations/shadow-replays', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidateUUID: candidate.uuid })
+      });
+      let payload = (await response.json()) as ShadowReplayResponse;
+      if (!response.ok || !payload.success) {
+        throw new Error(
+          payload.success
+            ? t('pages.assetOptimizations.shadow.failed')
+            : getApiErrorMessage(
+                payload,
+                t,
+                'pages.assetOptimizations.shadow.failed'
+              )
+        );
+      }
+      setShadowReplay(payload.data);
+      for (
+        let attempt = 0;
+        attempt < 60 && payload.data.status === 'running';
+        attempt += 1
+      ) {
+        await new Promise((resolve) => window.setTimeout(resolve, 1000));
+        const pollResponse = await fetch(
+          `/api/asset-optimizations/shadow-replays/${payload.data.uuid}`
+        );
+        payload = (await pollResponse.json()) as ShadowReplayResponse;
+        if (!pollResponse.ok || !payload.success) break;
+        setShadowReplay(payload.data);
+      }
+    } catch (error) {
+      toast.error(
+        getErrorMessage(error, t, 'pages.assetOptimizations.shadow.failed')
+      );
+    } finally {
+      setShadowReplayCandidateUUID(null);
+    }
+  }
+
+  async function loadAssetEffect(candidate: AssetCandidate) {
+    setEffectCandidateUUID(candidate.uuid);
+    try {
+      const response = await fetch(
+        `/api/asset-optimizations/candidates/${candidate.uuid}/effect`
+      );
+      const payload = (await response.json()) as AssetEffectResponse;
+      if (!response.ok || !payload.success) {
+        throw new Error(
+          payload.success
+            ? t('pages.assetOptimizations.effect.failed')
+            : getApiErrorMessage(
+                payload,
+                t,
+                'pages.assetOptimizations.effect.failed'
+              )
+        );
+      }
+      setAssetRelease(payload.data);
+    } catch (error) {
+      toast.error(
+        getErrorMessage(error, t, 'pages.assetOptimizations.effect.failed')
+      );
+    } finally {
+      setEffectCandidateUUID(null);
+    }
+  }
+
+  async function createRollbackDraft() {
+    if (!assetRelease) return;
+    try {
+      const response = await fetch(
+        `/api/asset-optimizations/candidates/${assetRelease.candidateUUID}/rollback-draft`,
+        { method: 'POST' }
+      );
+      const payload = (await response.json()) as AssetEffectResponse;
+      if (!response.ok || !payload.success) {
+        throw new Error(t('pages.assetOptimizations.effect.rollbackFailed'));
+      }
+      setAssetRelease(payload.data);
+      toast.success(t('pages.assetOptimizations.effect.rollbackCreated'));
+    } catch (error) {
+      toast.error(
+        getErrorMessage(
+          error,
+          t,
+          'pages.assetOptimizations.effect.rollbackFailed'
+        )
+      );
+    }
   }
 
   return (
@@ -604,6 +722,29 @@ export function AssetOptimizationsPage() {
                       <EyeIcon />
                       {t('common.actions.preview')}
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void runShadowReplay(candidate)}
+                      disabled={shadowReplayCandidateUUID === candidate.uuid}
+                    >
+                      <FlaskConicalIcon />
+                      {shadowReplayCandidateUUID === candidate.uuid
+                        ? t('pages.assetOptimizations.shadow.running')
+                        : t('pages.assetOptimizations.shadow.action')}
+                    </Button>
+                    {candidate.status === 'applied' ||
+                    candidate.status === 'reviewed' ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void loadAssetEffect(candidate)}
+                        disabled={effectCandidateUUID === candidate.uuid}
+                      >
+                        <GaugeIcon />
+                        {t('pages.assetOptimizations.effect.action')}
+                      </Button>
+                    ) : null}
                     {selectedRun.status === 'ready' &&
                     ['draft', 'conflict'].includes(candidate.status) ? (
                       <>
@@ -655,6 +796,173 @@ export function AssetOptimizationsPage() {
             <DialogDescription>{previewCandidate?.summary}</DialogDescription>
           </DialogHeader>
           {previewCandidate ? renderPreviewContent(previewCandidate) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(shadowReplay)}
+        onOpenChange={(open) => !open && setShadowReplay(null)}
+      >
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              {t('pages.assetOptimizations.shadow.title')}
+            </DialogTitle>
+            <DialogDescription>
+              {t(
+                `pages.assetOptimizations.shadow.status.${shadowReplay?.status ?? 'running'}`
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {shadowReplay?.errorMessage ? (
+            <p className="text-sm text-destructive">
+              {shadowReplay.errorMessage}
+            </p>
+          ) : null}
+          <div className="grid grid-cols-3 gap-3 border-y py-3 text-center text-sm">
+            <div>
+              {shadowReplay?.sampleCount ?? 0}
+              <div className="text-xs text-muted-foreground">
+                {t('pages.assetOptimizations.shadow.samples')}
+              </div>
+            </div>
+            <div>
+              {shadowReplay?.passedCount ?? 0}
+              <div className="text-xs text-muted-foreground">
+                {t('pages.assetOptimizations.shadow.passed')}
+              </div>
+            </div>
+            <div>
+              {shadowReplay?.totalTokens?.toLocaleString() ?? '-'}
+              <div className="text-xs text-muted-foreground">Token</div>
+            </div>
+          </div>
+          <div className="max-h-80 space-y-2 overflow-auto">
+            {shadowReplay?.results.map((result) => (
+              <div key={result.sampleUUID} className="border p-3 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">{result.sampleUUID}</span>
+                  <Badge
+                    variant={
+                      result.status === 'passed' ? 'default' : 'destructive'
+                    }
+                  >
+                    {result.status === 'passed'
+                      ? t('pages.assetOptimizations.shadow.pass')
+                      : t('pages.assetOptimizations.shadow.fail')}
+                  </Badge>
+                </div>
+                {result.deterministicErrors.length > 0 ? (
+                  <p className="mt-2 text-xs text-destructive">
+                    {result.deterministicErrors.join('；')}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(assetRelease)}
+        onOpenChange={(open) => !open && setAssetRelease(null)}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {t('pages.assetOptimizations.effect.title')}
+            </DialogTitle>
+            <DialogDescription>
+              {assetRelease?.status === 'awaiting_publication'
+                ? t('pages.assetOptimizations.effect.awaitingPublication')
+                : assetRelease?.effect
+                  ? t(
+                      `pages.assetOptimizations.effect.verdict.${assetRelease.effect.verdict}`
+                    )
+                  : t('pages.assetOptimizations.effect.noData')}
+            </DialogDescription>
+          </DialogHeader>
+          {assetRelease?.effect ? (
+            <div className="grid grid-cols-2 gap-4 border-y py-3 text-center text-sm sm:grid-cols-4">
+              <div>
+                {assetRelease.effect.sampleCount}
+                <div className="text-xs text-muted-foreground">
+                  {t('pages.assetOptimizations.effect.samples')}
+                </div>
+              </div>
+              <div>
+                {formatRateChange(
+                  assetRelease.effect.successRateBefore,
+                  assetRelease.effect.successRateAfter
+                )}
+                <div className="text-xs text-muted-foreground">
+                  {t('pages.assetOptimizations.effect.successRate')}
+                </div>
+              </div>
+              <div>
+                {assetRelease.effect.averageAttemptsBefore.toFixed(1)} →{' '}
+                {assetRelease.effect.averageAttemptsAfter.toFixed(1)}
+                <div className="text-xs text-muted-foreground">
+                  {t('pages.assetOptimizations.effect.attempts')}
+                </div>
+              </div>
+              <div>
+                {formatRateChange(
+                  assetRelease.effect.blockedRateBefore,
+                  assetRelease.effect.blockedRateAfter
+                )}
+                <div className="text-xs text-muted-foreground">
+                  {t('pages.assetOptimizations.effect.blockedRate')}
+                </div>
+              </div>
+              <div>
+                {formatRateChange(
+                  assetRelease.effect.revisionRateBefore,
+                  assetRelease.effect.revisionRateAfter
+                )}
+                <div className="text-xs text-muted-foreground">
+                  {t('pages.assetOptimizations.effect.revisionRate')}
+                </div>
+              </div>
+              <div>
+                {formatRateChange(
+                  assetRelease.effect.knowledgeHitRateBefore,
+                  assetRelease.effect.knowledgeHitRateAfter
+                )}
+                <div className="text-xs text-muted-foreground">
+                  {t('pages.assetOptimizations.effect.knowledgeHitRate')}
+                </div>
+              </div>
+              <div>
+                {formatRateChange(
+                  assetRelease.effect.wikiWriteSuccessRateBefore,
+                  assetRelease.effect.wikiWriteSuccessRateAfter
+                )}
+                <div className="text-xs text-muted-foreground">
+                  {t('pages.assetOptimizations.effect.wikiWriteRate')}
+                </div>
+              </div>
+              <div>
+                {formatRateChange(
+                  assetRelease.effect.acceptancePassRateBefore,
+                  assetRelease.effect.acceptancePassRateAfter
+                )}
+                <div className="text-xs text-muted-foreground">
+                  {t('pages.assetOptimizations.effect.acceptanceRate')}
+                </div>
+              </div>
+            </div>
+          ) : null}
+          {assetRelease?.rollbackDraftCreated ? (
+            <p className="border-l-2 border-amber-500 px-3 text-sm text-muted-foreground">
+              {t('pages.assetOptimizations.effect.rollbackDraftReady')}
+            </p>
+          ) : assetRelease?.effect?.verdict === 'negative' ? (
+            <Button onClick={() => void createRollbackDraft()}>
+              <Undo2Icon />
+              {t('pages.assetOptimizations.effect.createRollback')}
+            </Button>
+          ) : null}
         </DialogContent>
       </Dialog>
 

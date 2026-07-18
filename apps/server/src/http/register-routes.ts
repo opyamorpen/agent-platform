@@ -21,6 +21,7 @@ import { knowledgeSourcesRoutes } from '../modules/knowledge-sources/routes.js';
 import { loopRuntimeConfigRoutes } from '../modules/loop-runtime-config/routes.js';
 import { workspaceVerificationProfilesRoutes } from '../modules/workspace-verification-profiles/routes.js';
 import { assetOptimizationsRoutes } from '../modules/asset-optimizations/routes.js';
+import { experiencePatternsRoutes } from '../modules/experience-patterns/routes.js';
 
 export function registerRoutes(app: Hono): void {
   app.get('/health', (c) =>
@@ -67,6 +68,7 @@ export function registerRoutes(app: Hono): void {
     workspaceVerificationProfilesRoutes
   );
   app.route('/api/asset-optimizations', assetOptimizationsRoutes);
+  app.route('/api/experience-patterns', experiencePatternsRoutes);
 
   app.notFound((c) =>
     c.json(failure('Route not found', 'common.route_not_found'), 404)

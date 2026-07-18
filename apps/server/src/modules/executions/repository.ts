@@ -88,6 +88,12 @@ export interface IssueAgentExecutionHistoryRecord {
   usageOutputTokens: number | null;
   executeClientUUID: string | null;
   executeClientName: string | null;
+  attemptNumber: number;
+  previousAttemptUUID: string | null;
+  leaseExpiresAt: Date | null;
+  recoveredAt: Date | null;
+  cancelRequestedAt: Date | null;
+  failureSignature: string | null;
   queuedAt: Date | null;
   lastReportedAt: Date | null;
   createdAt: Date;
@@ -111,6 +117,9 @@ export interface IssueExecutionHistoryRecord {
   triggerAssigneeName: string;
   status: string;
   blockReason: string | null;
+  loopTraceUUID: string;
+  cancelRequestedAt: Date | null;
+  cancelReason: string | null;
   currentAgentUUID: string;
   createdAt: Date;
   startedAt: Date | null;
@@ -181,6 +190,8 @@ export interface CreateIssueAgentExecutionHistoryInput {
   logs: string;
   executeClientUUID: string | null;
   executeClientName: string | null;
+  attemptNumber?: number;
+  previousAttemptUUID?: string | null;
 }
 
 interface StoredAgentClientEntity {
@@ -229,6 +240,9 @@ interface StoredIssueExecutionHistoryEntity {
   trigger_assignee_name: string;
   status: string;
   block_reason: string;
+  loop_trace_uuid: string;
+  cancel_requested_at: number;
+  cancel_reason: string;
   current_agent_uuid: string;
   created_at: number;
   started_at: number;
@@ -255,6 +269,12 @@ interface StoredIssueAgentExecutionHistoryEntity {
   usage_output_tokens: number | null;
   execute_client_uuid: string;
   execute_client_name: string;
+  attempt_number: number;
+  previous_attempt_uuid: string;
+  lease_expires_at: number;
+  recovered_at: number;
+  cancel_requested_at: number;
+  failure_signature: string;
   queued_at: number;
   last_reported_at: number;
   created_at: number;
@@ -516,6 +536,9 @@ function toIssueExecutionHistoryBaseRecord(
     triggerAssigneeName: entry.trigger_assignee_name || '',
     status: entry.status,
     blockReason: entry.block_reason || null,
+    loopTraceUUID: entry.loop_trace_uuid || entry.uuid,
+    cancelRequestedAt: fromTimestamp(entry.cancel_requested_at),
+    cancelReason: entry.cancel_reason || null,
     currentAgentUUID: entry.current_agent_uuid,
     createdAt: new Date(entry.created_at),
     startedAt: fromTimestamp(entry.started_at),
@@ -565,6 +588,15 @@ async function toIssueAgentExecutionHistoryRecord(
     usageOutputTokens: normalizeOptionalNumber(entry.usage_output_tokens),
     executeClientUUID: entry.execute_client_uuid || null,
     executeClientName: entry.execute_client_name || null,
+    attemptNumber:
+      typeof entry.attempt_number === 'number' && entry.attempt_number > 0
+        ? entry.attempt_number
+        : 1,
+    previousAttemptUUID: entry.previous_attempt_uuid || null,
+    leaseExpiresAt: fromTimestamp(entry.lease_expires_at),
+    recoveredAt: fromTimestamp(entry.recovered_at),
+    cancelRequestedAt: fromTimestamp(entry.cancel_requested_at),
+    failureSignature: entry.failure_signature || null,
     queuedAt: fromTimestamp(entry.queued_at),
     lastReportedAt: fromTimestamp(entry.last_reported_at),
     createdAt: new Date(entry.created_at),
@@ -682,6 +714,12 @@ async function persistAgentExecutionObjects(
     usage_output_tokens: 0,
     execute_client_uuid: '',
     execute_client_name: '',
+    attempt_number: 1,
+    previous_attempt_uuid: '',
+    lease_expires_at: 0,
+    recovered_at: 0,
+    cancel_requested_at: 0,
+    failure_signature: '',
     queued_at: 0,
     last_reported_at: 0,
     created_at: 0,
@@ -806,6 +844,9 @@ export async function createIssueExecutionHistory(
       trigger_assignee_name: input.triggerAssigneeName,
       status: input.status,
       block_reason: '',
+      loop_trace_uuid: input.uuid,
+      cancel_requested_at: 0,
+      cancel_reason: '',
       current_agent_uuid: input.currentAgentUUID,
       created_at: now,
       started_at: 0,
@@ -926,6 +967,14 @@ export async function createIssueAgentExecutionHistories(
           usage_output_tokens: 0,
           execute_client_uuid: normalizeOptionalString(input.executeClientUUID),
           execute_client_name: normalizeOptionalString(input.executeClientName),
+          attempt_number: Math.max(1, input.attemptNumber ?? index + 1),
+          previous_attempt_uuid: normalizeOptionalString(
+            input.previousAttemptUUID
+          ),
+          lease_expires_at: 0,
+          recovered_at: 0,
+          cancel_requested_at: 0,
+          failure_signature: '',
           queued_at: 0,
           last_reported_at: 0,
           created_at: createdAt,
@@ -1070,6 +1119,65 @@ export async function getAgentVersionExecutionAggregate(
   };
 }
 
+export async function getAgentVersionExecutionAggregateSince(
+  agentUUID: string,
+  agentVersion: number,
+  teamUUID: string,
+  since: Date
+): Promise<AgentVersionExecutionAggregate> {
+  const records = (await listTeamIssueAgentExecutionHistoryEntries(teamUUID))
+    .map((entry) => entry.value)
+    .filter(
+      (record) =>
+        record.agent_uuid === agentUUID &&
+        record.agent_version === agentVersion &&
+        record.created_at >= since.getTime() &&
+        ['success', 'failure', 'blocked'].includes(record.status)
+    );
+  const attemptsByExecution = new Map<string, number>();
+  for (const record of records) {
+    attemptsByExecution.set(
+      record.issue_execution_uuid,
+      (attemptsByExecution.get(record.issue_execution_uuid) ?? 0) + 1
+    );
+  }
+  const retryCount = Array.from(attemptsByExecution.values()).reduce(
+    (total, count) => total + Math.max(0, count - 1),
+    0
+  );
+  const tokensKnown =
+    records.length > 0 &&
+    records.every(
+      (record) =>
+        typeof record.usage_input_tokens === 'number' &&
+        typeof record.usage_output_tokens === 'number' &&
+        record.usage_input_tokens + record.usage_output_tokens > 0
+    );
+  return {
+    totalSamples: records.length,
+    successCount: records.filter((record) => record.status === 'success')
+      .length,
+    failureCount: records.filter((record) => record.status === 'failure')
+      .length,
+    blockedCount: records.filter((record) => record.status === 'blocked')
+      .length,
+    retryCount,
+    totalTokens: tokensKnown
+      ? records.reduce(
+          (total, record) =>
+            total +
+            Number(record.usage_input_tokens ?? 0) +
+            Number(record.usage_output_tokens ?? 0),
+          0
+        )
+      : null,
+    averageAttempts:
+      attemptsByExecution.size > 0
+        ? records.length / attemptsByExecution.size
+        : 0
+  };
+}
+
 export async function listAgentVersionExecutionSamples(
   agentUUID: string,
   agentVersion: number,
@@ -1089,6 +1197,30 @@ export async function listAgentVersionExecutionSamples(
         (right.finished_at || right.updated_at) -
         (left.finished_at || left.updated_at)
     )
+    .slice(0, Math.max(1, Math.min(limit, 20)));
+
+  return Promise.all(entries.map(toIssueAgentExecutionHistoryRecord));
+}
+
+export async function listAgentVersionExecutionSamplesInWindow(
+  agentUUID: string,
+  agentVersion: number,
+  teamUUID: string,
+  since: Date,
+  until: Date,
+  limit = 20
+): Promise<IssueAgentExecutionHistoryRecord[]> {
+  const entries = (await listTeamIssueAgentExecutionHistoryEntries(teamUUID))
+    .map((entry) => entry.value)
+    .filter(
+      (record) =>
+        record.agent_uuid === agentUUID &&
+        record.agent_version === agentVersion &&
+        record.created_at >= since.getTime() &&
+        record.created_at <= until.getTime() &&
+        ['success', 'failure', 'blocked'].includes(record.status)
+    )
+    .sort((left, right) => left.created_at - right.created_at)
     .slice(0, Math.max(1, Math.min(limit, 20)));
 
   return Promise.all(entries.map(toIssueAgentExecutionHistoryRecord));
@@ -1140,6 +1272,10 @@ export async function updateIssueAgentExecutionHistory(
     lastReportedAt?: Date | null;
     startedAt?: Date | null;
     finishedAt?: Date | null;
+    leaseExpiresAt?: Date | null;
+    recoveredAt?: Date | null;
+    cancelRequestedAt?: Date | null;
+    failureSignature?: string | null;
   },
   teamUUID: string
 ) {
@@ -1204,6 +1340,22 @@ export async function updateIssueAgentExecutionHistory(
         : record.usage_output_tokens,
     execute_client_uuid: normalizeOptionalString(input.executeClientUUID),
     execute_client_name: normalizeOptionalString(input.executeClientName),
+    lease_expires_at:
+      input.leaseExpiresAt !== undefined
+        ? toTimestamp(input.leaseExpiresAt)
+        : record.lease_expires_at,
+    recovered_at:
+      input.recoveredAt !== undefined
+        ? toTimestamp(input.recoveredAt)
+        : record.recovered_at,
+    cancel_requested_at:
+      input.cancelRequestedAt !== undefined
+        ? toTimestamp(input.cancelRequestedAt)
+        : record.cancel_requested_at,
+    failure_signature:
+      input.failureSignature !== undefined
+        ? normalizeOptionalString(input.failureSignature)
+        : record.failure_signature,
     queued_at:
       input.queuedAt !== undefined
         ? toTimestamp(input.queuedAt)
@@ -1253,6 +1405,8 @@ export async function updateIssueExecutionHistory(
     blockReason?: string | null;
     startedAt?: Date | null;
     finishedAt?: Date | null;
+    cancelRequestedAt?: Date | null;
+    cancelReason?: string | null;
   },
   teamUUID: string
 ) {
@@ -1275,6 +1429,14 @@ export async function updateIssueExecutionHistory(
         ? normalizeOptionalString(input.blockReason)
         : record.block_reason,
     current_agent_uuid: input.currentAgentUUID,
+    cancel_requested_at:
+      input.cancelRequestedAt !== undefined
+        ? toTimestamp(input.cancelRequestedAt)
+        : record.cancel_requested_at,
+    cancel_reason:
+      input.cancelReason !== undefined
+        ? normalizeOptionalString(input.cancelReason)
+        : record.cancel_reason,
     started_at:
       input.startedAt !== undefined
         ? toTimestamp(input.startedAt)
@@ -1322,5 +1484,36 @@ export async function listRunnableIssueExecutionHistories(
     runnableEntries.map((entry) =>
       materializeIssueExecutionHistoryRecord(entry, teamUUID)
     )
+  );
+}
+
+export async function listExpiredIssueAgentExecutionLeases(
+  teamUUID: string,
+  now: Date
+): Promise<IssueAgentExecutionHistoryWithExecutionRecord[]> {
+  const entries = (await listTeamIssueAgentExecutionHistoryEntries(teamUUID))
+    .map((entry) => entry.value)
+    .filter(
+      (entry) =>
+        (entry.status === 'queued' || entry.status === 'running') &&
+        entry.lease_expires_at > 0 &&
+        entry.lease_expires_at <= now.getTime()
+    );
+  const records = await Promise.all(
+    entries.map(async (entry) => {
+      const issueExecution = await getStoredIssueExecutionHistoryByUUID(
+        entry.issue_execution_uuid,
+        teamUUID
+      );
+      if (!issueExecution) return null;
+      return {
+        ...(await toIssueAgentExecutionHistoryRecord(entry)),
+        issueExecution: toIssueExecutionHistoryBaseRecord(issueExecution)
+      };
+    })
+  );
+  return records.filter(
+    (record): record is IssueAgentExecutionHistoryWithExecutionRecord =>
+      record !== null
   );
 }

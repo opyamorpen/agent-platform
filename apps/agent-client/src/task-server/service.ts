@@ -2,14 +2,17 @@ import type {
   AgentClientTask,
   AgentClientTaskAttachmentUploadResponse,
   AgentClientTaskRuntimeEnvResponse,
-  AgentClientTaskReport
+  AgentClientTaskReport,
+  AgentClientWorkspacePatchUploadResponse
 } from '@ones-ai-workflow/shared';
 import {
   AgentClientApiError,
   claimTasksFromServer,
+  downloadPreviousWorkspacePatchFromServer,
   fetchTaskRuntimeEnvFromServer,
   reportTaskStatusToServer,
-  uploadTaskAttachmentsToServer
+  uploadTaskAttachmentsToServer,
+  uploadTaskWorkspacePatchToServer
 } from '../api.js';
 import type { Auth } from '../auth/index.js';
 import { logger } from '../logger.js';
@@ -24,7 +27,10 @@ export interface TaskServerServiceDependencies {
   claimTasksFromServer: (
     serverBaseUrl: string,
     accessToken: string,
-    request: { availableSlots: number }
+    request: {
+      availableSlots: number;
+      capabilities?: Array<'workspace-verification-v1' | 'workspace-patch-v1'>;
+    }
   ) => Promise<{ tasks: AgentClientTask[] }>;
   reportTaskStatusToServer: (
     serverBaseUrl: string,
@@ -47,13 +53,26 @@ export interface TaskServerServiceDependencies {
       contentType?: string;
     }>
   ) => Promise<AgentClientTaskAttachmentUploadResponse>;
+  uploadTaskWorkspacePatchToServer: (
+    serverBaseUrl: string,
+    accessToken: string,
+    taskUUID: string,
+    bytes: Uint8Array
+  ) => Promise<AgentClientWorkspacePatchUploadResponse>;
+  downloadPreviousWorkspacePatchFromServer: (
+    serverBaseUrl: string,
+    accessToken: string,
+    downloadPath: string
+  ) => Promise<Uint8Array>;
 }
 
 const defaultDependencies: TaskServerServiceDependencies = {
   claimTasksFromServer,
   reportTaskStatusToServer,
   fetchTaskRuntimeEnvFromServer,
-  uploadTaskAttachmentsToServer
+  uploadTaskAttachmentsToServer,
+  uploadTaskWorkspacePatchToServer,
+  downloadPreviousWorkspacePatchFromServer
 };
 
 export class TaskServerError extends Error {
@@ -117,7 +136,11 @@ export class TaskServerService implements TaskServer {
         this.options.serverBaseUrl,
         accessToken,
         {
-          availableSlots: options.availableSlots
+          availableSlots: options.availableSlots,
+          capabilities: [
+            'workspace-verification-v1',
+            'workspace-patch-v1'
+          ]
         }
       )
     );
@@ -172,6 +195,34 @@ export class TaskServerService implements TaskServer {
         accessToken,
         options.taskUUID,
         options.files
+      )
+    );
+  }
+
+  async uploadTaskWorkspacePatch(options: {
+    taskUUID: string;
+    bytes: Uint8Array;
+  }): Promise<AgentClientWorkspacePatchUploadResponse> {
+    const accessToken = await this.ensureAccessToken();
+    return this.runWithErrorMapping(() =>
+      this.dependencies.uploadTaskWorkspacePatchToServer(
+        this.options.serverBaseUrl,
+        accessToken,
+        options.taskUUID,
+        options.bytes
+      )
+    );
+  }
+
+  async downloadPreviousWorkspacePatch(options: {
+    downloadPath: string;
+  }): Promise<Uint8Array> {
+    const accessToken = await this.ensureAccessToken();
+    return this.runWithErrorMapping(() =>
+      this.dependencies.downloadPreviousWorkspacePatchFromServer(
+        this.options.serverBaseUrl,
+        accessToken,
+        options.downloadPath
       )
     );
   }

@@ -86,7 +86,12 @@ export class WorkspaceService implements Workspace {
 
     return {
       workspaceRoot: preparedWorkspace.workspaceRoot,
-      gitEnv: preparedWorkspace.gitEnv
+      gitEnv: preparedWorkspace.gitEnv,
+      repos: preparedWorkspace.repos.map((repo) => ({
+        uuid: repo.uuid,
+        name: repo.name,
+        worktreePath: repo.worktreePath
+      }))
     };
   }
 

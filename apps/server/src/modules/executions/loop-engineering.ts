@@ -134,7 +134,8 @@ export function isLoopPolicyRuntimeEligible(input: {
     input.teamEnabled &&
     input.policy.enabled &&
     input.policy.escalationTargetStatus !== null &&
-    input.agentConfig.acceptancePolicy.criteria.length > 0
+    (input.agentConfig.acceptancePolicy.criteria.length > 0 ||
+      input.agentConfig.acceptancePolicy.verificationProfileUUIDs.length > 0)
   );
 }
 

@@ -26,6 +26,41 @@ const taskReportSchema = z.object({
       })
     )
     .optional(),
+  verificationResults: z
+    .array(
+      z.object({
+        profileUUID: z.string().trim().min(1),
+        profileName: z.string().trim().min(1),
+        status: z.enum(['passed', 'failed']),
+        steps: z.array(
+          z.object({
+            stepUUID: z.string().trim().min(1),
+            stepName: z.string().trim().min(1),
+            repositoryUUID: z.string().trim().min(1),
+            command: z.string(),
+            status: z.enum(['passed', 'failed', 'timed_out', 'skipped']),
+            exitCode: z.number().int().nullable(),
+            stdout: z.string(),
+            stderr: z.string(),
+            startedAt: z.string().datetime(),
+            finishedAt: z.string().datetime(),
+            durationMs: z.number().int().min(0)
+          })
+        )
+      })
+    )
+    .optional(),
+  workspacePatch: z
+    .object({
+      sourceTaskUUID: z.string().trim().min(1),
+      sha256: z.string().regex(/^[a-f0-9]{64}$/u),
+      byteSize: z.number().int().min(1),
+      repositoryCount: z.number().int().min(0),
+      changedFiles: z.number().int().min(0),
+      additions: z.number().int().min(0),
+      deletions: z.number().int().min(0)
+    })
+    .optional(),
   usage: z
     .object({
       inputTokens: z.number().finite().nullable(),
@@ -53,7 +88,12 @@ export const agentClientTaskReportSchema = z.object({
 });
 
 export const agentClientTaskClaimSchema = z.object({
-  availableSlots: z.number().int().min(0)
+  availableSlots: z.number().int().min(0),
+  capabilities: z
+    .array(
+      z.enum(['workspace-verification-v1', 'workspace-patch-v1'])
+    )
+    .default([])
 });
 
 export type AgentClientConnectDTO = z.infer<typeof agentClientConnectSchema>;

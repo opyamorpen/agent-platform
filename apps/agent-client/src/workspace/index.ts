@@ -8,6 +8,11 @@ export interface PrepareWorkspaceInput {
 export interface PrepareWorkspaceResult {
   workspaceRoot: string;
   gitEnv: NodeJS.ProcessEnv;
+  repos?: Array<{
+    uuid: string;
+    name: string;
+    worktreePath: string;
+  }>;
 }
 
 export interface Workspace {

@@ -2,6 +2,8 @@ import type {
   AgentClientTask,
   AgentTokenUsage,
   AgentClientTaskAttachmentOutput,
+  AgentClientVerificationProfileResult,
+  AgentClientWorkspacePatchUpload,
   AgentClientTaskReport,
   AgentClientTaskStatus
 } from '@ones-ai-workflow/shared';
@@ -25,7 +27,9 @@ export interface TaskStoreService {
     appendLogs?: string,
     executeResult?: string,
     attachmentUploads?: AgentClientTaskAttachmentOutput[],
-    usage?: AgentTokenUsage | null
+    usage?: AgentTokenUsage | null,
+    verificationResults?: AgentClientVerificationProfileResult[],
+    workspacePatch?: AgentClientWorkspacePatchUpload
   ): void;
 }
 

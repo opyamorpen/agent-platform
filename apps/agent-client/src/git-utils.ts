@@ -3,7 +3,8 @@ import { spawn } from 'node:child_process';
 export async function runGitCommand(
   cwd: string,
   args: string[],
-  extraEnv?: NodeJS.ProcessEnv
+  extraEnv?: NodeJS.ProcessEnv,
+  stdin?: string
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn('git', args, {
@@ -23,6 +24,10 @@ export async function runGitCommand(
     child.stderr.on('data', (chunk) => {
       stderr += chunk.toString();
     });
+
+    if (stdin !== undefined) {
+      child.stdin.end(stdin);
+    }
 
     child.on('error', (error) => {
       reject(error);

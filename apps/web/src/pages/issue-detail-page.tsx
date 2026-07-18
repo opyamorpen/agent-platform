@@ -4,6 +4,8 @@ import type {
   ApiError,
   ApiSuccess,
   DispatchedIssue,
+  AgentClientVerificationProfileResult,
+  AgentClientWorkspacePatchUpload,
   IssueAgentExecutionHistory,
   IssueExecutionHistory
 } from '@ones-ai-workflow/shared';
@@ -37,7 +39,13 @@ import {
 import { formatDateTime } from '@/lib/date-time';
 import { DEFAULT_LOCALE, resolveLocale } from '@/lib/locale';
 import { useHeaderActions } from '@/layouts/app-layout';
-import { DownloadIcon, FileTextIcon, RotateCcwIcon } from 'lucide-react';
+import {
+  CheckCircle2Icon,
+  DownloadIcon,
+  FileTextIcon,
+  RotateCcwIcon,
+  XCircleIcon
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
@@ -132,6 +140,8 @@ export function IssueDetailPage() {
   const [pendingRetryAgentExecution, setPendingRetryAgentExecution] = useState<
     IssueExecutionHistory['agentExecutions'][number] | null
   >(null);
+  const [selectedVerificationExecution, setSelectedVerificationExecution] =
+    useState<IssueAgentExecutionHistory | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingAgentExecutionDetail, setIsLoadingAgentExecutionDetail] =
     useState(false);
@@ -358,6 +368,33 @@ export function IssueDetailPage() {
     window.URL.revokeObjectURL(objectUrl);
   }
 
+  function getVerificationResults(
+    execution: IssueAgentExecutionHistory
+  ): AgentClientVerificationProfileResult[] {
+    const value = execution.executeResult.verificationResults;
+    return Array.isArray(value)
+      ? (value as unknown as AgentClientVerificationProfileResult[])
+      : [];
+  }
+
+  function getWorkspacePatch(
+    execution: IssueAgentExecutionHistory
+  ): AgentClientWorkspacePatchUpload | null {
+    const value = execution.executeResult.workspacePatch;
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as unknown as AgentClientWorkspacePatchUpload)
+      : null;
+  }
+
+  function downloadWorkspacePatch(execution: IssueAgentExecutionHistory) {
+    const link = document.createElement('a');
+    link.href = `/api/executions/agent-histories/${execution.uuid}/workspace-patch`;
+    link.download = `workspace-patch-${execution.uuid}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
   function openAgentExecutionLogs(
     agentExecution: IssueExecutionHistory['agentExecutions'][number]
   ) {
@@ -511,6 +548,9 @@ export function IssueDetailPage() {
                         agentExecution.status,
                         t
                       );
+                      const verificationResults =
+                        getVerificationResults(agentExecution);
+                      const workspacePatch = getWorkspacePatch(agentExecution);
 
                       return (
                         <TableRow key={agentExecution.uuid}>
@@ -569,6 +609,33 @@ export function IssueDetailPage() {
                                 <FileTextIcon />
                                 {t('pages.issueDetail.actions.viewLogs')}
                               </Button>
+                              {verificationResults.length > 0 ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectedVerificationExecution(
+                                      agentExecution
+                                    )
+                                  }
+                                >
+                                  {t('pages.issueDetail.actions.viewVerification')}
+                                </Button>
+                              ) : null}
+                              {workspacePatch ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  type="button"
+                                  onClick={() =>
+                                    downloadWorkspacePatch(agentExecution)
+                                  }
+                                >
+                                  <DownloadIcon />
+                                  {t('pages.issueDetail.actions.downloadPatch')}
+                                </Button>
+                              ) : null}
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -622,6 +689,61 @@ export function IssueDetailPage() {
           </div>
         )}
       </div>
+
+      <Dialog
+        open={selectedVerificationExecution !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedVerificationExecution(null);
+        }}
+      >
+        <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {t('pages.issueDetail.verificationDialog.title')}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5">
+            {selectedVerificationExecution
+              ? getVerificationResults(selectedVerificationExecution).map(
+                  (profile) => (
+                    <section key={profile.profileUUID} className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm font-semibold">
+                        {profile.status === 'passed' ? (
+                          <CheckCircle2Icon className="size-4 text-green-600" />
+                        ) : (
+                          <XCircleIcon className="size-4 text-destructive" />
+                        )}
+                        {profile.profileName}
+                      </div>
+                      <div className="overflow-hidden rounded-lg border">
+                        <Table>
+                          <TableHeader className="bg-muted">
+                            <TableRow>
+                              <TableHead className="px-4">{t('pages.issueDetail.verificationDialog.step')}</TableHead>
+                              <TableHead>{t('pages.issueDetail.verificationDialog.status')}</TableHead>
+                              <TableHead>{t('pages.issueDetail.verificationDialog.duration')}</TableHead>
+                              <TableHead>{t('pages.issueDetail.verificationDialog.output')}</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {profile.steps.map((step) => (
+                              <TableRow key={step.stepUUID}>
+                                <TableCell className="px-4 font-medium">{step.stepName}</TableCell>
+                                <TableCell>{step.status}</TableCell>
+                                <TableCell>{step.durationMs} ms</TableCell>
+                                <TableCell className="max-w-lg whitespace-pre-wrap font-mono text-xs">{step.stderr || step.stdout || t('common.fallback.emptyValue')}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </section>
+                  )
+                )
+              : null}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={selectedAgentExecutionLogs !== null}

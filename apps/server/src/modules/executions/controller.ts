@@ -14,6 +14,7 @@ import {
   IssueAgentExecutionHistoryRetryNotAllowedError,
   IssueExecutionHistoryNotFoundError
 } from './service.js';
+import { openExecutionWorkspacePatch } from '../agent-clients/workspace-patch.js';
 
 export async function listDispatchedIssuesHandler(c: Context) {
   const session = await getWebSession(c.req);
@@ -201,4 +202,23 @@ export async function retryIssueAgentExecutionHistoryHandler(c: Context) {
 
     throw error;
   }
+}
+
+export async function downloadIssueAgentExecutionWorkspacePatchHandler(c: Context) {
+  const uuid = c.req.param('uuid');
+  if (!uuid) {
+    return c.json(failure('Agent execution uuid is required'), 400);
+  }
+  const { teamUUID } = await getWebSession(c.req);
+  const opened = await openExecutionWorkspacePatch(uuid, teamUUID);
+  if (!opened?.downloadUrl) {
+    return c.json(
+      failure(
+        'Workspace patch not found',
+        'executions.workspace_patch_not_found'
+      ),
+      404
+    );
+  }
+  return c.redirect(opened.downloadUrl, 302);
 }

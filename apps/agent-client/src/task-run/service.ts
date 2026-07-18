@@ -4,7 +4,9 @@ import * as path from 'node:path';
 import {
   type AgentTokenUsage,
   parseAttachmentOutputContent,
-  type AgentClientTaskAttachmentOutput
+  type AgentClientTaskAttachmentOutput,
+  type AgentClientVerificationProfileResult,
+  type AgentClientWorkspacePatchUpload
 } from '@ones-ai-workflow/shared';
 import {
   AgentSessionExecutionError,
@@ -12,13 +14,18 @@ import {
   type AgentSession
 } from '../agent-session/index.js';
 import type { Skill } from '../skill/index.js';
-import type { Workspace } from '../workspace/index.js';
+import type { PrepareWorkspaceResult, Workspace } from '../workspace/index.js';
 import type {
   TaskRunAttachmentUploadFile,
   TaskRunCallback,
   TaskRunDependencies,
   TaskRunInput
 } from './types.js';
+import {
+  applyWorkspacePatchBundle,
+  createWorkspacePatchBundle,
+  runWorkspaceVerificationProfiles
+} from './workspace-verification.js';
 
 export interface TaskRunServiceDependencies extends TaskRunDependencies {}
 
@@ -27,7 +34,13 @@ const defaultDependencies: TaskRunServiceDependencies = {
   listWorkspaceRepoNames,
   listMountedSkillNames,
   fetchTaskRuntimeEnv: async () => ({ env: {} }),
-  uploadTaskAttachments: async () => ({ uploads: [] })
+  uploadTaskAttachments: async () => ({ uploads: [] }),
+  downloadPreviousWorkspacePatch: async () => {
+    throw new Error('Previous workspace patch download is not configured');
+  },
+  uploadTaskWorkspacePatch: async () => {
+    throw new Error('Workspace patch upload is not configured');
+  }
 };
 
 export class TaskRun {
@@ -65,6 +78,13 @@ export class TaskRun {
     let attachmentUploads: AgentClientTaskAttachmentOutput[] | undefined;
     let taskError: Error | null = null;
     let usage: AgentTokenUsage | null = null;
+    let preparedWorkspace: PrepareWorkspaceResult | null = null;
+    let runtimeEnv: Record<string, string> = {};
+    let agentExecutionStarted = false;
+    let verificationResults:
+      | AgentClientVerificationProfileResult[]
+      | undefined;
+    let workspacePatch: AgentClientWorkspacePatchUpload | undefined;
 
     try {
       callback.onProgress({
@@ -79,6 +99,7 @@ export class TaskRun {
         taskUUID: this.input.taskUUID,
         sourceWorkspaceUUID: this.input.sourceWorkspaceUUID
       });
+      preparedWorkspace = workspace;
       const repoNames = await this.dependencies.listWorkspaceRepoNames(
         workspace.workspaceRoot
       );
@@ -86,6 +107,21 @@ export class TaskRun {
       callback.onProgress({
         logs: `[task-run] workspace repos: ${formatNameList(repoNames)}`
       });
+
+      if (this.input.previousWorkspacePatch) {
+        callback.onProgress({
+          logs: `[task-run] applying previous workspace patch from ${this.input.previousWorkspacePatch.sourceTaskUUID}`
+        });
+        const patchBytes = await this.dependencies.downloadPreviousWorkspacePatch(
+          this.input.previousWorkspacePatch
+        );
+        await applyWorkspacePatchBundle({
+          bytes: patchBytes,
+          expectedSha256: this.input.previousWorkspacePatch.sha256,
+          repositories: workspace.repos ?? [],
+          gitEnv: workspace.gitEnv
+        });
+      }
 
       callback.onProgress({
         logs: '[task-run] mounting skills'
@@ -106,7 +142,7 @@ export class TaskRun {
       const runtimeEnvResponse = await this.dependencies.fetchTaskRuntimeEnv(
         this.input.taskUUID
       );
-      const runtimeEnv = normalizeStringRecord(runtimeEnvResponse.env);
+      runtimeEnv = normalizeStringRecord(runtimeEnvResponse.env);
       const runtimeEnvKeys = Object.keys(runtimeEnv).sort((left, right) =>
         left.localeCompare(right)
       );
@@ -137,6 +173,7 @@ export class TaskRun {
         modelReasoningEffort: this.input.modelReasoningEffort
       }, this.input.executeAgentType) as AgentSession;
 
+      agentExecutionStarted = true;
       const execution = await this.agentSession.execute(callback.onProgress);
       result = execution.result;
       usage = execution.usage;
@@ -151,6 +188,59 @@ export class TaskRun {
       usage = extractUsage(error);
     }
 
+    if (preparedWorkspace && agentExecutionStarted) {
+      try {
+        if (!taskError && (this.input.verificationProfiles?.length ?? 0) > 0) {
+          callback.onProgress({
+            logs: '[task-run] running workspace verification'
+          });
+          verificationResults = await runWorkspaceVerificationProfiles({
+            profiles: this.input.verificationProfiles ?? [],
+            repositories: preparedWorkspace.repos ?? [],
+            env: {
+              ...normalizeStringRecord(preparedWorkspace.gitEnv),
+              ...runtimeEnv
+            },
+            onLog: (logs) => callback.onProgress({ logs })
+          });
+        }
+
+        const shouldCaptureWorkspacePatch =
+          (this.input.verificationProfiles?.length ?? 0) > 0 ||
+          Boolean(this.input.previousWorkspacePatch);
+        if (
+          shouldCaptureWorkspacePatch &&
+          (preparedWorkspace.repos?.length ?? 0) > 0
+        ) {
+          callback.onProgress({
+            logs: '[task-run] generating workspace patch'
+          });
+          const patchBundle = await createWorkspacePatchBundle({
+            taskUUID: this.input.taskUUID,
+            repositories: preparedWorkspace.repos ?? [],
+            gitEnv: preparedWorkspace.gitEnv
+          });
+          if (patchBundle.bundle.repositories.length > 0) {
+            workspacePatch = (
+              await this.dependencies.uploadTaskWorkspacePatch(
+                this.input.taskUUID,
+                patchBundle.bytes
+              )
+            ).patch;
+            callback.onProgress({
+              logs: `[task-run] uploaded workspace patch: ${workspacePatch.changedFiles} file(s), +${workspacePatch.additions}/-${workspacePatch.deletions}`
+            });
+          } else {
+            callback.onProgress({
+              logs: '[task-run] workspace patch: no code changes'
+            });
+          }
+        }
+      } catch (error) {
+        taskError = mergePostExecutionError(taskError, error);
+      }
+    }
+
     callback.onProgress({
       logs: '[task-run] cleaning up workspace'
     });
@@ -162,11 +252,17 @@ export class TaskRun {
     }
 
     if (taskError) {
-      callback.onError(taskError, usage);
+      callback.onError(taskError, usage, verificationResults, workspacePatch);
       return;
     }
 
-    callback.onFinish(result ?? '', attachmentUploads, usage);
+    callback.onFinish(
+      result ?? '',
+      attachmentUploads,
+      usage,
+      verificationResults,
+      workspacePatch
+    );
   }
 
   private async collectAttachmentUploads(
@@ -277,6 +373,17 @@ function mergeCleanupError(
   return new Error(`${taskError.message}\n${cleanupMessage}`, {
     cause: normalizedCleanupError
   });
+}
+
+function mergePostExecutionError(
+  taskError: Error | null,
+  error: unknown
+): Error {
+  const normalizedError = toError(error);
+  const message = `[task-run] workspace verification or patch failed: ${normalizedError.message}`;
+  return taskError
+    ? new Error(`${taskError.message}\n${message}`, { cause: normalizedError })
+    : new Error(message, { cause: normalizedError });
 }
 
 async function listWorkspaceRepoNames(workspaceRoot: string): Promise<string[]> {

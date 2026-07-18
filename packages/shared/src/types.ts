@@ -185,6 +185,27 @@ export interface AgentWorkspace {
   credentialCount: number;
 }
 
+export interface WorkspaceVerificationStep {
+  uuid: string;
+  name: string;
+  repositoryUUID: string;
+  workingDirectory: string;
+  executable: string;
+  args: string[];
+  timeoutSeconds: number;
+}
+
+export interface WorkspaceVerificationProfile {
+  uuid: string;
+  workspaceUUID: string;
+  workspaceName: string;
+  name: string;
+  steps: WorkspaceVerificationStep[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AgentVersion {
   uuid: string;
   agentUUID: string;
@@ -453,6 +474,8 @@ export interface AgentClientTaskReport {
   logs: string;
   executeResult: string;
   attachmentUploads?: AgentClientTaskAttachmentOutput[];
+  verificationResults?: AgentClientVerificationProfileResult[];
+  workspacePatch?: AgentClientWorkspacePatchUpload;
   usage: AgentTokenUsage | null;
   startedAt: string | null;
   finishedAt: string | null;
@@ -475,6 +498,10 @@ export interface AgentClientConnectRequestClient {
   hostname: string;
   version: string;
 }
+
+export type AgentClientCapability =
+  | 'workspace-verification-v1'
+  | 'workspace-patch-v1';
 
 export interface AgentClientConnectRequest {
   client: AgentClientConnectRequestClient;
@@ -517,6 +544,63 @@ export interface AgentClientTaskReportResponse {
 
 export interface AgentClientTaskClaimRequest {
   availableSlots: number;
+  capabilities?: AgentClientCapability[];
+}
+
+export interface AgentClientVerificationStepResult {
+  stepUUID: string;
+  stepName: string;
+  repositoryUUID: string;
+  command: string;
+  status: 'passed' | 'failed' | 'timed_out' | 'skipped';
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number;
+}
+
+export interface AgentClientVerificationProfileResult {
+  profileUUID: string;
+  profileName: string;
+  status: 'passed' | 'failed';
+  steps: AgentClientVerificationStepResult[];
+}
+
+export interface AgentClientWorkspacePatchRepository {
+  repositoryUUID: string;
+  repositoryName: string;
+  changedFiles: number;
+  additions: number;
+  deletions: number;
+  patch: string;
+}
+
+export interface AgentClientWorkspacePatchBundle {
+  version: 1;
+  sourceTaskUUID: string;
+  repositories: AgentClientWorkspacePatchRepository[];
+}
+
+export interface AgentClientWorkspacePatchUpload {
+  sourceTaskUUID: string;
+  sha256: string;
+  byteSize: number;
+  repositoryCount: number;
+  changedFiles: number;
+  additions: number;
+  deletions: number;
+}
+
+export interface AgentClientWorkspacePatchUploadResponse {
+  patch: AgentClientWorkspacePatchUpload;
+}
+
+export interface AgentClientPreviousWorkspacePatch {
+  sourceTaskUUID: string;
+  sha256: string;
+  downloadPath: string;
 }
 
 export interface AgentClientTaskSourceRepository {
@@ -553,6 +637,8 @@ export interface AgentClientTask {
   skillUUIDs: string[];
   executeOption: Record<string, unknown>;
   prompt: string;
+  verificationProfiles?: WorkspaceVerificationProfile[];
+  previousWorkspacePatch?: AgentClientPreviousWorkspacePatch | null;
 }
 
 export interface AgentClientTaskClaimResponse {

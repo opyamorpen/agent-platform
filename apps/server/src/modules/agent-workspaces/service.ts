@@ -33,6 +33,7 @@ import {
   saveWorkspaceCredential
 } from './credentials-repository.js';
 import { generateWorkspaceSshKeyPair } from './ssh-key.js';
+import { listWorkspaceVerificationProfilesByWorkspaceUUID } from '../workspace-verification-profiles/repository.js';
 
 export class AgentWorkspaceNotFoundError extends Error {
   constructor(uuid: string) {
@@ -265,6 +266,13 @@ export async function removeAgentWorkspaceRecord(
       `Agent workspace is referenced by agent ${referencingAgents[0]?.name ?? referencingAgents[0]?.uuid}`
     );
   }
+  const verificationProfiles =
+    await listWorkspaceVerificationProfilesByWorkspaceUUID(uuid, teamUUID);
+  if (verificationProfiles.length > 0) {
+    throw new AgentWorkspaceInUseError(
+      `Agent workspace is referenced by verification profile ${verificationProfiles[0]?.name ?? verificationProfiles[0]?.uuid}`
+    );
+  }
 
   if (workspace.auth.type === 'https' && workspace.auth.secretObjectKey) {
     await deleteObject(workspace.auth.secretObjectKey);
@@ -335,6 +343,20 @@ export async function removeRepositoryRecord(
 
   if (!repository) {
     throw new RepositoryNotFoundError(uuid);
+  }
+
+  const verificationProfiles =
+    await listWorkspaceVerificationProfilesByWorkspaceUUID(
+      repository.agentWorkspaceUUID,
+      teamUUID
+    );
+  const referencingProfile = verificationProfiles.find((profile) =>
+    profile.steps.some((step) => step.repositoryUUID === uuid)
+  );
+  if (referencingProfile) {
+    throw new AgentWorkspaceInUseError(
+      `Repository is referenced by verification profile ${referencingProfile.name}`
+    );
   }
 
   await deleteRepository(uuid, teamUUID);

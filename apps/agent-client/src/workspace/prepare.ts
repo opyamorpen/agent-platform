@@ -4,6 +4,7 @@ import { runGitCommand } from '../git-utils.js';
 import type { PreparedSourceWorkspace } from './source.js';
 
 export interface PreparedWorkspaceRepo {
+  uuid: string;
   name: string;
   sourcePath: string;
   worktreePath: string;
@@ -36,6 +37,7 @@ export async function prepareWorkspace(
       const worktreePath = path.join(workspaceRoot, repo.name);
       await addDetachedWorktree(repo.sourcePath, worktreePath);
       preparedRepos.push({
+        uuid: repo.uuid,
         name: repo.name,
         sourcePath: repo.sourcePath,
         worktreePath
@@ -112,6 +114,7 @@ async function writeWorkspaceMetadata(
   sourceWorkspace: PreparedSourceWorkspace | null
 ): Promise<void> {
   const repoIndex = repos.map((repo) => ({
+    uuid: repo.uuid,
     name: repo.name,
     sourcePath: repo.sourcePath,
     worktreePath: repo.worktreePath

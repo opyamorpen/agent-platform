@@ -6,6 +6,7 @@ import type {
   AgentClientTask,
   AgentClientTaskRuntimeEnvResponse,
   AgentClientTaskAttachmentUploadResponse,
+  AgentClientWorkspacePatchUploadResponse,
   AgentClientTaskReport,
   ApiError,
   ApiSuccess,
@@ -23,6 +24,7 @@ type AgentClientTaskReportResponse = {
 
 type AgentClientTaskClaimRequest = {
   availableSlots: number;
+  capabilities?: Array<'workspace-verification-v1' | 'workspace-patch-v1'>;
 };
 
 type AgentClientTaskClaimResponse = {
@@ -164,6 +166,52 @@ export async function fetchTaskRuntimeEnvFromServer(
     },
     'Agent client task runtime env fetch failed'
   );
+}
+
+export async function uploadTaskWorkspacePatchToServer(
+  serverBaseUrl: string,
+  accessToken: string,
+  taskUUID: string,
+  bytes: Uint8Array
+): Promise<AgentClientWorkspacePatchUploadResponse> {
+  const formData = new FormData();
+  formData.set(
+    'file',
+    new File([bytes], 'workspace-patch.json', {
+      type: 'application/json'
+    })
+  );
+  return requestJson<AgentClientWorkspacePatchUploadResponse>(
+    `${serverBaseUrl}/api/agent-clients/tasks/${taskUUID}/workspace-patch`,
+    {
+      method: 'POST',
+      headers: { authorization: `Bearer ${accessToken}` },
+      body: formData
+    },
+    'Agent client workspace patch upload failed'
+  );
+}
+
+export async function downloadPreviousWorkspacePatchFromServer(
+  serverBaseUrl: string,
+  accessToken: string,
+  downloadPath: string
+): Promise<Uint8Array> {
+  const url = new URL(downloadPath, `${serverBaseUrl}/`).toString();
+  const response = await fetch(url, {
+    headers: { authorization: `Bearer ${accessToken}` }
+  });
+  if (!response.ok) {
+    const responseBody = await response.text().catch(() => '');
+    throw new AgentClientApiError(
+      'Previous workspace patch download failed',
+      response.status,
+      'GET',
+      url,
+      responseBody
+    );
+  }
+  return new Uint8Array(await response.arrayBuffer());
 }
 
 export async function fetchSkillsManifest(

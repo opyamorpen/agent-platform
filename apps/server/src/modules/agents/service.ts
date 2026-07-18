@@ -36,6 +36,7 @@ import { findAgentWorkspaceByUUID } from '../agent-workspaces/repository.js';
 import { listWorkspaceCredentialsByWorkspaceUUID } from '../agent-workspaces/credentials-repository.js';
 import { findSkillsByUUIDs } from '../skills/repository.js';
 import { findKnowledgeSourcesByUUIDs } from '../knowledge-sources/repository.js';
+import { findWorkspaceVerificationProfilesByUUIDs } from '../workspace-verification-profiles/repository.js';
 import type { RefObject } from '@ones-ai-workflow/shared';
 import { buildAgentPrompt } from './prompt-render.js';
 
@@ -85,6 +86,13 @@ export class AgentKnowledgeBindingNotFoundError extends Error {
   constructor(uuid: string) {
     super(`Knowledge source not found: ${uuid}`);
     this.name = 'AgentKnowledgeBindingNotFoundError';
+  }
+}
+
+export class AgentVerificationProfileBindingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AgentVerificationProfileBindingError';
   }
 }
 
@@ -289,6 +297,11 @@ export async function saveAgentDraft(
     payload.config.knowledgeSourceUUIDs,
     teamUUID
   );
+  await assertAgentVerificationProfilesExist(
+    payload.config.acceptancePolicy.verificationProfileUUIDs,
+    agent.workspaceUUID,
+    teamUUID
+  );
 
   const updatedAgent = await updateAgentDraftConfig(
     uuid,
@@ -321,6 +334,11 @@ export async function publishAgentDraft(
 
   await assertAgentKnowledgeSourcesExist(
     draftConfig.knowledgeSourceUUIDs,
+    teamUUID
+  );
+  await assertAgentVerificationProfilesExist(
+    draftConfig.acceptancePolicy.verificationProfileUUIDs,
+    agent.workspaceUUID,
     teamUUID
   );
   assertAgentWikiWriteTargetsConfigured(draftConfig);
@@ -475,6 +493,41 @@ async function assertAgentKnowledgeSourcesExist(
 
   if (missingUUID) {
     throw new AgentKnowledgeBindingNotFoundError(missingUUID);
+  }
+}
+
+async function assertAgentVerificationProfilesExist(
+  verificationProfileUUIDs: string[],
+  workspaceUUID: string | null,
+  teamUUID: string
+): Promise<void> {
+  if (verificationProfileUUIDs.length === 0) {
+    return;
+  }
+  if (!workspaceUUID) {
+    throw new AgentVerificationProfileBindingError(
+      'Verification profiles require an Agent workspace'
+    );
+  }
+  const profiles = await findWorkspaceVerificationProfilesByUUIDs(
+    verificationProfileUUIDs,
+    teamUUID
+  );
+  const profileByUUID = new Map(
+    profiles.map((profile) => [profile.uuid, profile] as const)
+  );
+  for (const profileUUID of verificationProfileUUIDs) {
+    const profile = profileByUUID.get(profileUUID);
+    if (!profile) {
+      throw new AgentVerificationProfileBindingError(
+        `Verification profile not found: ${profileUUID}`
+      );
+    }
+    if (profile.workspaceUUID !== workspaceUUID) {
+      throw new AgentVerificationProfileBindingError(
+        `Verification profile does not belong to the Agent workspace: ${profile.name}`
+      );
+    }
   }
 }
 

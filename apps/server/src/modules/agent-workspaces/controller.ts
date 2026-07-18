@@ -314,6 +314,13 @@ export async function updateRepositoryHandler(c: Context) {
       );
     }
 
+    if (error instanceof AgentWorkspaceInUseError) {
+      return c.json(
+        failure(error.message, 'agent_workspaces.in_use'),
+        409
+      );
+    }
+
     throw error;
   }
 }
@@ -339,6 +346,13 @@ export async function deleteRepositoryHandler(c: Context) {
       return c.json(
         failure(error.message, 'agent_workspaces.repository_not_found'),
         404
+      );
+    }
+
+    if (error instanceof AgentWorkspaceInUseError) {
+      return c.json(
+        failure(error.message, 'agent_workspaces.in_use'),
+        409
       );
     }
 

@@ -15,10 +15,13 @@ import type {
   AgentClientConnectResponse,
   AgentClientTask,
   AgentClientTaskReport,
+  AgentClientCapability,
+  AgentClientWorkspacePatchUpload,
   IssueExecutionStatus,
   ParsedAgentRevisionSummary,
   ParsedAgentWikiPageOutput,
-  RefObject
+  RefObject,
+  WorkspaceVerificationProfile
 } from '@ones-ai-workflow/shared';
 import { findAgentByUUID, findAgentVersion } from '../agents/repository.js';
 import {
@@ -131,6 +134,13 @@ import {
   buildWikiWritePlan,
   type WikiWritePlan
 } from './wiki-output.js';
+import { findWorkspaceVerificationProfilesByUUIDs } from '../workspace-verification-profiles/repository.js';
+import {
+  AgentClientWorkspacePatchError,
+  getPreviousWorkspacePatchDescriptor,
+  openPreviousWorkspacePatch,
+  uploadAgentClientWorkspacePatch
+} from './workspace-patch.js';
 
 type WorkflowNodeMap = Map<string, WorkflowNodeRecord>;
 type AgentConfigCache = Map<string, AgentConfig | null>;
@@ -278,6 +288,7 @@ type AgentClientTaskReportResponse = {
 };
 type AgentClientTaskClaimRequest = {
   availableSlots: number;
+  capabilities?: AgentClientCapability[];
 };
 type AgentClientTaskClaimResponse = {
   tasks: AgentClientTask[];
@@ -435,6 +446,13 @@ export class AgentClientInvalidAttachmentUploadError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'AgentClientInvalidAttachmentUploadError';
+  }
+}
+
+export class AgentClientInvalidWorkspacePatchError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AgentClientInvalidWorkspacePatchError';
   }
 }
 
@@ -4081,6 +4099,17 @@ function summarizeOutputWritePlan(
   };
 }
 
+function getTaskReportArtifacts(
+  report: AgentClientTaskReport
+): Record<string, unknown> {
+  return {
+    ...(report.verificationResults
+      ? { verificationResults: report.verificationResults }
+      : {}),
+    ...(report.workspacePatch ? { workspacePatch: report.workspacePatch } : {})
+  };
+}
+
 function getKnowledgeContextMetadata(executeOption: unknown): unknown {
   if (
     !executeOption ||
@@ -4177,6 +4206,35 @@ async function evaluateLoopGate(input: {
     input.report.status === 'blocked' ||
     deterministicValidation.requiresEscalation;
   const runtimeErrors: string[] = [];
+  const requiredVerificationProfileUUIDs = new Set(
+    input.agentConfig.acceptancePolicy.verificationProfileUUIDs
+  );
+  const verificationResults = input.report.verificationResults ?? [];
+  const verificationResultByProfileUUID = new Map(
+    verificationResults.map((result) => [result.profileUUID, result] as const)
+  );
+
+  for (const profileUUID of requiredVerificationProfileUUIDs) {
+    const result = verificationResultByProfileUUID.get(profileUUID);
+    if (!result) {
+      deterministicValidation.passed = false;
+      deterministicValidation.requiresEscalation = true;
+      forceEscalation = true;
+      deterministicValidation.errors.push(
+        `Missing workspace verification result for profile ${profileUUID}`
+      );
+      continue;
+    }
+    for (const step of result.steps) {
+      if (step.status === 'passed') {
+        continue;
+      }
+      deterministicValidation.passed = false;
+      deterministicValidation.errors.push(
+        `Workspace verification failed: ${result.profileName} / ${step.stepName} (${step.status})${step.stderr ? `: ${step.stderr}` : ''}`
+      );
+    }
+  }
 
   if (input.report.status === 'success' && deterministicValidation.passed) {
     try {
@@ -4196,6 +4254,14 @@ async function evaluateLoopGate(input: {
     }
   } else if (input.report.status !== 'success') {
     deterministicValidation.passed = false;
+    if (
+      /previous workspace patch|workspace verification or patch failed/iu.test(
+        input.report.logs
+      )
+    ) {
+      forceEscalation = true;
+      deterministicValidation.requiresEscalation = true;
+    }
     runtimeErrors.push(
       input.report.status === 'blocked'
         ? 'Agent Client 报告任务已阻断，未进入验收标准评审'
@@ -4204,7 +4270,11 @@ async function evaluateLoopGate(input: {
   }
 
   let reviewResult: LoopReviewResult | null = null;
-  if (deterministicValidation.passed && !forceEscalation) {
+  if (
+    deterministicValidation.passed &&
+    !forceEscalation &&
+    input.agentConfig.acceptancePolicy.criteria.length > 0
+  ) {
     try {
       reviewResult = await reviewLoopCandidate({
         teamUUID: input.teamUUID,
@@ -4236,7 +4306,10 @@ async function evaluateLoopGate(input: {
     reviewUsage: reviewResult?.usage,
     now: input.exchangeAt
   });
-  const reviewDecision = reviewResult?.review.verdict ?? null;
+  const reviewDecision =
+    input.agentConfig.acceptancePolicy.criteria.length === 0
+      ? 'pass'
+      : (reviewResult?.review.verdict ?? null);
   const acceptanceFindings =
     reviewResult?.review.findings.map(
       (finding) => `${finding.message}；修改要求：${finding.repairInstruction}`
@@ -4490,6 +4563,7 @@ async function persistLoopGateResult(input: {
       logs: mergeLogHistory(input.task.logs, logs),
       executeResult: toJsonObject({
         ...input.preparedReport.executeResult,
+        ...getTaskReportArtifacts(input.report),
         loopEvaluation,
         ...(loopLifecycleCommentStatus
           ? { loopLifecycleComment: { status: loopLifecycleCommentStatus } }
@@ -4837,6 +4911,7 @@ async function applyTaskReport(
 
   let executeResultToPersist: Record<string, unknown> = {
     ...preparedReport.executeResult,
+    ...getTaskReportArtifacts(report),
     ...(loopEvaluationToPersist
       ? { loopEvaluation: loopEvaluationToPersist }
       : {})
@@ -4860,6 +4935,7 @@ async function applyTaskReport(
         );
         executeResultToPersist = {
           ...preparedReport.executeResult,
+          ...getTaskReportArtifacts(report),
           ...(loopEvaluationToPersist
             ? { loopEvaluation: loopEvaluationToPersist }
             : {}),
@@ -5070,12 +5146,14 @@ async function resolveAgentTaskBindings(
   return bindings;
 }
 
-function toAgentClientTask(
+async function toAgentClientTask(
   task:
     | IssueAgentExecutionHistoryRecord
     | IssueAgentExecutionHistoryWithExecutionRecord,
-  bindings: AgentTaskBindings
-): AgentClientTask {
+  bindings: AgentTaskBindings,
+  verificationProfiles: WorkspaceVerificationProfile[],
+  teamUUID: string
+): Promise<AgentClientTask> {
   return {
     taskUUID: task.uuid,
     agent: {
@@ -5090,13 +5168,19 @@ function toAgentClientTask(
       !Array.isArray(task.executeOption)
         ? (task.executeOption as Record<string, unknown>)
         : {},
-    prompt: task.prompt
+    prompt: task.prompt,
+    verificationProfiles,
+    previousWorkspacePatch: await getPreviousWorkspacePatchDescriptor(
+      task,
+      teamUUID
+    )
   };
 }
 
 async function dispatchTasks(
   availableSlots: number,
   client: { uuid: string; name: string },
+  clientCapabilities: Set<AgentClientCapability>,
   workflowNodeMap: WorkflowNodeMap,
   agentConfigCache: AgentConfigCache,
   agentTaskBindingsCache: AgentTaskBindingsCache,
@@ -5156,6 +5240,26 @@ async function dispatchTasks(
       continue;
     }
 
+    const requiresVerification =
+      agentConfig.acceptancePolicy.verificationProfileUUIDs.length > 0;
+    const previousWorkspacePatch = await getPreviousWorkspacePatchDescriptor(
+      nextTask,
+      teamUUID
+    );
+    if (
+      requiresVerification &&
+      (!clientCapabilities.has('workspace-verification-v1') ||
+        !clientCapabilities.has('workspace-patch-v1'))
+    ) {
+      continue;
+    }
+    if (
+      previousWorkspacePatch &&
+      !clientCapabilities.has('workspace-patch-v1')
+    ) {
+      continue;
+    }
+
     const executeOption = {
       ...(typeof nextTask.executeOption === 'object' &&
       nextTask.executeOption !== null &&
@@ -5169,6 +5273,11 @@ async function dispatchTasks(
       teamUUID,
       agentTaskBindingsCache
     );
+    const verificationProfiles =
+      await findWorkspaceVerificationProfilesByUUIDs(
+        agentConfig.acceptancePolicy.verificationProfileUUIDs,
+        teamUUID
+      );
 
     let executePayload: Record<string, unknown>;
     let inputContextXml: string;
@@ -5281,7 +5390,8 @@ async function dispatchTasks(
         knowledgeContextXml,
         revisionContextXml,
         loopContextXml,
-        readableEnvKeys: bindings.readableEnvKeys
+        readableEnvKeys: bindings.readableEnvKeys,
+        verificationProfiles
       });
     } catch (error) {
       logger.error(
@@ -5328,7 +5438,14 @@ async function dispatchTasks(
       null,
       teamUUID
     );
-    tasks.push(toAgentClientTask(queuedTask, bindings));
+    tasks.push(
+      await toAgentClientTask(
+        queuedTask,
+        bindings,
+        verificationProfiles,
+        teamUUID
+      )
+    );
   }
 
   return tasks;
@@ -5431,6 +5548,7 @@ export async function claimAgentClientTasks(
   const agentConfigCache: AgentConfigCache = new Map();
   const agentTaskBindingsCache: AgentTaskBindingsCache = new Map();
   const tasks: AgentClientTask[] = [];
+  const clientCapabilities = new Set(request.capabilities ?? []);
   const teamUUIDs = await listWorkflowTeamUUIDs();
 
   for (const teamUUID of teamUUIDs) {
@@ -5446,6 +5564,7 @@ export async function claimAgentClientTasks(
     const teamTasks = await dispatchTasks(
       remainingSlots,
       client,
+      clientCapabilities,
       workflowNodeMap,
       agentConfigCache,
       agentTaskBindingsCache,
@@ -5495,6 +5614,76 @@ export async function getAgentClientTaskRuntimeEnv(
 
   return {
     env: await getAgentWorkspaceRuntimeEnv(agent.workspaceUUID, teamUUID)
+  };
+}
+
+async function getAssignedAgentClientTask(
+  clientUUID: string,
+  taskUUID: string
+): Promise<{
+  teamUUID: string;
+  task: IssueAgentExecutionHistoryRecord;
+}> {
+  const teamUUID = await findIssueAgentExecutionHistoryTeamUUID(taskUUID);
+  if (!teamUUID) {
+    throw new AgentClientInvalidWorkspacePatchError(`Invalid task: ${taskUUID}`);
+  }
+  const task = await findIssueAgentExecutionHistoryByUUID(taskUUID, teamUUID);
+  if (
+    !task ||
+    task.executeClientUUID !== clientUUID ||
+    (task.status !== 'queued' && task.status !== 'running')
+  ) {
+    throw new AgentClientInvalidWorkspacePatchError(
+      `Task is not available for workspace patch: ${taskUUID}`
+    );
+  }
+  return { teamUUID, task };
+}
+
+export async function uploadAgentClientTaskWorkspacePatch(
+  client: { uuid: string },
+  taskUUID: string,
+  bytes: Uint8Array
+): Promise<{ patch: AgentClientWorkspacePatchUpload }> {
+  const { teamUUID } = await getAssignedAgentClientTask(
+    client.uuid,
+    taskUUID
+  );
+  try {
+    return {
+      patch: await uploadAgentClientWorkspacePatch({
+        teamUUID,
+        taskUUID,
+        bytes
+      })
+    };
+  } catch (error) {
+    if (error instanceof AgentClientWorkspacePatchError) {
+      throw new AgentClientInvalidWorkspacePatchError(error.message);
+    }
+    throw error;
+  }
+}
+
+export async function getAgentClientPreviousWorkspacePatchDownload(
+  client: { uuid: string },
+  taskUUID: string
+): Promise<{ downloadUrl: string; sourceTaskUUID: string; sha256: string }> {
+  const { teamUUID, task } = await getAssignedAgentClientTask(
+    client.uuid,
+    taskUUID
+  );
+  const opened = await openPreviousWorkspacePatch({ task, teamUUID });
+  if (!opened?.downloadUrl) {
+    throw new AgentClientInvalidWorkspacePatchError(
+      `Previous workspace patch not found for task: ${taskUUID}`
+    );
+  }
+  return {
+    downloadUrl: opened.downloadUrl,
+    sourceTaskUUID: opened.descriptor.sourceTaskUUID,
+    sha256: opened.descriptor.sha256
   };
 }
 

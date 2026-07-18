@@ -15,7 +15,8 @@ import type {
   OnesUserSummary,
   KnowledgeSource,
   SkillSummary,
-  WikiSpaceSummary
+  WikiSpaceSummary,
+  WorkspaceVerificationProfile
 } from '@ones-ai-workflow/shared';
 import { getApiErrorMessage, getErrorMessage } from '@/lib/api-error';
 import { Button } from '@/components/ui/button';
@@ -1521,6 +1522,9 @@ export function AgentDetailPage() {
   const [knowledgeSources, setKnowledgeSources] = useState<KnowledgeSource[]>(
     []
   );
+  const [verificationProfiles, setVerificationProfiles] = useState<
+    WorkspaceVerificationProfile[]
+  >([]);
   const [isLoadingResources, setIsLoadingResources] = useState(true);
   const [resourceErrorMessage, setResourceErrorMessage] = useState<
     string | null
@@ -1933,11 +1937,17 @@ export function AgentDetailPage() {
       setResourceErrorMessage(null);
 
       try {
-        const [workspacesResponse, skillsResponse, knowledgeResponse] =
+        const [
+          workspacesResponse,
+          skillsResponse,
+          knowledgeResponse,
+          verificationProfilesResponse
+        ] =
           await Promise.all([
             fetch('/api/agent-workspaces'),
             fetch('/api/skills'),
-            fetch('/api/knowledge-sources')
+            fetch('/api/knowledge-sources'),
+            fetch('/api/workspace-verification-profiles')
           ]);
         const workspacesPayload =
           (await workspacesResponse.json()) as AgentResourcesResponse<
@@ -1950,6 +1960,10 @@ export function AgentDetailPage() {
         const knowledgePayload =
           (await knowledgeResponse.json()) as AgentResourcesResponse<
             KnowledgeSource[]
+          >;
+        const verificationProfilesPayload =
+          (await verificationProfilesResponse.json()) as AgentResourcesResponse<
+            WorkspaceVerificationProfile[]
           >;
 
         if (!workspacesResponse.ok || !workspacesPayload.success) {
@@ -1988,13 +2002,22 @@ export function AgentDetailPage() {
           );
         }
 
+        if (
+          !verificationProfilesResponse.ok ||
+          !verificationProfilesPayload.success
+        ) {
+          throw new Error(t('pages.agentDetail.verificationProfilesLoadFailed'));
+        }
+
         setWorkspaces(workspacesPayload.data);
         setSkills(skillsPayload.data);
         setKnowledgeSources(knowledgePayload.data);
+        setVerificationProfiles(verificationProfilesPayload.data);
       } catch (error) {
         setWorkspaces([]);
         setSkills([]);
         setKnowledgeSources([]);
+        setVerificationProfiles([]);
         setResourceErrorMessage(
           getErrorMessage(error, t, 'pages.agentDetail.resourcesLoadFailed')
         );
@@ -2772,7 +2795,22 @@ export function AgentDetailPage() {
                           label: workspace.name
                         }))}
                         value={workspaceUUID || undefined}
-                        onValueChange={(value) => setWorkspaceUUID(value ?? '')}
+                        onValueChange={(value) => {
+                          const nextWorkspaceUUID = value ?? '';
+                          setWorkspaceUUID(nextWorkspaceUUID);
+                          setAcceptancePolicy((current) => ({
+                            ...current,
+                            verificationProfileUUIDs:
+                              current.verificationProfileUUIDs.filter(
+                                (profileUUID) =>
+                                  verificationProfiles.some(
+                                    (profile) =>
+                                      profile.uuid === profileUUID &&
+                                      profile.workspaceUUID === nextWorkspaceUUID
+                                  )
+                              )
+                          }));
+                        }}
                         placeholder={
                           isLoadingResources
                             ? t(
@@ -2979,6 +3017,49 @@ export function AgentDetailPage() {
                   }
                   disabled={isBusy || !isEditing}
                 />
+              </FieldContent>
+            </FormField>
+
+            <FormField
+              orientation="vertical"
+              className="gap-3 md:flex-row md:items-start md:gap-6"
+            >
+              <FieldLabel className="md:w-32 md:shrink-0 md:justify-end md:pt-2">
+                {t('pages.agentDetail.acceptance.verificationProfiles')}
+              </FieldLabel>
+              <FieldContent className="gap-2 md:w-[520px] md:flex-none">
+                <MultiSearchSelect
+                  options={verificationProfiles
+                    .filter(
+                      (profile) => profile.workspaceUUID === workspaceUUID
+                    )
+                    .map((profile) => ({
+                      value: profile.uuid,
+                      label: profile.name,
+                      keywords: [profile.workspaceName]
+                    }))}
+                  values={acceptancePolicy.verificationProfileUUIDs}
+                  onValuesChange={(values) =>
+                    setAcceptancePolicy((current) => ({
+                      ...current,
+                      verificationProfileUUIDs: values.slice(0, 20)
+                    }))
+                  }
+                  placeholder={t(
+                    'pages.agentDetail.acceptance.verificationProfilesPlaceholder'
+                  )}
+                  emptyText={t(
+                    'pages.agentDetail.acceptance.verificationProfilesEmpty'
+                  )}
+                  disabled={isBusy || !isEditing || !workspaceUUID}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {workspaceUUID
+                    ? t('pages.agentDetail.acceptance.verificationProfilesHelp')
+                    : t(
+                        'pages.agentDetail.acceptance.verificationProfilesWorkspaceRequired'
+                      )}
+                </p>
               </FieldContent>
             </FormField>
 

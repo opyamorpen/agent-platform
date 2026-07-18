@@ -20,7 +20,8 @@ import {
   UsersIcon,
   SparklesIcon,
   BookOpenIcon,
-  Repeat2Icon
+  Repeat2Icon,
+  ShieldCheckIcon
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -67,6 +68,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         name: t('navigation.items.loopRuntimeConfig'),
         url: '/settings/loop-runtime-config',
         icon: <Repeat2Icon />
+      },
+      {
+        name: t('navigation.items.workspaceVerificationProfiles'),
+        url: '/settings/workspace-verification-profiles',
+        icon: <ShieldCheckIcon />
       },
       {
         name: t('navigation.items.aiModelConfig'),

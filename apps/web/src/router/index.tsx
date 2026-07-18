@@ -19,6 +19,7 @@ import { AIModelConfigPage } from '@/pages/ai-model-config-page';
 import { SkillCreatorPage } from '@/pages/skill-creator-page';
 import { KnowledgeSourcesPage } from '@/pages/knowledge-sources-page';
 import { LoopRuntimeConfigPage } from '@/pages/loop-runtime-config-page';
+import { WorkspaceVerificationProfilesPage } from '@/pages/workspace-verification-profiles-page';
 
 export const router = createHashRouter([
   {
@@ -102,6 +103,14 @@ export const router = createHashRouter([
         element: (
           <AdminRouteGuard>
             <LoopRuntimeConfigPage />
+          </AdminRouteGuard>
+        )
+      },
+      {
+        path: 'settings/workspace-verification-profiles',
+        element: (
+          <AdminRouteGuard>
+            <WorkspaceVerificationProfilesPage />
           </AdminRouteGuard>
         )
       },

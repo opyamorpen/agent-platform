@@ -32,7 +32,11 @@ test('TaskServerService claims tasks after ensuring authentication', async () =>
         assert.equal(serverBaseUrl, 'http://server.test');
         assert.equal(accessToken, 'access-token');
         assert.deepEqual(request, {
-          availableSlots: 3
+          availableSlots: 3,
+          capabilities: [
+            'workspace-verification-v1',
+            'workspace-patch-v1'
+          ]
         });
 
         return {

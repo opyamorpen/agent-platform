@@ -2,7 +2,12 @@ import type {
   AgentTokenUsage,
   AgentClientTaskAttachmentOutput,
   AgentClientTaskRuntimeEnvResponse,
-  AgentClientTaskAttachmentUploadResponse
+  AgentClientTaskAttachmentUploadResponse,
+  AgentClientPreviousWorkspacePatch,
+  AgentClientVerificationProfileResult,
+  AgentClientWorkspacePatchUpload,
+  AgentClientWorkspacePatchUploadResponse,
+  WorkspaceVerificationProfile
 } from '@ones-ai-workflow/shared';
 import type {
   ExecuteAgentType,
@@ -25,15 +30,24 @@ export interface TaskRunInput {
   model?: string;
   modelReasoningEffort?: ModelReasoningEffort;
   executeOption?: Record<string, unknown>;
+  verificationProfiles?: WorkspaceVerificationProfile[];
+  previousWorkspacePatch?: AgentClientPreviousWorkspacePatch | null;
 }
 
 export interface TaskRunCallback {
   onProgress: (info: { logs: string }) => void;
-  onError(error: Error, usage: AgentTokenUsage | null): void;
+  onError(
+    error: Error,
+    usage: AgentTokenUsage | null,
+    verificationResults?: AgentClientVerificationProfileResult[],
+    workspacePatch?: AgentClientWorkspacePatchUpload
+  ): void;
   onFinish: (
     result: string,
     attachmentUploads?: AgentClientTaskAttachmentOutput[],
-    usage?: AgentTokenUsage | null
+    usage?: AgentTokenUsage | null,
+    verificationResults?: AgentClientVerificationProfileResult[],
+    workspacePatch?: AgentClientWorkspacePatchUpload
   ) => void;
 }
 export interface TaskRunDependencies {
@@ -71,6 +85,13 @@ export interface TaskRunDependencies {
     taskUUID: string,
     files: TaskRunAttachmentUploadFile[]
   ) => Promise<AgentClientTaskAttachmentUploadResponse>;
+  downloadPreviousWorkspacePatch: (
+    patch: AgentClientPreviousWorkspacePatch
+  ) => Promise<Uint8Array>;
+  uploadTaskWorkspacePatch: (
+    taskUUID: string,
+    bytes: Uint8Array
+  ) => Promise<AgentClientWorkspacePatchUploadResponse>;
 }
 
 export interface TaskRunAttachmentUploadFile {

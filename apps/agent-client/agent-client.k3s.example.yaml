@@ -36,7 +36,7 @@ spec:
               mountPath: /codex
       containers:
         - name: agent-client
-          image: img.ones.pro/dev/xl/agent-client:v0.1.0
+          image: img.ones.pro/dev/xl/agent-client:v0.3.0
           imagePullPolicy: IfNotPresent
           env:
             - name: AGENT_CLIENT_UUID

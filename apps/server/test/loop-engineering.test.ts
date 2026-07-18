@@ -90,6 +90,21 @@ test('loop runtime requires all three gates', () => {
     }),
     false
   );
+  assert.equal(
+    isLoopPolicyRuntimeEligible({
+      teamEnabled: true,
+      policy,
+      agentConfig: {
+        ...config,
+        acceptancePolicy: {
+          ...config.acceptancePolicy,
+          criteria: [],
+          verificationProfileUUIDs: ['profile-1']
+        }
+      }
+    }),
+    true
+  );
 });
 
 test('loop budget enforces attempts and keeps token budget unavailable when usage is missing', () => {

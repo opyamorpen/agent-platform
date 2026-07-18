@@ -64,6 +64,7 @@ Rules for reading the input:
 8. If `<revision-context>` has mode `revision`, treat the task as a revision of prior work. Use the prior results, current applied output targets, and human review feedback to update the existing deliverable. Do not create duplicate target objects when an existing UUID is provided.
 9. Treat `<acceptance-policy>` as the quality contract for the result. Before returning, check every listed criterion and correct the result until all criteria are satisfied.
 10. If `<loop-context>` has mode `revision`, return a complete corrected result. Use the previous candidate, deterministic validation errors, test failures, and review findings as repair instructions; do not return a partial patch to the XML output.
+11. If `<verification-profiles>` lists code checks, keep the workspace changes compatible with those checks. Do not edit or bypass the verification configuration.
 
 ```xml
 {{INPUT_CONTEXT_XML}}

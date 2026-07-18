@@ -272,7 +272,9 @@ export class Scheduler {
       modelReasoningEffort: isCodexTask
         ? this.codexReasoningEffort
         : undefined,
-      executeOption: task.executeOption
+      executeOption: task.executeOption,
+      verificationProfiles: task.verificationProfiles,
+      previousWorkspacePatch: task.previousWorkspacePatch
     }, this.workspace, this.skill, {
       fetchTaskRuntimeEnv: async (taskUUID) =>
         this.taskServer.fetchTaskRuntimeEnv({
@@ -282,7 +284,21 @@ export class Scheduler {
         this.taskServer.uploadTaskAttachments({
           taskUUID,
           files
-        })
+        }),
+      downloadPreviousWorkspacePatch: async (patch) => {
+        if (!this.taskServer.downloadPreviousWorkspacePatch) {
+          throw new Error('Agent Client does not support workspace patch download');
+        }
+        return this.taskServer.downloadPreviousWorkspacePatch({
+          downloadPath: patch.downloadPath
+        });
+      },
+      uploadTaskWorkspacePatch: async (taskUUID, bytes) => {
+        if (!this.taskServer.uploadTaskWorkspacePatch) {
+          throw new Error('Agent Client does not support workspace patch upload');
+        }
+        return this.taskServer.uploadTaskWorkspacePatch({ taskUUID, bytes });
+      }
     });
 
     this.taskStore.updateTaskStatus(task.taskUUID, 'running', startLog);
@@ -299,28 +315,38 @@ export class Scheduler {
         onProgress: ({ logs }) => {
           this.taskStore.updateTaskStatus(task.taskUUID, 'running', logs);
         },
-        onError: (error, usage) => {
+        onError: (error, usage, verificationResults, workspacePatch) => {
           this.taskStore.updateTaskStatus(
             task.taskUUID,
             'failure',
             error.message,
             undefined,
             undefined,
-            usage
+            usage,
+            verificationResults,
+            workspacePatch
           );
           logger.error('Task execution failed', {
             taskUUID: task.taskUUID,
             error: error.message
           });
         },
-        onFinish: (result, attachmentUploads, usage) => {
+        onFinish: (
+          result,
+          attachmentUploads,
+          usage,
+          verificationResults,
+          workspacePatch
+        ) => {
           this.taskStore.updateTaskStatus(
             task.taskUUID,
             'success',
             undefined,
             result,
             attachmentUploads,
-            usage
+            usage,
+            verificationResults,
+            workspacePatch
           );
           logger.info('Task execution succeeded', {
             taskUUID: task.taskUUID,

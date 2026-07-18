@@ -178,6 +178,7 @@ export const enUS = {
       agentWorkspaces: 'Agent Workspaces',
       agentClients: 'Agent Clients',
       loopRuntimeConfig: 'Loop Engineering',
+      workspaceVerificationProfiles: 'Workspace Verification',
       aiModelConfig: 'AI Model',
       members: 'Members'
     }
@@ -332,7 +333,9 @@ export const enUS = {
         viewOutput: 'View output',
         retry: 'Retry',
         refreshLogs: 'Refresh logs',
-        downloadLogs: 'Download logs'
+        downloadLogs: 'Download logs',
+        viewVerification: 'Verification',
+        downloadPatch: 'Download Patch'
       },
       states: {
         logsRefreshing: 'Refreshing...',
@@ -365,6 +368,13 @@ export const enUS = {
       logsDialog: {
         titleWithAgent: '{{name}} logs',
         titleFallback: 'Execution logs'
+      },
+      verificationDialog: {
+        title: 'Code verification results',
+        step: 'Step',
+        status: 'Result',
+        duration: 'Duration',
+        output: 'Output'
       },
       rawDialog: {
         titleInputWithAgent: '{{name}} input',
@@ -475,6 +485,7 @@ export const enUS = {
       workspacesLoadFailed: 'Failed to load workspaces',
       skillsLoadFailed: 'Failed to load skills',
       knowledgeSourcesLoadFailed: 'Failed to load knowledge sources',
+      verificationProfilesLoadFailed: 'Failed to load code verification profiles',
       wikiSpacesLoadFailed: 'Failed to load Wiki spaces',
       executorSearchFailed: 'Failed to search executors',
       basicConfigSaveFailed: 'Failed to save agent basic settings',
@@ -605,8 +616,13 @@ export const enUS = {
         knowledgeRequirement: 'Knowledge grounding requirement',
         knowledgeOptional: 'Knowledge grounding optional',
         knowledgeRequired: 'Knowledge grounding required',
+        verificationProfiles: 'Code verification profiles',
+        verificationProfilesPlaceholder: 'Select verification profiles for this workspace',
+        verificationProfilesEmpty: 'No verification profiles for this workspace',
+        verificationProfilesHelp: 'The selected steps run in order after Agent execution and must pass before business review.',
+        verificationProfilesWorkspaceRequired: 'Select a workspace in Basic Information first.',
         empty:
-          'No acceptance criteria configured. Automatic correction remains disabled for this agent.',
+          'No business acceptance criteria configured. Code verification profiles can still enable automatic correction.',
         namePlaceholder: 'Acceptance criterion {{index}}',
         descriptionPlaceholder:
           'Describe the verifiable pass condition and quality requirement'
@@ -629,6 +645,34 @@ export const enUS = {
         publishing: 'Publishing...',
         confirm: 'Confirm publish'
       }
+    },
+    verificationProfiles: {
+      title: 'Workspace Verification',
+      description: 'Configure deterministic tests, type checks, and builds for code workspaces. Executables and arguments run without a shell.',
+      loadFailed: 'Failed to load verification profiles',
+      workspacesLoadFailed: 'Failed to load workspaces',
+      saveFailed: 'Failed to save verification profile',
+      saveSuccess: 'Verification profile saved',
+      deleteFailed: 'Failed to delete verification profile',
+      deleteSuccess: 'Verification profile deleted',
+      deleteConfirm: 'Delete verification profile "{{name}}"?',
+      validationRequired: 'Enter a name, workspace, and at least one verification step.',
+      validationStepRequired: 'Every step requires a name, repository, and executable.',
+      create: 'New profile',
+      createTitle: 'New workspace verification profile',
+      editTitle: 'Edit workspace verification profile',
+      empty: 'No workspace verification profiles configured.',
+      name: 'Name',
+      workspace: 'Workspace',
+      steps: 'Verification steps',
+      actions: 'Actions',
+      addStep: 'Add step',
+      stepName: 'Step name',
+      repository: 'Repository',
+      workingDirectory: 'Working directory in repository',
+      executable: 'Executable',
+      args: 'Arguments (one per line)',
+      timeout: 'Timeout (seconds)'
     },
     members: {
       loadFailed: 'Failed to load members',

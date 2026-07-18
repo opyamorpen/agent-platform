@@ -13,7 +13,7 @@ module.exports = {
       env: {
         AGENT_CLIENT_UUID: 'mac-agent-client-a',
         AGENT_CLIENT_NAME: 'Mac Agent Client A',
-        AGENT_CLIENT_VERSION: '0.1.0',
+        AGENT_CLIENT_VERSION: '0.3.0',
         AGENT_CLIENT_SERVER_BASE_URL: 'https://server-a.example.com',
         AGENT_CLIENT_CONCURRENCY: '1',
         AGENT_CLIENT_WORKING_ROOT:
@@ -29,7 +29,7 @@ module.exports = {
       env: {
         AGENT_CLIENT_UUID: 'mac-agent-client-b',
         AGENT_CLIENT_NAME: 'Mac Agent Client B',
-        AGENT_CLIENT_VERSION: '0.1.0',
+        AGENT_CLIENT_VERSION: '0.3.0',
         AGENT_CLIENT_SERVER_BASE_URL: 'https://server-b.example.com',
         AGENT_CLIENT_CONCURRENCY: '1',
         AGENT_CLIENT_WORKING_ROOT:

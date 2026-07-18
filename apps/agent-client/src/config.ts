@@ -17,7 +17,7 @@ dotenv.config({
 
 const defaultClientUUID = `${os.hostname()}-agent-client`;
 const defaultClientName = `${os.hostname()} agent client`;
-const defaultClientVersion = '0.1.0';
+const defaultClientVersion = '0.3.0';
 const defaultCodexModel = 'gpt-5.4';
 const defaultCodexReasoningEffort = 'high';
 const defaultHermesExecutable = 'hermes';

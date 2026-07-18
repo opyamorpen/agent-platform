@@ -1,6 +1,7 @@
 import type {
   AgentClientTask,
   AgentClientTaskAttachmentUploadResponse,
+  AgentClientWorkspacePatchUploadResponse,
   AgentClientTaskRuntimeEnvResponse,
   AgentClientTaskReport
 } from '@ones-ai-workflow/shared';
@@ -22,6 +23,13 @@ export interface TaskServer {
       contentType?: string;
     }>;
   }) => Promise<AgentClientTaskAttachmentUploadResponse>;
+  uploadTaskWorkspacePatch?: (options: {
+    taskUUID: string;
+    bytes: Uint8Array;
+  }) => Promise<AgentClientWorkspacePatchUploadResponse>;
+  downloadPreviousWorkspacePatch?: (options: {
+    downloadPath: string;
+  }) => Promise<Uint8Array>;
 }
 
 export { TaskServerService } from './service.js';

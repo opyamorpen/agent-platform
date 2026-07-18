@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { requireAppUser } from '../../lib/web-access.js';
 import {
   deleteDispatchedIssueHandler,
+  downloadIssueAgentExecutionWorkspacePatchHandler,
   getDispatchedIssueHandler,
   getIssueAgentExecutionHistoryHandler,
   getIssueExecutionHistoryHandler,
@@ -24,3 +25,7 @@ executionsRoutes.get('/issues/:uuid/histories', listDispatchedIssueExecutionHist
 executionsRoutes.get('/histories/:uuid', getIssueExecutionHistoryHandler);
 executionsRoutes.get('/agent-histories/:uuid', getIssueAgentExecutionHistoryHandler);
 executionsRoutes.post('/agent-histories/:uuid/retry', retryIssueAgentExecutionHistoryHandler);
+executionsRoutes.get(
+  '/agent-histories/:uuid/workspace-patch',
+  downloadIssueAgentExecutionWorkspacePatchHandler
+);

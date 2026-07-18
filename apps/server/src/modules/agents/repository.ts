@@ -317,7 +317,21 @@ function normalizeAgentConfig(config: AgentConfig): AgentConfig {
       : [],
     knowledgeSourceUUIDs: Array.isArray(config.knowledgeSourceUUIDs)
       ? config.knowledgeSourceUUIDs
-      : []
+      : [],
+    acceptancePolicy: {
+      criteria: Array.isArray(config.acceptancePolicy?.criteria)
+        ? config.acceptancePolicy.criteria
+        : [],
+      knowledgeRequirement:
+        config.acceptancePolicy?.knowledgeRequirement === 'required'
+          ? 'required'
+          : 'optional',
+      verificationProfileUUIDs: Array.isArray(
+        config.acceptancePolicy?.verificationProfileUUIDs
+      )
+        ? config.acceptancePolicy.verificationProfileUUIDs
+        : []
+    }
   };
 }
 

@@ -103,6 +103,24 @@ export const agentOutputFieldSchema = z.union([
   agentWikiPageOutputFieldSchema
 ]);
 
+export const agentAcceptancePolicySchema = z.object({
+  criteria: z
+    .array(
+      z.object({
+        uuid: z.string().trim().min(1),
+        name: z.string().trim().min(1).max(256),
+        description: z.string().trim().min(1).max(4_000)
+      })
+    )
+    .max(20)
+    .default([]),
+  knowledgeRequirement: z.enum(['optional', 'required']).default('optional'),
+  verificationProfileUUIDs: z
+    .array(z.string().trim().min(1))
+    .max(20)
+    .default([])
+});
+
 function validateInputFieldNode(
   value: z.infer<typeof agentInputFieldSchema>,
   ctx: z.RefinementCtx,
@@ -219,7 +237,12 @@ export const agentConfigSchema = z
     prompt: z.string(),
     inputs: z.array(agentInputFieldSchema),
     outputs: z.array(agentOutputFieldSchema),
-    knowledgeSourceUUIDs: z.array(z.string().trim().min(1)).max(5).default([])
+    knowledgeSourceUUIDs: z.array(z.string().trim().min(1)).max(5).default([]),
+    acceptancePolicy: agentAcceptancePolicySchema.default({
+      criteria: [],
+      knowledgeRequirement: 'optional',
+      verificationProfileUUIDs: []
+    })
   })
   .superRefine((value, ctx) => {
     for (const [index, input] of value.inputs.entries()) {
@@ -255,6 +278,11 @@ export const agentPromptRecommendationSchema = z.object({
   description: z.string().max(20_000),
   skillUUIDs: z.array(z.string().trim().min(1)).max(20),
   knowledgeSourceUUIDs: z.array(z.string().trim().min(1)).max(5).default([]),
+  acceptancePolicy: agentAcceptancePolicySchema.default({
+    criteria: [],
+    knowledgeRequirement: 'optional',
+    verificationProfileUUIDs: []
+  }),
   inputs: z.array(agentInputFieldSchema),
   outputs: z.array(agentOutputFieldSchema)
 });

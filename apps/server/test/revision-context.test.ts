@@ -28,6 +28,12 @@ test('revision feedback uses the post-result review window and excludes lifecycl
         owner: { id: 'agent-user', name: 'Agent User' }
       },
       {
+        id: 'loop-escalation',
+        text: '[AI循环升级][Agent][第3次尝试]\n\n需要人工接管。',
+        createTime: String(Date.parse('2026-07-17T02:50:00Z') / 1000),
+        owner: { id: 'agent-user', name: 'Agent User' }
+      },
+      {
         id: 'review',
         text: '请补充验收条件',
         createTime: String(Date.parse('2026-07-17T03:00:00Z') / 1000),

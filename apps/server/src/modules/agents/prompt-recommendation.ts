@@ -47,6 +47,7 @@ export async function streamPromptRecommendation(input: {
     },
     inputs: input.payload.inputs,
     outputs: input.payload.outputs,
+    acceptancePolicy: input.payload.acceptancePolicy,
     skills: skillDocuments.map((skill) => ({
       uuid: skill.uuid,
       name: skill.name,

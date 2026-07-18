@@ -34,6 +34,7 @@ import {
   findIssueAgentExecutionHistoryByUUID,
   findIssueAgentExecutionHistoryTeamUUID,
   findIssueExecutionHistoryByUUID,
+  createIssueAgentExecutionHistories,
   listIssueExecutionHistoriesByDispatchedIssueUUID,
   listRunnableIssueExecutionHistories,
   updateDispatchedIssueLatestExecution,
@@ -44,6 +45,18 @@ import {
   type IssueAgentExecutionHistoryWithExecutionRecord,
   type IssueExecutionHistoryRecord
 } from '../executions/repository.js';
+import { isLoopRuntimeEnabled } from '../loop-runtime-config/service.js';
+import {
+  buildLoopContextXml,
+  buildLoopEscalationComment,
+  buildNextLoopAttemptUUID,
+  calculateLoopBudget,
+  decideLoopGate,
+  isLoopPolicyRuntimeEligible,
+  reviewLoopCandidate,
+  type LoopBudgetSnapshot,
+  type LoopReviewResult
+} from '../executions/loop-engineering.js';
 import {
   listAllWorkflowNodes,
   listWorkflowTeamUUIDs,
@@ -71,10 +84,15 @@ import {
 } from '../../ones/issue.js';
 import type { OnesOpenApiContext } from '../../ones/context.js';
 import type { OnesOpenApiIssueComment } from '../../ones/open-api/types.js';
-import { OnesRequestError, OnesResponseError } from '../../ones/errors.js';
+import {
+  OnesAuthError,
+  OnesConfigError,
+  OnesRequestError,
+  OnesResponseError
+} from '../../ones/errors.js';
 import { sha256 } from '../../lib/agent-client-auth.js';
 import { getLogger } from '../../lib/logger.js';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import {
   buildAgentInputContextXml,
   buildAgentPrompt
@@ -88,6 +106,7 @@ import {
 import { buildRevisionSummaryComment } from '../executions/revision-summary.js';
 import {
   loadAgentClientTaskAttachment,
+  removeAgentClientTaskAttachments,
   stageAgentClientTaskAttachments as stageAgentClientTaskAttachmentsInStorage
 } from './attachment-staging.js';
 import {
@@ -232,6 +251,11 @@ type PreparedTaskReport = {
   logs: string;
   executeResult: ParsedTaskExecuteResult;
   outputWritePlan: OutputWritePlan;
+  deterministicValidation: {
+    passed: boolean;
+    errors: string[];
+    requiresEscalation: boolean;
+  };
   startedAt: Date | null;
   finishedAt: Date | null;
 };
@@ -3100,6 +3124,11 @@ async function prepareTaskReport(
     statusFieldValues: [],
     wikiWrites: []
   };
+  const deterministicValidation = {
+    passed: true,
+    errors: [] as string[],
+    requiresEscalation: false
+  };
   const onesContext = getExecutorOnesContext(task, teamUUID);
 
   if (report.status === 'success') {
@@ -3140,6 +3169,12 @@ async function prepareTaskReport(
         }
       );
       status = 'failure';
+      deterministicValidation.passed = false;
+      deterministicValidation.errors.push(
+        error instanceof Error ? error.message : String(error)
+      );
+      deterministicValidation.requiresEscalation =
+        isNonRepairableLoopError(error);
       logs = appendLogMessage(
         report.logs,
         buildPrepareExecuteResultFailureMessage(error)
@@ -3162,6 +3197,7 @@ async function prepareTaskReport(
     logs,
     executeResult,
     outputWritePlan,
+    deterministicValidation,
     startedAt: report.startedAt ? new Date(report.startedAt) : task.startedAt,
     finishedAt: report.finishedAt
       ? new Date(report.finishedAt)
@@ -3998,6 +4034,441 @@ async function shouldBlockFailedTaskReport(
   );
 }
 
+type LoopGateEvaluation = {
+  decision: 'pass' | 'revise' | 'escalate';
+  deterministicValidation: PreparedTaskReport['deterministicValidation'];
+  reviewResult: LoopReviewResult | null;
+  budget: LoopBudgetSnapshot;
+  summary: string;
+  findings: string[];
+};
+
+function summarizeOutputWritePlan(
+  plan: OutputWritePlan
+): Record<string, unknown> {
+  return {
+    createIssueCount: plan.createRefObjectPlans.length,
+    fieldTargets: plan.issueFieldValues.map(
+      (value) => `${value.issueUUID}:${value.outputFieldUUIDPath}`
+    ),
+    commentTargets: plan.issueComments.map(
+      (value) => `${value.issueUUID}:${value.outputFieldUUIDPath}`
+    ),
+    attachmentTargets: plan.issueAttachments.map(
+      (value) => `${value.issueUUID}:${value.outputFieldUUIDPath}`
+    ),
+    wikiTargets: plan.wikiWrites.map((value) => ({
+      action: value.action,
+      outputFieldUUIDPath: value.outputFieldUUIDPath,
+      pageUUID: value.pageUUID,
+      parentPageUUID: value.parentPageUUID
+    })),
+    statusTargets: plan.statusFieldValues.map(
+      (value) => `${value.issueUUID}:${value.outputFieldUUIDPath}`
+    )
+  };
+}
+
+function getKnowledgeContextMetadata(executeOption: unknown): unknown {
+  if (
+    !executeOption ||
+    typeof executeOption !== 'object' ||
+    Array.isArray(executeOption)
+  ) {
+    return null;
+  }
+  return (executeOption as { wikiContext?: unknown }).wikiContext ?? null;
+}
+
+async function validateLoopCandidateBeforeReview(input: {
+  preparedReport: PreparedTaskReport;
+  workflowNode: WorkflowNodeRecord;
+  clientUUID: string;
+  onesContext: OnesOpenApiContext;
+}): Promise<void> {
+  for (const plan of input.preparedReport.outputWritePlan
+    .createRefObjectPlans) {
+    buildCreateIssueRequest(plan);
+  }
+
+  const uploads = [
+    ...input.preparedReport.outputWritePlan.issueAttachments.flatMap(
+      (attachment) => attachment.uploads
+    ),
+    ...input.preparedReport.outputWritePlan.deferredIssueAttachmentFieldWrites.flatMap(
+      (attachment) => attachment.uploads
+    )
+  ];
+  for (const upload of uploads) {
+    const staged = await loadAgentClientTaskAttachment({
+      taskUUID: input.preparedReport.taskUUID,
+      clientUUID: input.clientUUID,
+      resourceToken: upload.resourceToken
+    });
+    await stat(staged.filePath);
+  }
+
+  for (const postAction of input.workflowNode.postActions) {
+    if (postAction.type !== 'transition_issue_status') continue;
+    const issue = await getIssue(
+      input.preparedReport.dispatchedIssueUUID,
+      input.onesContext
+    );
+    if (issue.status.id === postAction.targetStatus.uuid) continue;
+    selectConfiguredPostActionWorkflow(
+      await listExecutableIssueWorkflows(
+        input.preparedReport.dispatchedIssueUUID,
+        input.onesContext
+      ),
+      postAction.targetStatus,
+      issue.status.name
+    );
+  }
+}
+
+function isNonRepairableLoopError(error: unknown): boolean {
+  if (error instanceof OnesAuthError || error instanceof OnesConfigError) {
+    return true;
+  }
+  if (error instanceof OnesRequestError) {
+    return error.status === 401 || error.status === 403;
+  }
+  if (error instanceof OnesResponseError) {
+    return /auth|permission|forbidden|credential|license|quota/i.test(
+      `${error.code ?? ''} ${error.message}`
+    );
+  }
+  return /permission|forbidden|credential|unauthorized|not configured/i.test(
+    error instanceof Error ? error.message : String(error)
+  );
+}
+
+async function evaluateLoopGate(input: {
+  preparedReport: PreparedTaskReport;
+  task: IssueAgentExecutionHistoryWithExecutionRecord;
+  issueExecution: IssueExecutionHistoryRecord;
+  workflowNode: WorkflowNodeRecord;
+  agentConfig: AgentConfig;
+  report: AgentClientTaskReport;
+  clientUUID: string;
+  onesContext: OnesOpenApiContext;
+  exchangeAt: Date;
+  teamUUID: string;
+}): Promise<LoopGateEvaluation> {
+  const deterministicValidation = {
+    passed: input.preparedReport.deterministicValidation.passed,
+    errors: [...input.preparedReport.deterministicValidation.errors],
+    requiresEscalation:
+      input.preparedReport.deterministicValidation.requiresEscalation
+  };
+  let forceEscalation =
+    input.report.status === 'blocked' ||
+    deterministicValidation.requiresEscalation;
+
+  if (input.report.status === 'success' && deterministicValidation.passed) {
+    try {
+      await validateLoopCandidateBeforeReview({
+        preparedReport: input.preparedReport,
+        workflowNode: input.workflowNode,
+        clientUUID: input.clientUUID,
+        onesContext: input.onesContext
+      });
+    } catch (error) {
+      deterministicValidation.passed = false;
+      deterministicValidation.errors.push(
+        error instanceof Error ? error.message : String(error)
+      );
+      forceEscalation = isNonRepairableLoopError(error);
+      deterministicValidation.requiresEscalation = forceEscalation;
+    }
+  } else if (input.report.status !== 'success') {
+    deterministicValidation.passed = false;
+    deterministicValidation.errors.push(
+      input.report.status === 'blocked'
+        ? 'Agent Client reported a blocked execution'
+        : 'Agent Client execution failed'
+    );
+  }
+
+  let reviewResult: LoopReviewResult | null = null;
+  if (deterministicValidation.passed && !forceEscalation) {
+    try {
+      reviewResult = await reviewLoopCandidate({
+        teamUUID: input.teamUUID,
+        agentName: input.task.agentName,
+        taskPrompt: input.agentConfig.prompt,
+        acceptancePolicy: input.agentConfig.acceptancePolicy,
+        candidateOutput: input.report.executeResult,
+        deterministicPlan: summarizeOutputWritePlan(
+          input.preparedReport.outputWritePlan
+        ),
+        knowledgeContext: getKnowledgeContextMetadata(input.task.executeOption)
+      });
+    } catch (error) {
+      forceEscalation = true;
+      deterministicValidation.errors.push(
+        `AI review unavailable: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  const budget = calculateLoopBudget({
+    policy: input.workflowNode.loopPolicy,
+    executionCreatedAt: input.issueExecution.createdAt,
+    attempts: input.issueExecution.agentExecutions,
+    currentUsage: {
+      inputTokens: input.report.usage?.inputTokens ?? null,
+      outputTokens: input.report.usage?.outputTokens ?? null
+    },
+    reviewUsage: reviewResult?.usage,
+    now: input.exchangeAt
+  });
+  const reviewDecision = reviewResult?.review.verdict ?? null;
+  const findings = [
+    ...deterministicValidation.errors,
+    ...(reviewResult?.review.findings.map(
+      (finding) => `${finding.message}；修改要求：${finding.repairInstruction}`
+    ) ?? [])
+  ];
+
+  const decision = decideLoopGate({
+    deterministicPassed: deterministicValidation.passed,
+    forceEscalation,
+    reviewVerdict: reviewDecision,
+    budgetExhausted: budget.exhaustedBy.length > 0
+  });
+
+  if (decision === 'escalate') {
+    return {
+      decision: 'escalate',
+      deterministicValidation,
+      reviewResult,
+      budget,
+      summary:
+        reviewResult?.review.summary ??
+        (budget.exhaustedBy.length > 0
+          ? `自动修正预算已耗尽：${budget.exhaustedBy.join(', ')}`
+          : '自动修正需要人工接管。'),
+      findings
+    };
+  }
+
+  if (decision === 'revise') {
+    return {
+      decision: 'revise',
+      deterministicValidation,
+      reviewResult,
+      budget,
+      summary:
+        reviewResult?.review.summary ?? '候选输出未通过确定性校验，需要修正。',
+      findings
+    };
+  }
+
+  return {
+    decision: 'pass',
+    deterministicValidation,
+    reviewResult,
+    budget,
+    summary: reviewResult?.review.summary ?? '候选输出已通过验收。',
+    findings
+  };
+}
+
+async function maybeSendLoopEscalationComment(
+  task: IssueAgentExecutionHistoryWithExecutionRecord,
+  text: string,
+  onesContext: OnesOpenApiContext
+): Promise<'sent' | 'duplicate' | 'failed'> {
+  try {
+    const comments = await listIssueComments(
+      task.issueExecution.dispatchedIssueUUID,
+      onesContext,
+      TASK_STARTED_COMMENT_FETCH_LIMIT
+    );
+    if (comments.some((comment) => comment.text.trim() === text.trim())) {
+      return 'duplicate';
+    }
+    await sendIssueComment(
+      task.issueExecution.dispatchedIssueUUID,
+      { text },
+      onesContext
+    );
+    return 'sent';
+  } catch (error) {
+    logger.warn('[loop-engineering] failed to post escalation comment', {
+      taskUUID: task.uuid,
+      issueExecutionUUID: task.issueExecutionUUID,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    return 'failed';
+  }
+}
+
+async function executeLoopEscalationTransition(input: {
+  workflowNode: WorkflowNodeRecord;
+  issueUUID: string;
+  onesContext: OnesOpenApiContext;
+}): Promise<string> {
+  const targetStatus = input.workflowNode.loopPolicy.escalationTargetStatus;
+  if (!targetStatus) {
+    throw new Error('Loop escalation target status is not configured');
+  }
+  const issue = await getIssue(input.issueUUID, input.onesContext);
+  if (issue.status.id === targetStatus.uuid) {
+    return `[system] skipped loop escalation transition because issue is already in status "${targetStatus.name}"`;
+  }
+  const workflow = selectConfiguredPostActionWorkflow(
+    await listExecutableIssueWorkflows(input.issueUUID, input.onesContext),
+    targetStatus,
+    issue.status.name
+  );
+  await executeIssueWorkflow(
+    input.issueUUID,
+    { id: workflow.id },
+    input.onesContext
+  );
+  return `[system] escalated loop execution from "${issue.status.name}" to "${targetStatus.name}"`;
+}
+
+async function persistLoopGateResult(input: {
+  evaluation: LoopGateEvaluation;
+  preparedReport: PreparedTaskReport;
+  task: IssueAgentExecutionHistoryWithExecutionRecord;
+  issueExecution: IssueExecutionHistoryRecord;
+  workflowNodeMap: WorkflowNodeMap;
+  workflowNode: WorkflowNodeRecord;
+  report: AgentClientTaskReport;
+  client: { uuid: string; name: string };
+  exchangeAt: Date;
+  teamUUID: string;
+  onesContext: OnesOpenApiContext;
+}): Promise<void> {
+  let logs = appendLogMessage(
+    input.preparedReport.logs,
+    `[system] loop quality gate verdict: ${input.evaluation.decision}`
+  );
+  const loopEvaluation = {
+    decision: input.evaluation.decision,
+    deterministicValidation: input.evaluation.deterministicValidation,
+    aiReview: input.evaluation.reviewResult?.review ?? null,
+    reviewUsage: input.evaluation.reviewResult?.usage ?? null,
+    budget: input.evaluation.budget
+  };
+  let escalationTransitionFailed = false;
+
+  if (input.evaluation.decision === 'revise') {
+    const nextTaskUUID = buildNextLoopAttemptUUID(input.task.uuid);
+    const existingNextTask = await findIssueAgentExecutionHistoryByUUID(
+      nextTaskUUID,
+      input.teamUUID
+    );
+    if (!existingNextTask) {
+      await createIssueAgentExecutionHistories(
+        [
+          {
+            uuid: nextTaskUUID,
+            issueExecutionUUID: input.task.issueExecutionUUID,
+            agentUUID: input.task.agentUUID,
+            agentName: input.task.agentName,
+            agentVersion: input.task.agentVersion,
+            executorUUID: input.task.executorUUID,
+            executorName: input.task.executorName,
+            prompt: '',
+            executePayload: {},
+            executeOption: toJsonObject({
+              loopContext: {
+                attemptNumber: input.evaluation.budget.attemptNumber + 1,
+                previousAttemptUUID: input.task.uuid,
+                previousCandidate: input.report.executeResult,
+                deterministicValidation:
+                  input.evaluation.deterministicValidation,
+                aiReview: input.evaluation.reviewResult?.review ?? null
+              }
+            }),
+            executeResult: {},
+            rawExecuteResult: '',
+            status: 'created',
+            logs: '',
+            executeClientUUID: null,
+            executeClientName: null
+          }
+        ],
+        input.teamUUID
+      );
+    }
+    logs = appendLogMessage(
+      logs,
+      `[system] created loop attempt ${input.evaluation.budget.attemptNumber + 1}`
+    );
+  } else {
+    try {
+      logs = appendLogMessage(
+        logs,
+        await executeLoopEscalationTransition({
+          workflowNode: input.workflowNode,
+          issueUUID: input.preparedReport.dispatchedIssueUUID,
+          onesContext: input.onesContext
+        })
+      );
+    } catch (error) {
+      escalationTransitionFailed = true;
+      logs = appendLogMessage(
+        logs,
+        `[system] loop escalation status transition failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+    const comment = buildLoopEscalationComment({
+      agentName: input.task.agentName,
+      budget: input.evaluation.budget,
+      summary: input.evaluation.summary,
+      findings: input.evaluation.findings
+    });
+    const commentStatus = await maybeSendLoopEscalationComment(
+      input.task,
+      comment,
+      input.onesContext
+    );
+    logs = appendLogMessage(
+      logs,
+      `[system] loop escalation comment: ${commentStatus}`
+    );
+  }
+
+  await updateIssueAgentExecutionHistory(
+    {
+      uuid: input.task.uuid,
+      status: input.evaluation.decision === 'revise' ? 'failure' : 'blocked',
+      logs: mergeLogHistory(input.task.logs, logs),
+      executeResult: toJsonObject({
+        ...input.preparedReport.executeResult,
+        loopEvaluation
+      }),
+      rawExecuteResult: input.report.executeResult,
+      executeClientUUID: input.client.uuid,
+      executeClientName: input.client.name,
+      usageInputTokens: input.report.usage?.inputTokens ?? null,
+      usageOutputTokens: input.report.usage?.outputTokens ?? null,
+      lastReportedAt: input.exchangeAt,
+      startedAt: input.preparedReport.startedAt,
+      finishedAt: input.preparedReport.finishedAt ?? input.exchangeAt
+    },
+    input.teamUUID
+  );
+
+  await refreshIssueExecutionAggregate(
+    input.preparedReport.issueExecutionUUID,
+    input.workflowNodeMap,
+    input.evaluation.decision === 'escalate'
+      ? escalationTransitionFailed
+        ? 'loop_escalation_transition_failed'
+        : 'loop_escalated'
+      : null,
+    input.teamUUID
+  );
+  await removeAgentClientTaskAttachments(input.task.uuid);
+}
+
 async function applyTaskReport(
   report: AgentClientTaskReport,
   client: { uuid: string; name: string },
@@ -4019,11 +4490,82 @@ async function applyTaskReport(
   const appliedStatusTransitions: string[] = [];
   const onesContext = getExecutorOnesContext(preparedReport, teamUUID);
   const workflowNode = workflowNodeMap.get(preparedReport.workflowNodeUUID);
+  const task = await findIssueAgentExecutionHistoryByUUID(
+    preparedReport.taskUUID,
+    teamUUID
+  );
 
   if (!workflowNode) {
     throw new InvalidAgentClientTaskReportError(
       preparedReport.workflowNodeUUID
     );
+  }
+  if (!task) {
+    throw new InvalidAgentClientTaskReportError(preparedReport.taskUUID);
+  }
+
+  const issueExecution = await findIssueExecutionHistoryByUUID(
+    preparedReport.issueExecutionUUID,
+    teamUUID
+  );
+  if (!issueExecution) {
+    throw new InvalidAgentClientTaskReportError(
+      preparedReport.issueExecutionUUID
+    );
+  }
+  const runtimeAgentConfig = await loadAgentConfig(
+    task.agentUUID,
+    task.agentVersion,
+    agentConfigCache,
+    teamUUID
+  );
+  let loopEvaluationToPersist: Record<string, unknown> | null = null;
+  const loopEligible =
+    runtimeAgentConfig !== null &&
+    workflowNode.loopPolicy.enabled &&
+    isLoopPolicyRuntimeEligible({
+      teamEnabled: await isLoopRuntimeEnabled(teamUUID),
+      policy: workflowNode.loopPolicy,
+      agentConfig: runtimeAgentConfig
+    });
+
+  if (loopEligible && runtimeAgentConfig) {
+    const evaluation = await evaluateLoopGate({
+      preparedReport,
+      task,
+      issueExecution,
+      workflowNode,
+      agentConfig: runtimeAgentConfig,
+      report,
+      clientUUID: client.uuid,
+      onesContext,
+      exchangeAt,
+      teamUUID
+    });
+    loopEvaluationToPersist = {
+      decision: evaluation.decision,
+      deterministicValidation: evaluation.deterministicValidation,
+      aiReview: evaluation.reviewResult?.review ?? null,
+      reviewUsage: evaluation.reviewResult?.usage ?? null,
+      budget: evaluation.budget
+    };
+
+    if (evaluation.decision !== 'pass') {
+      await persistLoopGateResult({
+        evaluation,
+        preparedReport,
+        task,
+        issueExecution,
+        workflowNodeMap,
+        workflowNode,
+        report,
+        client,
+        exchangeAt,
+        teamUUID,
+        onesContext
+      });
+      return;
+    }
   }
 
   if (finalStatus === 'success') {
@@ -4236,17 +4778,11 @@ async function applyTaskReport(
     }
   }
 
-  const task = await findIssueAgentExecutionHistoryByUUID(
-    preparedReport.taskUUID,
-    teamUUID
-  );
-
-  if (!task) {
-    throw new InvalidAgentClientTaskReportError(preparedReport.taskUUID);
-  }
-
   let executeResultToPersist: Record<string, unknown> = {
-    ...preparedReport.executeResult
+    ...preparedReport.executeResult,
+    ...(loopEvaluationToPersist
+      ? { loopEvaluation: loopEvaluationToPersist }
+      : {})
   };
   let agentConfigForSummary: AgentConfig | null = null;
   let appliedWrites: AppliedWriteSnapshot[] = [];
@@ -4267,6 +4803,9 @@ async function applyTaskReport(
         );
         executeResultToPersist = {
           ...preparedReport.executeResult,
+          ...(loopEvaluationToPersist
+            ? { loopEvaluation: loopEvaluationToPersist }
+            : {}),
           appliedWrites
         };
       }
@@ -4334,8 +4873,8 @@ async function applyTaskReport(
       rawExecuteResult: report.executeResult,
       executeClientUUID: client.uuid,
       executeClientName: client.name,
-      usageInputTokens: report.usage?.inputTokens ?? 0,
-      usageOutputTokens: report.usage?.outputTokens ?? 0,
+      usageInputTokens: report.usage?.inputTokens ?? null,
+      usageOutputTokens: report.usage?.outputTokens ?? null,
       queuedAt:
         finalStatus === 'queued'
           ? (task.queuedAt ?? exchangeAt)
@@ -4546,6 +5085,7 @@ async function dispatchTasks(
     let knowledgeContextXml = '<knowledge-context />';
     let revisionContextXml =
       '<revision-context><mode>initial</mode></revision-context>';
+    const loopContextXml = buildLoopContextXml(nextTask.executeOption);
 
     try {
       const onesContext = getExecutorOnesContext(nextTask, teamUUID);
@@ -4649,6 +5189,7 @@ async function dispatchTasks(
         wikiInputsXml,
         knowledgeContextXml,
         revisionContextXml,
+        loopContextXml,
         readableEnvKeys: bindings.readableEnvKeys
       });
     } catch (error) {

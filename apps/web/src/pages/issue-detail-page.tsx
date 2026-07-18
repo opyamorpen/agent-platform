@@ -105,6 +105,7 @@ function formatTokenCount(
 type ExecutionRow = {
   history: IssueExecutionHistory;
   agentExecution: IssueExecutionHistory['agentExecutions'][number];
+  attemptNumber: number;
   canReset: boolean;
 };
 
@@ -433,9 +434,10 @@ export function IssueDetailPage() {
       }, null)?.uuid;
 
     return histories.flatMap((history) => {
-      return history.agentExecutions.map((agentExecution) => ({
+      return history.agentExecutions.map((agentExecution, attemptIndex) => ({
         history,
         agentExecution,
+        attemptNumber: attemptIndex + 1,
         canReset:
           latestAgentExecutionUUID === agentExecution.uuid &&
           (agentExecution.status === 'blocked' ||
@@ -470,6 +472,7 @@ export function IssueDetailPage() {
                   <TableHead>
                     {t('pages.issueDetail.table.iteration')}
                   </TableHead>
+                  <TableHead>{t('pages.issueDetail.table.attempt')}</TableHead>
                   <TableHead>
                     {t('pages.issueDetail.table.executeClient')}
                   </TableHead>
@@ -495,115 +498,124 @@ export function IssueDetailPage() {
                 {executionRows.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={9}
+                      colSpan={10}
                       className="h-24 px-4 text-center text-muted-foreground"
                     >
                       {t('pages.issueDetail.empty')}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  executionRows.map(({ history, agentExecution, canReset }) => {
-                    const agentStatusMeta = getAgentExecutionStatusMeta(
-                      agentExecution.status,
-                      t
-                    );
+                  executionRows.map(
+                    ({ history, agentExecution, attemptNumber, canReset }) => {
+                      const agentStatusMeta = getAgentExecutionStatusMeta(
+                        agentExecution.status,
+                        t
+                      );
 
-                    return (
-                      <TableRow key={agentExecution.uuid}>
-                        <TableCell className="px-4 font-medium">
-                          {agentExecution.agent.name}
-                        </TableCell>
-                        <TableCell>
-                          {history.triggerReason === 'revision'
-                            ? t('pages.issueDetail.table.revisionIteration', {
-                                count: history.iteration
-                              })
-                            : t('pages.issueDetail.table.initialIteration')}
-                        </TableCell>
-                        <TableCell>
-                          {agentExecution.executeClient?.name ??
-                            t('common.fallback.emptyValue')}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={agentStatusMeta.variant}>
-                            {agentStatusMeta.label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {formatTokenCount(
-                            agentExecution.usage?.inputTokens,
-                            t
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {formatTokenCount(
-                            agentExecution.usage?.outputTokens,
-                            t
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {formatDateTime(agentExecution.startedAt, locale)}
-                        </TableCell>
-                        <TableCell>
-                          {formatDateTime(agentExecution.finishedAt, locale)}
-                        </TableCell>
-                        <TableCell className="pr-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              type="button"
-                              onClick={() =>
-                                openAgentExecutionLogs(agentExecution)
-                              }
-                            >
-                              <FileTextIcon />
-                              {t('pages.issueDetail.actions.viewLogs')}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              type="button"
-                              onClick={() =>
-                                openAgentExecutionRawContent(
-                                  agentExecution,
-                                  'input'
-                                )
-                              }
-                            >
-                              {t('pages.issueDetail.actions.viewInput')}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              type="button"
-                              onClick={() =>
-                                openAgentExecutionRawContent(
-                                  agentExecution,
-                                  'output'
-                                )
-                              }
-                            >
-                              {t('pages.issueDetail.actions.viewOutput')}
-                            </Button>
-                            {canReset ? (
+                      return (
+                        <TableRow key={agentExecution.uuid}>
+                          <TableCell className="px-4 font-medium">
+                            {agentExecution.agent.name}
+                          </TableCell>
+                          <TableCell>
+                            {history.triggerReason === 'revision'
+                              ? t('pages.issueDetail.table.revisionIteration', {
+                                  count: history.iteration
+                                })
+                              : t('pages.issueDetail.table.initialIteration')}
+                          </TableCell>
+                          <TableCell>
+                            {t('pages.issueDetail.table.attemptNumber', {
+                              count: attemptNumber
+                            })}
+                          </TableCell>
+                          <TableCell>
+                            {agentExecution.executeClient?.name ??
+                              t('common.fallback.emptyValue')}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={agentStatusMeta.variant}>
+                              {agentStatusMeta.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {formatTokenCount(
+                              agentExecution.usage?.inputTokens,
+                              t
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {formatTokenCount(
+                              agentExecution.usage?.outputTokens,
+                              t
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {formatDateTime(agentExecution.startedAt, locale)}
+                          </TableCell>
+                          <TableCell>
+                            {formatDateTime(agentExecution.finishedAt, locale)}
+                          </TableCell>
+                          <TableCell className="pr-4 text-right">
+                            <div className="flex justify-end gap-2">
                               <Button
-                                variant="secondary"
+                                variant="outline"
                                 size="sm"
                                 type="button"
                                 onClick={() =>
-                                  setPendingRetryAgentExecution(agentExecution)
+                                  openAgentExecutionLogs(agentExecution)
                                 }
                               >
-                                <RotateCcwIcon />
-                                {t('pages.issueDetail.actions.retry')}
+                                <FileTextIcon />
+                                {t('pages.issueDetail.actions.viewLogs')}
                               </Button>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                type="button"
+                                onClick={() =>
+                                  openAgentExecutionRawContent(
+                                    agentExecution,
+                                    'input'
+                                  )
+                                }
+                              >
+                                {t('pages.issueDetail.actions.viewInput')}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                type="button"
+                                onClick={() =>
+                                  openAgentExecutionRawContent(
+                                    agentExecution,
+                                    'output'
+                                  )
+                                }
+                              >
+                                {t('pages.issueDetail.actions.viewOutput')}
+                              </Button>
+                              {canReset ? (
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  type="button"
+                                  onClick={() =>
+                                    setPendingRetryAgentExecution(
+                                      agentExecution
+                                    )
+                                  }
+                                >
+                                  <RotateCcwIcon />
+                                  {t('pages.issueDetail.actions.retry')}
+                                </Button>
+                              ) : null}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
+                  )
                 )}
               </TableBody>
             </Table>

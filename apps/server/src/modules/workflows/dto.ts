@@ -23,6 +23,14 @@ const workflowNodeRevisionContextSchema = z.object({
   enabled: z.boolean().default(false)
 });
 
+const workflowNodeLoopPolicySchema = z.object({
+  enabled: z.boolean().default(false),
+  maxAttempts: z.number().int().min(1).max(5).default(3),
+  maxDurationMinutes: z.number().int().min(1).max(120).default(30),
+  maxTotalTokens: z.number().int().min(1_000).max(1_000_000).default(100_000),
+  escalationTargetStatus: refObjectSchema.nullable().default(null)
+});
+
 export const createWorkflowSchema = z.object({
   name: z.string().min(1)
 });
@@ -45,6 +53,13 @@ export const createWorkflowNodeSchema = z
     postActions: z.array(workflowNodePostActionSchema).length(1),
     revisionContext: workflowNodeRevisionContextSchema.default({
       enabled: false
+    }),
+    loopPolicy: workflowNodeLoopPolicySchema.default({
+      enabled: false,
+      maxAttempts: 3,
+      maxDurationMinutes: 30,
+      maxTotalTokens: 100_000,
+      escalationTargetStatus: null
     })
   })
   .superRefine((value, context) => {
@@ -57,6 +72,36 @@ export const createWorkflowNodeSchema = z
         code: z.ZodIssueCode.custom,
         path: ['postActions', 0, 'targetStatus'],
         message: 'Post-action target status must differ from trigger status'
+      });
+    }
+
+    if (!value.loopPolicy.enabled) {
+      return;
+    }
+
+    const escalationTargetStatus = value.loopPolicy.escalationTargetStatus;
+    if (!escalationTargetStatus) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['loopPolicy', 'escalationTargetStatus'],
+        message: 'Loop policy requires an escalation target status'
+      });
+      return;
+    }
+
+    if (escalationTargetStatus.uuid === value.status.uuid) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['loopPolicy', 'escalationTargetStatus'],
+        message: 'Escalation target status must differ from trigger status'
+      });
+    }
+
+    if (escalationTargetStatus.uuid === transitionAction?.targetStatus.uuid) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['loopPolicy', 'escalationTargetStatus'],
+        message: 'Escalation target status must differ from success status'
       });
     }
   });

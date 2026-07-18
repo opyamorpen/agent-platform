@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   AIModelConfigStatus,
+  AgentAcceptancePolicy,
   AgentConfig,
   AgentDraft,
   AgentFieldMeta,
@@ -113,7 +114,7 @@ type ExecutorOption = {
   keywords?: string[];
   executorName: string;
 };
-type StepKey = 'basic' | 'inputs' | 'outputs' | 'prompt';
+type StepKey = 'basic' | 'inputs' | 'outputs' | 'acceptance' | 'prompt';
 type SearchFieldOption = {
   value: string;
   label: string;
@@ -125,10 +126,21 @@ const DEFAULT_CONFIG: AgentConfig = {
   prompt: '',
   inputs: [],
   outputs: [],
-  knowledgeSourceUUIDs: []
+  knowledgeSourceUUIDs: [],
+  acceptancePolicy: {
+    criteria: [],
+    knowledgeRequirement: 'optional',
+    verificationProfileUUIDs: []
+  }
 };
 
-const STEP_ORDER: StepKey[] = ['basic', 'inputs', 'outputs', 'prompt'];
+const STEP_ORDER: StepKey[] = [
+  'basic',
+  'inputs',
+  'outputs',
+  'acceptance',
+  'prompt'
+];
 
 function createAgentEditorSignature(input: {
   name: string;
@@ -1532,6 +1544,8 @@ export function AgentDetailPage() {
   const [basicConfigError, setBasicConfigError] = useState<string | null>(null);
   const [inputs, setInputs] = useState<SelectedAgentInputField[]>([]);
   const [outputs, setOutputs] = useState<SelectedAgentOutputField[]>([]);
+  const [acceptancePolicy, setAcceptancePolicy] =
+    useState<AgentAcceptancePolicy>(DEFAULT_CONFIG.acceptancePolicy);
   const [prompt, setPrompt] = useState(DEFAULT_CONFIG.prompt);
   const [selectedInputFieldUUID, setSelectedInputFieldUUID] =
     useState<string>();
@@ -1572,6 +1586,9 @@ export function AgentDetailPage() {
     setInputs(nextConfig.inputs ?? []);
     setOutputs(nextConfig.outputs ?? []);
     setKnowledgeSourceUUIDs(nextConfig.knowledgeSourceUUIDs ?? []);
+    setAcceptancePolicy(
+      nextConfig.acceptancePolicy ?? DEFAULT_CONFIG.acceptancePolicy
+    );
     setPrompt(nextConfig.prompt);
   }
 
@@ -1590,9 +1607,17 @@ export function AgentDetailPage() {
       prompt,
       inputs,
       outputs,
-      knowledgeSourceUUIDs
+      knowledgeSourceUUIDs,
+      acceptancePolicy
     }),
-    [description, inputs, knowledgeSourceUUIDs, outputs, prompt]
+    [
+      acceptancePolicy,
+      description,
+      inputs,
+      knowledgeSourceUUIDs,
+      outputs,
+      prompt
+    ]
   );
 
   const currentEditorSignature = useMemo(
@@ -1623,10 +1648,19 @@ export function AgentDetailPage() {
       description,
       skillUUIDs,
       knowledgeSourceUUIDs,
+      acceptancePolicy,
       inputs,
       outputs
     }),
-    [agentName, description, inputs, knowledgeSourceUUIDs, outputs, skillUUIDs]
+    [
+      acceptancePolicy,
+      agentName,
+      description,
+      inputs,
+      knowledgeSourceUUIDs,
+      outputs,
+      skillUUIDs
+    ]
   );
 
   useEffect(() => {
@@ -1810,6 +1844,10 @@ export function AgentDetailPage() {
       {
         key: 'outputs' as const,
         title: t('pages.agentDetail.steps.outputs')
+      },
+      {
+        key: 'acceptance' as const,
+        title: t('pages.agentDetail.steps.acceptance')
       },
       {
         key: 'prompt' as const,
@@ -2303,6 +2341,17 @@ export function AgentDetailPage() {
         throw new Error(message);
       }
 
+      const invalidCriterion = acceptancePolicy.criteria.find(
+        (criterion) => !criterion.name.trim() || !criterion.description.trim()
+      );
+      if (invalidCriterion) {
+        const message = t(
+          'pages.agentDetail.validation.acceptanceCriterionRequired'
+        );
+        setActiveStep('acceptance');
+        throw new Error(message);
+      }
+
       const metadataResponse = await fetch(`/api/agents/${agentUUID}`, {
         method: 'PATCH',
         headers: {
@@ -2376,7 +2425,8 @@ export function AgentDetailPage() {
       skillUUIDs,
       t,
       workspaceUUID,
-      outputs
+      outputs,
+      acceptancePolicy.criteria
     ]
   );
 
@@ -2861,6 +2911,148 @@ export function AgentDetailPage() {
             isLoadingWikiSpaces={isLoadingWikiSpaces}
             isDisabled={isBusy || !isEditing}
           />
+        ) : null}
+
+        {activeStep === 'acceptance' ? (
+          <section className="space-y-5">
+            <div className="flex items-center justify-between gap-4 border-b pb-4">
+              <div>
+                <h2 className="text-base font-semibold">
+                  {t('pages.agentDetail.acceptance.title')}
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {t('pages.agentDetail.acceptance.description')}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={
+                  isBusy || !isEditing || acceptancePolicy.criteria.length >= 20
+                }
+                onClick={() =>
+                  setAcceptancePolicy((current) => ({
+                    ...current,
+                    criteria: [
+                      ...current.criteria,
+                      {
+                        uuid: crypto.randomUUID(),
+                        name: '',
+                        description: ''
+                      }
+                    ]
+                  }))
+                }
+              >
+                <PlusIcon />
+                {t('pages.agentDetail.acceptance.addCriterion')}
+              </Button>
+            </div>
+
+            <FormField
+              orientation="vertical"
+              className="gap-3 md:flex-row md:items-start md:gap-6"
+            >
+              <FieldLabel className="md:w-32 md:shrink-0 md:justify-end md:pt-2">
+                {t('pages.agentDetail.acceptance.knowledgeRequirement')}
+              </FieldLabel>
+              <FieldContent className="md:w-[420px] md:flex-none">
+                <SearchSelect
+                  options={[
+                    {
+                      value: 'optional',
+                      label: t('pages.agentDetail.acceptance.knowledgeOptional')
+                    },
+                    {
+                      value: 'required',
+                      label: t('pages.agentDetail.acceptance.knowledgeRequired')
+                    }
+                  ]}
+                  value={acceptancePolicy.knowledgeRequirement}
+                  onValueChange={(value) =>
+                    setAcceptancePolicy((current) => ({
+                      ...current,
+                      knowledgeRequirement:
+                        value === 'required' ? 'required' : 'optional'
+                    }))
+                  }
+                  disabled={isBusy || !isEditing}
+                />
+              </FieldContent>
+            </FormField>
+
+            <div className="divide-y border-y">
+              {acceptancePolicy.criteria.length === 0 ? (
+                <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  {t('pages.agentDetail.acceptance.empty')}
+                </div>
+              ) : (
+                acceptancePolicy.criteria.map((criterion, index) => (
+                  <div
+                    key={criterion.uuid}
+                    className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,240px)_minmax(0,1fr)_auto]"
+                  >
+                    <Input
+                      value={criterion.name}
+                      maxLength={256}
+                      onChange={(event) =>
+                        setAcceptancePolicy((current) => ({
+                          ...current,
+                          criteria: current.criteria.map((item) =>
+                            item.uuid === criterion.uuid
+                              ? { ...item, name: event.target.value }
+                              : item
+                          )
+                        }))
+                      }
+                      placeholder={t(
+                        'pages.agentDetail.acceptance.namePlaceholder',
+                        { index: index + 1 }
+                      )}
+                      disabled={isBusy || !isEditing}
+                    />
+                    <Textarea
+                      value={criterion.description}
+                      maxLength={4000}
+                      onChange={(event) =>
+                        setAcceptancePolicy((current) => ({
+                          ...current,
+                          criteria: current.criteria.map((item) =>
+                            item.uuid === criterion.uuid
+                              ? { ...item, description: event.target.value }
+                              : item
+                          )
+                        }))
+                      }
+                      placeholder={t(
+                        'pages.agentDetail.acceptance.descriptionPlaceholder'
+                      )}
+                      disabled={isBusy || !isEditing}
+                      className="min-h-20"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      title={t('common.actions.delete')}
+                      disabled={isBusy || !isEditing}
+                      onClick={() =>
+                        setAcceptancePolicy((current) => ({
+                          ...current,
+                          criteria: current.criteria.filter(
+                            (item) => item.uuid !== criterion.uuid
+                          )
+                        }))
+                      }
+                    >
+                      <Trash2Icon />
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
         ) : null}
 
         {activeStep === 'prompt' ? (

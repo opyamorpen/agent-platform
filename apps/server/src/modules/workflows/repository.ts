@@ -3,6 +3,7 @@ import {
   type HostedEntityEntry
 } from '../../lib/hosted-storage.js';
 import type {
+  WorkflowNodeLoopPolicy,
   WorkflowNodePostAction,
   WorkflowNodeRevisionContext
 } from '@ones-ai-workflow/shared';
@@ -41,6 +42,7 @@ export type WorkflowNodeRecord = {
   agentUUID: string;
   postActions: WorkflowNodePostAction[];
   revisionContext: WorkflowNodeRevisionContext;
+  loopPolicy: WorkflowNodeLoopPolicy;
 };
 
 interface StoredWorkflowEntity {
@@ -113,13 +115,15 @@ function serializeAgentUUID(agentUUID: string): string {
 function serializeWorkflowNodeBinding(
   agentUUID: string,
   postActions: WorkflowNodePostAction[],
-  revisionContext: WorkflowNodeRevisionContext
+  revisionContext: WorkflowNodeRevisionContext,
+  loopPolicy: WorkflowNodeLoopPolicy
 ): string {
   const transitionAction = postActions[0];
 
   if (
     transitionAction?.type !== 'transition_issue_status' &&
-    !revisionContext.enabled
+    !revisionContext.enabled &&
+    !loopPolicy.enabled
   ) {
     return serializeAgentUUID(agentUUID);
   }
@@ -132,7 +136,18 @@ function serializeWorkflowNodeBinding(
           n: transitionAction.targetStatus.name
         }
       : {}),
-    ...(revisionContext.enabled ? { r: 1 } : {})
+    ...(revisionContext.enabled ? { r: 1 } : {}),
+    ...(loopPolicy.enabled && loopPolicy.escalationTargetStatus
+      ? {
+          l: {
+            a: loopPolicy.maxAttempts,
+            d: loopPolicy.maxDurationMinutes,
+            k: loopPolicy.maxTotalTokens,
+            s: loopPolicy.escalationTargetStatus.uuid,
+            n: loopPolicy.escalationTargetStatus.name
+          }
+        }
+      : {})
   });
 }
 
@@ -222,6 +237,52 @@ function parseRevisionContext(value: string): WorkflowNodeRevisionContext {
   }
 }
 
+function parseLoopPolicy(value: string): WorkflowNodeLoopPolicy {
+  const fallback: WorkflowNodeLoopPolicy = {
+    enabled: false,
+    maxAttempts: 3,
+    maxDurationMinutes: 30,
+    maxTotalTokens: 100_000,
+    escalationTargetStatus: null
+  };
+
+  try {
+    const parsed = JSON.parse(value) as { l?: unknown };
+    const loop = parsed?.l;
+
+    if (!loop || typeof loop !== 'object' || Array.isArray(loop)) {
+      return fallback;
+    }
+
+    const compact = loop as {
+      a?: unknown;
+      d?: unknown;
+      k?: unknown;
+      s?: unknown;
+      n?: unknown;
+    };
+    if (typeof compact.s !== 'string' || typeof compact.n !== 'string') {
+      return fallback;
+    }
+
+    return {
+      enabled: true,
+      maxAttempts:
+        typeof compact.a === 'number' ? compact.a : fallback.maxAttempts,
+      maxDurationMinutes:
+        typeof compact.d === 'number' ? compact.d : fallback.maxDurationMinutes,
+      maxTotalTokens:
+        typeof compact.k === 'number' ? compact.k : fallback.maxTotalTokens,
+      escalationTargetStatus: {
+        uuid: compact.s,
+        name: compact.n
+      }
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 function toWorkflowRecord(entry: StoredWorkflowEntity): WorkflowRecord {
   return {
     uuid: entry.uuid,
@@ -244,7 +305,8 @@ function toWorkflowNodeRecord(
     statusName: entry.status_name,
     agentUUID: parseAgentUUIDText(entry.agent_uuids_text),
     postActions: parsePostActions(entry.agent_uuids_text),
-    revisionContext: parseRevisionContext(entry.agent_uuids_text)
+    revisionContext: parseRevisionContext(entry.agent_uuids_text),
+    loopPolicy: parseLoopPolicy(entry.agent_uuids_text)
   };
 }
 
@@ -451,7 +513,8 @@ export async function createWorkflowNode(
     agent_uuids_text: serializeWorkflowNodeBinding(
       node.agentUUID,
       node.postActions,
-      node.revisionContext
+      node.revisionContext,
+      node.loopPolicy
     ),
     created_at: now,
     updated_at: now
@@ -484,7 +547,8 @@ export async function updateWorkflowNode(
     agent_uuids_text: serializeWorkflowNodeBinding(
       node.agentUUID,
       node.postActions,
-      node.revisionContext
+      node.revisionContext,
+      node.loopPolicy
     ),
     updated_at: Date.now()
   };

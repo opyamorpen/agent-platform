@@ -290,7 +290,8 @@ function toWorkflowNode(
     },
     agent,
     postActions: node.postActions,
-    revisionContext: node.revisionContext
+    revisionContext: node.revisionContext,
+    loopPolicy: node.loopPolicy
   };
 }
 

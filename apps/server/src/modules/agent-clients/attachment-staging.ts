@@ -1,10 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import {
-  mkdir,
-  readFile,
-  rm,
-  writeFile
-} from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { resolveWorkspacePath } from '../../lib/runtime-path.js';
 
@@ -94,16 +89,24 @@ export async function loadAgentClientTaskAttachment(input: {
   clientUUID: string;
   resourceToken: string;
 }): Promise<LoadedStagedAttachment> {
-  const metadata = await readAttachmentMetadata(input.taskUUID, input.resourceToken);
+  const metadata = await readAttachmentMetadata(
+    input.taskUUID,
+    input.resourceToken
+  );
 
   if (
     metadata.taskUUID !== input.taskUUID ||
     metadata.clientUUID !== input.clientUUID
   ) {
-    throw new Error(`Attachment token does not belong to task: ${input.resourceToken}`);
+    throw new Error(
+      `Attachment token does not belong to task: ${input.resourceToken}`
+    );
   }
 
-  const filePath = path.join(getTaskDirectory(input.taskUUID), metadata.storedFileName);
+  const filePath = path.join(
+    getTaskDirectory(input.taskUUID),
+    metadata.storedFileName
+  );
 
   return {
     resourceToken: metadata.resourceToken,
@@ -117,6 +120,14 @@ export async function loadAgentClientTaskAttachment(input: {
       }).catch(() => undefined);
     }
   };
+}
+
+export async function removeAgentClientTaskAttachments(
+  taskUUID: string
+): Promise<void> {
+  await rm(getTaskDirectory(taskUUID), { recursive: true, force: true }).catch(
+    () => undefined
+  );
 }
 
 async function readAttachmentMetadata(

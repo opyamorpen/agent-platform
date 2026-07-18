@@ -222,6 +222,55 @@ test('workflow node DTO accepts one deterministic success transition', () => {
     }
   ]);
   assert.deepEqual(parsed.revisionContext, { enabled: false });
+  assert.deepEqual(parsed.loopPolicy, {
+    enabled: false,
+    maxAttempts: 3,
+    maxDurationMinutes: 30,
+    maxTotalTokens: 100_000,
+    escalationTargetStatus: null
+  });
+});
+
+test('workflow node DTO validates enabled loop policy and escalation status', () => {
+  const baseNode = {
+    project: { uuid: 'project-1', name: 'Project' },
+    issueType: { uuid: 'type-1', name: 'Requirement' },
+    status: { uuid: 'status-1', name: 'In progress' },
+    agentUUID: 'agent-1',
+    postActions: [
+      {
+        type: 'transition_issue_status' as const,
+        targetStatus: { uuid: 'status-2', name: 'Review' }
+      }
+    ]
+  };
+
+  assert.equal(
+    createWorkflowNodeSchema.safeParse({
+      ...baseNode,
+      loopPolicy: {
+        enabled: true,
+        maxAttempts: 3,
+        maxDurationMinutes: 30,
+        maxTotalTokens: 100_000,
+        escalationTargetStatus: null
+      }
+    }).success,
+    false
+  );
+  assert.equal(
+    createWorkflowNodeSchema.safeParse({
+      ...baseNode,
+      loopPolicy: {
+        enabled: true,
+        maxAttempts: 3,
+        maxDurationMinutes: 30,
+        maxTotalTokens: 100_000,
+        escalationTargetStatus: { uuid: 'status-3', name: 'Human review' }
+      }
+    }).success,
+    true
+  );
 });
 
 test('configured post-action selects exactly one executable workflow', () => {

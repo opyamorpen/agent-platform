@@ -1197,6 +1197,41 @@ test('buildAgentPrompt injects revision context instructions', () => {
   assert.match(markdown, /Do not create duplicate target objects/u);
 });
 
+test('buildAgentPrompt injects acceptance policy and loop correction context', () => {
+  const markdown = buildAgentPrompt(
+    {
+      description: '',
+      prompt: '修正候选结果',
+      inputs: [],
+      outputs: [],
+      acceptancePolicy: {
+        criteria: [
+          {
+            uuid: 'criterion-1',
+            name: '内容完整',
+            description: '必须覆盖全部验收条件'
+          }
+        ],
+        knowledgeRequirement: 'required',
+        verificationProfileUUIDs: []
+      }
+    },
+    {
+      loopContextXml:
+        '<loop-context><mode>revision</mode><attempt-number>2</attempt-number></loop-context>'
+    }
+  );
+
+  assert.match(markdown, /<acceptance-policy>/u);
+  assert.match(markdown, /<criterion-uuid>criterion-1<\/criterion-uuid>/u);
+  assert.match(
+    markdown,
+    /<knowledge-requirement>required<\/knowledge-requirement>/u
+  );
+  assert.match(markdown, /<attempt-number>2<\/attempt-number>/u);
+  assert.match(markdown, /return a complete corrected result/u);
+});
+
 test('buildAgentPrompt forbids all env access when no readable env keys are provided', () => {
   const markdown = buildAgentPrompt({
     description: '',

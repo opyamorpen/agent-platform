@@ -62,6 +62,8 @@ Rules for reading the input:
 6. If the `<fields>` of an attachment object include a `download_url` field, it is a directly downloadable attachment URL.
 7. When an attachment `download_url` is relevant to the task, download it to a workspace-relative file first, then inspect the local file. Do not rely on the URL string alone when the task requires the attachment content.
 8. If `<revision-context>` has mode `revision`, treat the task as a revision of prior work. Use the prior results, current applied output targets, and human review feedback to update the existing deliverable. Do not create duplicate target objects when an existing UUID is provided.
+9. Treat `<acceptance-policy>` as the quality contract for the result. Before returning, check every listed criterion and correct the result until all criteria are satisfied.
+10. If `<loop-context>` has mode `revision`, return a complete corrected result. Use the previous candidate, deterministic validation errors, test failures, and review findings as repair instructions; do not return a partial patch to the XML output.
 
 ```xml
 {{INPUT_CONTEXT_XML}}

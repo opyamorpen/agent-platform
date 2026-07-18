@@ -144,6 +144,7 @@ export const zhCN = {
       agentKnowledge: 'Agent 知识',
       agentWorkspaces: 'Agent 工作区',
       agentClients: 'Agent Client',
+      loopRuntimeConfig: '循环工程',
       aiModelConfig: 'AI 模型配置',
       members: '成员管理'
     }
@@ -158,6 +159,7 @@ export const zhCN = {
       agentWorkspaces: 'Agent 工作区',
       agentSkills: 'Agent 技能',
       agentKnowledge: 'Agent 知识',
+      loopRuntimeConfig: '循环工程',
       aiModelConfig: 'AI 模型配置'
     },
     descriptions: {
@@ -296,11 +298,13 @@ export const zhCN = {
       states: {
         logsRefreshing: '刷新中...',
         logsLoading: '日志加载中...',
-        retrying: '重置中...'
+        retrying: '重试中...'
       },
       table: {
         agent: 'Agent',
         iteration: '执行轮次',
+        attempt: '系统尝试',
+        attemptNumber: '第 {{count}} 次',
         initialIteration: '初次执行',
         revisionIteration: '第 {{count}} 轮返工',
         executeClient: '执行客户端',
@@ -333,11 +337,10 @@ export const zhCN = {
         emptyOutput: '暂无原始输出内容'
       },
       retryDialog: {
-        title: '确认重置？',
+        title: '确认重试？',
         descriptionWithAgent:
-          '这会将 Agent“{{name}}”的当前执行记录重置为待执行状态，不会新增记录。',
-        descriptionFallback:
-          '这会将当前执行记录重置为待执行状态，不会新增记录。'
+          '这会为 Agent“{{name}}”新增一次执行尝试，并保留当前记录。',
+        descriptionFallback: '这会新增一次执行尝试，并保留当前记录。'
       }
     },
     workflows: {
@@ -450,7 +453,8 @@ export const zhCN = {
       },
       validation: {
         nameRequired: '请输入 Agent 名称',
-        wikiWriteTargetRequired: '请为关联 Wiki 页面输出选择写入页面组'
+        wikiWriteTargetRequired: '请为关联 Wiki 页面输出选择写入页面组',
+        acceptanceCriterionRequired: '验收标准的名称和说明不能为空'
       },
       duplicateInputField: '已存在一级字段“{{name}}”的输入字段配置',
       duplicateOutputField: '已存在一级字段“{{name}}”的输出配置',
@@ -459,6 +463,7 @@ export const zhCN = {
         basic: '基础配置',
         inputs: '输入配置',
         outputs: '输出配置',
+        acceptance: '验收策略',
         prompt: '提示词'
       },
       actions: {
@@ -538,6 +543,17 @@ export const zhCN = {
           '当前字段不是 Issue 引用字段，不需要配置内部字段。',
         moveUpAria: '上移字段 {{name}}',
         moveDownAria: '下移字段 {{name}}'
+      },
+      acceptance: {
+        title: '验收策略',
+        description: '自动修正循环会逐条检查这里定义的验收标准。',
+        addCriterion: '添加标准',
+        knowledgeRequirement: '知识要求',
+        knowledgeOptional: '知识可选',
+        knowledgeRequired: '必须引用知识',
+        empty: '尚未配置验收标准。未配置时不会启用自动修正循环。',
+        namePlaceholder: '验收标准 {{index}}',
+        descriptionPlaceholder: '描述可验证的通过条件和质量要求'
       },
       prompt: {
         placeholder: '例如：你是一个擅长需求分析的助手，请根据输入字段生成...'
@@ -814,6 +830,17 @@ export const zhCN = {
         repairing_structure: '正在修复文件结构'
       }
     },
+    loopRuntimeConfig: {
+      title: '循环工程总开关',
+      description: '控制当前团队是否允许创建新的自动修正尝试。',
+      switchLabel: '启用循环工程',
+      switchHelp: '关闭后现有 Agent 和工作流继续按单次执行模式运行。',
+      enabled: '已开启',
+      disabled: '已关闭',
+      loadFailed: '循环工程配置加载失败',
+      saveFailed: '循环工程配置保存失败',
+      saveSuccess: '循环工程配置已保存'
+    },
     aiModelConfig: {
       title: '组织默认 AI 模型',
       description:
@@ -858,6 +885,11 @@ export const zhCN = {
         agentRequired: '请选择 Agent',
         targetStatusRequired: '请选择任务成功后的目标状态',
         targetStatusMustDiffer: '任务成功后的目标状态不能与触发状态相同',
+        maxAttemptsInvalid: '总尝试次数必须是 1-5 的整数',
+        maxDurationInvalid: '总时长必须是 1-120 分钟的整数',
+        maxTokensInvalid: '总 Token 必须是 1000-1000000 的整数',
+        escalationStatusRequired: '请选择人工接管状态',
+        escalationStatusMustDiffer: '人工接管状态不能与触发状态或成功状态相同',
         incompleteSelection: '表单数据不完整，请重新选择'
       },
       actions: {
@@ -879,6 +911,9 @@ export const zhCN = {
         revisionContext: '返工上下文',
         revisionEnabled: '已启用',
         revisionDisabled: '未启用',
+        loopPolicy: '自动修正',
+        loopEnabled: '最多 {{count}} 次',
+        loopDisabled: '未启用',
         actions: '操作'
       },
       dialog: {
@@ -909,6 +944,14 @@ export const zhCN = {
         revisionContextLabel: '审核退回时继承历史结果和评论',
         revisionContextHelp:
           '同一节点再次触发时，Agent 会读取历史执行结果和新增审核评论；没有新增评论时任务将阻断。',
+        loopPolicyLabel: '启用自动修正循环',
+        loopPolicyHelp:
+          '总开关开启且 Agent 已发布验收标准时，未通过的候选结果会自动进入下一次尝试。',
+        maxAttemptsLabel: '总尝试次数',
+        maxDurationLabel: '总时长（分钟）',
+        maxTokensLabel: '总 Token',
+        escalationStatusLabel: '人工接管状态',
+        escalationStatusPlaceholder: '选择循环耗尽后的人工接管状态',
         saving: '保存中...',
         creating: '创建中...'
       },

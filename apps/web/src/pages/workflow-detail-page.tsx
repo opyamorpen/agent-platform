@@ -21,6 +21,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -64,6 +66,13 @@ type CreateWorkflowNodePayload = {
   revisionContext: {
     enabled: boolean;
   };
+  loopPolicy: {
+    enabled: boolean;
+    maxAttempts: number;
+    maxDurationMinutes: number;
+    maxTotalTokens: number;
+    escalationTargetStatus: RefObject | null;
+  };
 };
 type WorkflowNodeDialogMode = 'create' | 'edit';
 type WorkflowNodeMutationResponse =
@@ -75,6 +84,10 @@ type FormErrors = {
   statusUUID?: string;
   agentUUID?: string;
   targetStatusUUID?: string;
+  escalationTargetStatusUUID?: string;
+  maxAttempts?: string;
+  maxDurationMinutes?: string;
+  maxTotalTokens?: string;
   submit?: string;
 };
 
@@ -84,7 +97,12 @@ const DEFAULT_FORM_STATE = {
   statusUUID: '',
   agentUUID: '',
   targetStatusUUID: '',
-  enableRevisionContext: false
+  enableRevisionContext: false,
+  enableLoopPolicy: false,
+  maxAttempts: '3',
+  maxDurationMinutes: '30',
+  maxTotalTokens: '100000',
+  escalationTargetStatusUUID: ''
 };
 
 function toSearchSelectOptions(items: RefObject[]) {
@@ -217,7 +235,13 @@ export function WorkflowDetailPage() {
         node.postActions[0]?.type === 'transition_issue_status'
           ? node.postActions[0].targetStatus.uuid
           : '',
-      enableRevisionContext: node.revisionContext.enabled
+      enableRevisionContext: node.revisionContext.enabled,
+      enableLoopPolicy: node.loopPolicy.enabled,
+      maxAttempts: String(node.loopPolicy.maxAttempts),
+      maxDurationMinutes: String(node.loopPolicy.maxDurationMinutes),
+      maxTotalTokens: String(node.loopPolicy.maxTotalTokens),
+      escalationTargetStatusUUID:
+        node.loopPolicy.escalationTargetStatus?.uuid ?? ''
     });
     setFormErrors({});
     setIsNodeDialogOpen(true);
@@ -382,6 +406,52 @@ export function WorkflowDetailPage() {
       );
     }
 
+    if (formData.enableLoopPolicy) {
+      const maxAttempts = Number(formData.maxAttempts);
+      const maxDurationMinutes = Number(formData.maxDurationMinutes);
+      const maxTotalTokens = Number(formData.maxTotalTokens);
+
+      if (
+        !Number.isInteger(maxAttempts) ||
+        maxAttempts < 1 ||
+        maxAttempts > 5
+      ) {
+        nextErrors.maxAttempts = t(
+          'pages.workflowDetail.validation.maxAttemptsInvalid'
+        );
+      }
+      if (
+        !Number.isInteger(maxDurationMinutes) ||
+        maxDurationMinutes < 1 ||
+        maxDurationMinutes > 120
+      ) {
+        nextErrors.maxDurationMinutes = t(
+          'pages.workflowDetail.validation.maxDurationInvalid'
+        );
+      }
+      if (
+        !Number.isInteger(maxTotalTokens) ||
+        maxTotalTokens < 1000 ||
+        maxTotalTokens > 1000000
+      ) {
+        nextErrors.maxTotalTokens = t(
+          'pages.workflowDetail.validation.maxTokensInvalid'
+        );
+      }
+      if (!formData.escalationTargetStatusUUID) {
+        nextErrors.escalationTargetStatusUUID = t(
+          'pages.workflowDetail.validation.escalationStatusRequired'
+        );
+      } else if (
+        formData.escalationTargetStatusUUID === formData.statusUUID ||
+        formData.escalationTargetStatusUUID === formData.targetStatusUUID
+      ) {
+        nextErrors.escalationTargetStatusUUID = t(
+          'pages.workflowDetail.validation.escalationStatusMustDiffer'
+        );
+      }
+    }
+
     return nextErrors;
   }
 
@@ -410,6 +480,9 @@ export function WorkflowDetailPage() {
     const targetStatus = issueStatuses.find(
       (item) => item.uuid === formData.targetStatusUUID
     );
+    const escalationTargetStatus = issueStatuses.find(
+      (item) => item.uuid === formData.escalationTargetStatusUUID
+    );
 
     if (!project || !issueType || !status || !targetStatus) {
       setFormErrors({
@@ -435,6 +508,15 @@ export function WorkflowDetailPage() {
         ],
         revisionContext: {
           enabled: formData.enableRevisionContext
+        },
+        loopPolicy: {
+          enabled: formData.enableLoopPolicy,
+          maxAttempts: Number(formData.maxAttempts),
+          maxDurationMinutes: Number(formData.maxDurationMinutes),
+          maxTotalTokens: Number(formData.maxTotalTokens),
+          escalationTargetStatus: formData.enableLoopPolicy
+            ? (escalationTargetStatus ?? null)
+            : null
         }
       } satisfies CreateWorkflowNodePayload;
       const isEditing = dialogMode === 'edit' && editingNodeUUID;
@@ -611,6 +693,9 @@ export function WorkflowDetailPage() {
                 <TableHead>
                   {t('pages.workflowDetail.table.revisionContext')}
                 </TableHead>
+                <TableHead>
+                  {t('pages.workflowDetail.table.loopPolicy')}
+                </TableHead>
                 <TableHead className="pr-4 text-right">
                   {t('pages.workflowDetail.table.actions')}
                 </TableHead>
@@ -620,7 +705,7 @@ export function WorkflowDetailPage() {
               {isLoading ? (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={9}
                     className="h-24 px-4 text-center text-muted-foreground"
                   >
                     {t('common.states.loading')}
@@ -629,7 +714,7 @@ export function WorkflowDetailPage() {
               ) : errorMessage ? (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={9}
                     className="h-24 px-4 text-center text-destructive"
                   >
                     {errorMessage}
@@ -638,7 +723,7 @@ export function WorkflowDetailPage() {
               ) : !workflow || workflow.nodes.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={9}
                     className="h-24 px-4 text-center text-muted-foreground"
                   >
                     {t('pages.workflowDetail.empty')}
@@ -670,6 +755,13 @@ export function WorkflowDetailPage() {
                       {node.revisionContext.enabled
                         ? t('pages.workflowDetail.table.revisionEnabled')
                         : t('pages.workflowDetail.table.revisionDisabled')}
+                    </TableCell>
+                    <TableCell>
+                      {node.loopPolicy.enabled
+                        ? t('pages.workflowDetail.table.loopEnabled', {
+                            count: node.loopPolicy.maxAttempts
+                          })
+                        : t('pages.workflowDetail.table.loopDisabled')}
                     </TableCell>
                     <TableCell className="pr-4 text-right">
                       <div className="flex flex-wrap justify-end gap-2">
@@ -713,7 +805,7 @@ export function WorkflowDetailPage() {
           }
         }}
       >
-        <DialogContent ref={setDialogContentElement} className="sm:max-w-2xl">
+        <DialogContent ref={setDialogContentElement} className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>
               {dialogMode === 'edit'
@@ -927,6 +1019,137 @@ export function WorkflowDetailPage() {
                 </div>
               </div>
             </FormField>
+            <FormField>
+              <div className="flex items-start justify-between gap-4 border-t pt-4">
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="workflow-node-loop-policy">
+                    {t('pages.workflowDetail.dialog.loopPolicyLabel')}
+                  </FieldLabel>
+                  <p className="text-xs text-muted-foreground">
+                    {t('pages.workflowDetail.dialog.loopPolicyHelp')}
+                  </p>
+                </div>
+                <Switch
+                  id="workflow-node-loop-policy"
+                  checked={formData.enableLoopPolicy}
+                  onCheckedChange={(checked) => {
+                    setFormData((current) => ({
+                      ...current,
+                      enableLoopPolicy: checked
+                    }));
+                    setFormErrors((current) => ({
+                      ...current,
+                      escalationTargetStatusUUID: undefined,
+                      submit: undefined
+                    }));
+                  }}
+                />
+              </div>
+            </FormField>
+            {formData.enableLoopPolicy ? (
+              <div className="grid gap-4 border-l-2 border-muted pl-4 md:grid-cols-3">
+                <FormField data-invalid={Boolean(formErrors.maxAttempts)}>
+                  <FieldLabel htmlFor="workflow-node-loop-attempts">
+                    {t('pages.workflowDetail.dialog.maxAttemptsLabel')}
+                  </FieldLabel>
+                  <FieldContent>
+                    <Input
+                      id="workflow-node-loop-attempts"
+                      type="number"
+                      min={1}
+                      max={5}
+                      value={formData.maxAttempts}
+                      onChange={(event) =>
+                        setFormData((current) => ({
+                          ...current,
+                          maxAttempts: event.target.value
+                        }))
+                      }
+                    />
+                    <FieldError>{formErrors.maxAttempts}</FieldError>
+                  </FieldContent>
+                </FormField>
+                <FormField
+                  data-invalid={Boolean(formErrors.maxDurationMinutes)}
+                >
+                  <FieldLabel htmlFor="workflow-node-loop-duration">
+                    {t('pages.workflowDetail.dialog.maxDurationLabel')}
+                  </FieldLabel>
+                  <FieldContent>
+                    <Input
+                      id="workflow-node-loop-duration"
+                      type="number"
+                      min={1}
+                      max={120}
+                      value={formData.maxDurationMinutes}
+                      onChange={(event) =>
+                        setFormData((current) => ({
+                          ...current,
+                          maxDurationMinutes: event.target.value
+                        }))
+                      }
+                    />
+                    <FieldError>{formErrors.maxDurationMinutes}</FieldError>
+                  </FieldContent>
+                </FormField>
+                <FormField data-invalid={Boolean(formErrors.maxTotalTokens)}>
+                  <FieldLabel htmlFor="workflow-node-loop-tokens">
+                    {t('pages.workflowDetail.dialog.maxTokensLabel')}
+                  </FieldLabel>
+                  <FieldContent>
+                    <Input
+                      id="workflow-node-loop-tokens"
+                      type="number"
+                      min={1000}
+                      max={1000000}
+                      step={1000}
+                      value={formData.maxTotalTokens}
+                      onChange={(event) =>
+                        setFormData((current) => ({
+                          ...current,
+                          maxTotalTokens: event.target.value
+                        }))
+                      }
+                    />
+                    <FieldError>{formErrors.maxTotalTokens}</FieldError>
+                  </FieldContent>
+                </FormField>
+                <FormField
+                  className="md:col-span-3"
+                  data-invalid={Boolean(formErrors.escalationTargetStatusUUID)}
+                >
+                  <FieldLabel>
+                    {t('pages.workflowDetail.dialog.escalationStatusLabel')}
+                    <span className="text-destructive">*</span>
+                  </FieldLabel>
+                  <FieldContent>
+                    <SearchSelect
+                      options={issueStatusOptions}
+                      value={formData.escalationTargetStatusUUID || undefined}
+                      onValueChange={(value) => {
+                        setFormData((current) => ({
+                          ...current,
+                          escalationTargetStatusUUID: value ?? ''
+                        }));
+                        setFormErrors((current) => ({
+                          ...current,
+                          escalationTargetStatusUUID: undefined,
+                          submit: undefined
+                        }));
+                      }}
+                      placeholder={t(
+                        'pages.workflowDetail.dialog.escalationStatusPlaceholder'
+                      )}
+                      emptyText={t('pages.workflowDetail.dialog.statusEmpty')}
+                      portalContainer={dialogContentElement}
+                    />
+                    <FieldError>
+                      {formErrors.escalationTargetStatusUUID}
+                    </FieldError>
+                  </FieldContent>
+                </FormField>
+              </div>
+            ) : null}
             <FieldError>{formErrors.submit}</FieldError>
           </div>
           <DialogFooter>

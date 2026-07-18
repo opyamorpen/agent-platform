@@ -188,6 +188,7 @@ export const jaJP = {
       agentKnowledge: 'エージェントナレッジ',
       agentWorkspaces: 'エージェントワークスペース',
       agentClients: 'エージェントクライアント',
+      loopRuntimeConfig: 'ループエンジニアリング',
       aiModelConfig: 'AI モデル',
       members: 'メンバー'
     }
@@ -202,6 +203,7 @@ export const jaJP = {
       agentWorkspaces: 'エージェントワークスペース',
       agentSkills: 'エージェントのスキル',
       agentKnowledge: 'エージェントナレッジ',
+      loopRuntimeConfig: 'ループエンジニアリング',
       aiModelConfig: 'AI モデル設定'
     },
     descriptions: {
@@ -352,6 +354,8 @@ export const jaJP = {
       table: {
         agent: 'エージェント',
         iteration: '実行ラウンド',
+        attempt: 'システム試行',
+        attemptNumber: '第 {{count}} 回',
         initialIteration: '初回実行',
         revisionIteration: '第 {{count}} 回の再作業',
         executeClient: '実行クライアント',
@@ -384,11 +388,11 @@ export const jaJP = {
         emptyOutput: '生の出力コンテンツはありません'
       },
       retryDialog: {
-        title: '実行をリセットしますか?',
+        title: '実行を再試行しますか?',
         descriptionWithAgent:
-          'これにより、新しいレコードを作成せずに、エージェント「{{name}}」の現在の実行レコードが保留状態にリセットされます。',
+          'エージェント「{{name}}」の新しい実行試行を作成し、現在のレコードを保持します。',
         descriptionFallback:
-          'これにより、新しいレコードは作成されずに、現在の実行レコードが保留状態にリセットされます。'
+          '新しい実行試行を作成し、現在のレコードを保持します。'
       }
     },
     workflows: {
@@ -505,7 +509,8 @@ export const jaJP = {
       validation: {
         nameRequired: 'エージェント名を入力してください',
         wikiWriteTargetRequired:
-          '関連 Wiki ページの出力先ページグループを選択してください'
+          '関連 Wiki ページの出力先ページグループを選択してください',
+        acceptanceCriterionRequired: '受入基準の名前と説明は必須です'
       },
       duplicateInputField:
         '最上位フィールド「{{name}}」には入力バインディングがすでに存在します。',
@@ -517,6 +522,7 @@ export const jaJP = {
         basic: '基本設定',
         inputs: '入力設定',
         outputs: '出力設定',
+        acceptance: '受入ポリシー',
         prompt: 'プロンプト'
       },
       actions: {
@@ -603,6 +609,18 @@ export const jaJP = {
           'このフィールドは Issue 参照フィールドではないため、内部フィールドは不要です。',
         moveUpAria: 'フィールド{{name}}を上に移動',
         moveDownAria: 'フィールド {{name}} を下に移動します'
+      },
+      acceptance: {
+        title: '受入ポリシー',
+        description: '自動修正ループは、ここで定義した各受入基準を確認します。',
+        addCriterion: '基準を追加',
+        knowledgeRequirement: 'ナレッジ要件',
+        knowledgeOptional: 'ナレッジは任意',
+        knowledgeRequired: 'ナレッジ引用が必須',
+        empty:
+          '受入基準が未設定です。この Agent では自動修正は有効になりません。',
+        namePlaceholder: '受入基準 {{index}}',
+        descriptionPlaceholder: '検証可能な合格条件と品質要件を説明してください'
       },
       prompt: {
         placeholder:
@@ -887,6 +905,18 @@ export const jaJP = {
         repairing_structure: 'ファイル構造を修復中'
       }
     },
+    loopRuntimeConfig: {
+      title: 'ループエンジニアリング総合スイッチ',
+      description: 'このチームで新しい自動修正試行を作成できるかを制御します。',
+      switchLabel: 'ループエンジニアリングを有効化',
+      switchHelp:
+        '無効時、既存の Agent とワークフローは単発実行モードで動作します。',
+      enabled: '有効',
+      disabled: '無効',
+      loadFailed: 'ループエンジニアリング設定の読み込みに失敗しました',
+      saveFailed: 'ループエンジニアリング設定の保存に失敗しました',
+      saveSuccess: 'ループエンジニアリング設定を保存しました'
+    },
     aiModelConfig: {
       title: '組織のデフォルト AI モデル',
       description:
@@ -934,6 +964,13 @@ export const jaJP = {
           'タスク成功後の遷移先ステータスを選択してください',
         targetStatusMustDiffer:
           '成功後の遷移先ステータスはトリガーステータスと異なる必要があります',
+        maxAttemptsInvalid: '総試行回数は 1～5 の整数で指定してください',
+        maxDurationInvalid: '総時間は 1～120 分の整数で指定してください',
+        maxTokensInvalid: '総 Token は 1000～1000000 の整数で指定してください',
+        escalationStatusRequired:
+          '人による引き継ぎステータスを選択してください',
+        escalationStatusMustDiffer:
+          '引き継ぎステータスはトリガーおよび成功ステータスと異なる必要があります',
         incompleteSelection:
           'フォームデータが不完全です。オプションを再選択して、再試行してください。'
       },
@@ -956,6 +993,9 @@ export const jaJP = {
         revisionContext: '再作業コンテキスト',
         revisionEnabled: '有効',
         revisionDisabled: '無効',
+        loopPolicy: '自動修正',
+        loopEnabled: '最大 {{count}} 回',
+        loopDisabled: '無効',
         actions: 'アクション'
       },
       dialog: {
@@ -987,6 +1027,15 @@ export const jaJP = {
           '差し戻し時に過去の結果とレビューコメントを引き継ぐ',
         revisionContextHelp:
           '同じノードが再度トリガーされると、過去の結果と新しいレビューコメントを読み込みます。新しいコメントがない場合はブロックされます。',
+        loopPolicyLabel: '自動修正ループを有効化',
+        loopPolicyHelp:
+          'チームの総合スイッチが有効で、公開済み Agent に受入基準がある場合、不合格の候補は次の試行に進みます。',
+        maxAttemptsLabel: '総試行回数',
+        maxDurationLabel: '総時間（分）',
+        maxTokensLabel: '総 Token',
+        escalationStatusLabel: '人による引き継ぎステータス',
+        escalationStatusPlaceholder:
+          'ループ予算を使い切った場合の引き継ぎステータスを選択',
         saving: '保存中...',
         creating: '作成...'
       },

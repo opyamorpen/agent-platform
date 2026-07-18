@@ -35,10 +35,19 @@ export interface WorkflowNode {
   agent: Agent;
   postActions: WorkflowNodePostAction[];
   revisionContext: WorkflowNodeRevisionContext;
+  loopPolicy: WorkflowNodeLoopPolicy;
 }
 
 export interface WorkflowNodeRevisionContext {
   enabled: boolean;
+}
+
+export interface WorkflowNodeLoopPolicy {
+  enabled: boolean;
+  maxAttempts: number;
+  maxDurationMinutes: number;
+  maxTotalTokens: number;
+  escalationTargetStatus: RefObject | null;
 }
 
 export interface WorkflowNodeTransitionIssueStatusPostAction {
@@ -88,6 +97,12 @@ export interface SkillManifest {
 
 export interface AIModelConfigStatus {
   configured: boolean;
+}
+
+export interface LoopRuntimeConfig {
+  enabled: boolean;
+  updatedBy: string | null;
+  updatedAt: string | null;
 }
 
 export interface AIModelConfig {
@@ -183,6 +198,33 @@ export interface AgentConfig {
   inputs: AgentInput[];
   outputs: AgentOutputField[];
   knowledgeSourceUUIDs: string[];
+  acceptancePolicy: AgentAcceptancePolicy;
+}
+
+export interface AgentAcceptanceCriterion {
+  uuid: string;
+  name: string;
+  description: string;
+}
+
+export interface AgentAcceptancePolicy {
+  criteria: AgentAcceptanceCriterion[];
+  knowledgeRequirement: 'optional' | 'required';
+  verificationProfileUUIDs: string[];
+}
+
+export interface LoopAIReviewFinding {
+  criterionUUID: string;
+  severity: 'error' | 'warning';
+  message: string;
+  repairInstruction: string;
+}
+
+export interface LoopAIReview {
+  verdict: 'pass' | 'revise' | 'escalate';
+  confidence: number;
+  summary: string;
+  findings: LoopAIReviewFinding[];
 }
 
 export interface AgentFieldMeta {

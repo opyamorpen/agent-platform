@@ -534,13 +534,38 @@ function buildReadableEnvPolicyBlock(readableEnvKeys: string[]): string {
   ].join('\n');
 }
 
+function buildAcceptancePolicyXml(
+  policy: AgentConfig['acceptancePolicy'] | undefined
+): string {
+  const criteria = policy?.criteria ?? [];
+
+  return [
+    '<acceptance-policy>',
+    `  <knowledge-requirement>${policy?.knowledgeRequirement === 'required' ? 'required' : 'optional'}</knowledge-requirement>`,
+    '  <criteria>',
+    ...criteria.flatMap((criterion) => [
+      '    <criterion>',
+      `      <criterion-uuid>${escapeXmlText(criterion.uuid)}</criterion-uuid>`,
+      `      <criterion-name>${escapeXmlText(criterion.name)}</criterion-name>`,
+      `      <criterion-description>${wrapXmlCdata(criterion.description)}</criterion-description>`,
+      '    </criterion>'
+    ]),
+    '  </criteria>',
+    '</acceptance-policy>'
+  ].join('\n');
+}
+
 export function buildAgentPrompt(
-  config: Pick<AgentConfig, 'description' | 'inputs' | 'outputs' | 'prompt'>,
+  config: Pick<
+    AgentConfig,
+    'description' | 'inputs' | 'outputs' | 'prompt' | 'acceptancePolicy'
+  >,
   options: {
     inputContextXml?: string;
     wikiInputsXml?: string;
     knowledgeContextXml?: string;
     revisionContextXml?: string;
+    loopContextXml?: string;
     readableEnvKeys?: string[];
   } = {}
 ): string {
@@ -562,7 +587,10 @@ export function buildAgentPrompt(
           buildPreviewAgentInputContextXml(config.inputs),
         options.wikiInputsXml?.trim() || '<wiki-inputs />',
         options.knowledgeContextXml?.trim() || '<knowledge-context />',
-        revisionContextXml
+        revisionContextXml,
+        buildAcceptancePolicyXml(config.acceptancePolicy),
+        options.loopContextXml?.trim() ||
+          '<loop-context><mode>initial</mode></loop-context>'
       ]
         .join('\n\n')
         .trim()

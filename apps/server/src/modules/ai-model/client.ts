@@ -121,7 +121,12 @@ export async function streamAIChatCompletion(input: {
 
 export async function completeAIChatCompletion(input: {
   teamUUID: string;
-  feature: 'skill-generation' | 'skill-repair' | 'connection-test';
+  feature:
+    | 'skill-generation'
+    | 'skill-repair'
+    | 'connection-test'
+    | 'loop-review'
+    | 'loop-review-repair';
   messages: AIChatMessage[];
   signal?: AbortSignal;
   temperature?: number;

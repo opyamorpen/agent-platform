@@ -516,7 +516,8 @@ export function compareDispatchedIssuesByLatestExecution(
     return rightDispatchedAt - leftDispatchedAt;
   }
 
-  const updatedAtDifference = Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
+  const updatedAtDifference =
+    Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
   return updatedAtDifference || left.uuid.localeCompare(right.uuid);
 }
 
@@ -677,24 +678,39 @@ export async function retryIssueAgentExecutionHistory(
     );
   }
 
-  await updateIssueAgentExecutionHistory(
-    {
-      uuid: agentExecution.uuid,
-      prompt: '',
-      status: 'created',
-      logs: '',
-      executePayload: {},
-      executeResult: {},
-      rawExecuteResult: '',
-      executeClientUUID: null,
-      executeClientName: null,
-      usageInputTokens: 0,
-      usageOutputTokens: 0,
-      queuedAt: null,
-      lastReportedAt: null,
-      startedAt: null,
-      finishedAt: null
-    },
+  const retryUUID = randomUUID();
+  await createIssueAgentExecutionHistories(
+    [
+      {
+        uuid: retryUUID,
+        issueExecutionUUID: agentExecution.issueExecutionUUID,
+        agentUUID: agentExecution.agentUUID,
+        agentName: agentExecution.agentName,
+        agentVersion: agentExecution.agentVersion,
+        executorUUID: agentExecution.executorUUID,
+        executorName: agentExecution.executorName,
+        prompt: '',
+        executePayload: {},
+        executeOption: toJsonObject({
+          loopContext: {
+            attemptNumber: issueExecution.agentExecutions.length + 1,
+            previousAttemptUUID: agentExecution.uuid,
+            previousCandidate: agentExecution.rawExecuteResult,
+            deterministicValidation: {
+              passed: false,
+              errors: ['Manual retry requested']
+            },
+            aiReview: null
+          }
+        }),
+        executeResult: {},
+        rawExecuteResult: '',
+        status: 'created',
+        logs: '',
+        executeClientUUID: null,
+        executeClientName: null
+      }
+    ],
     teamUUID
   );
 
@@ -704,12 +720,12 @@ export async function retryIssueAgentExecutionHistory(
   );
 
   const retriedAgentExecution = await findIssueAgentExecutionHistoryByUUID(
-    uuid,
+    retryUUID,
     teamUUID
   );
 
   if (!retriedAgentExecution) {
-    throw new IssueAgentExecutionHistoryNotFoundError(uuid);
+    throw new IssueAgentExecutionHistoryNotFoundError(retryUUID);
   }
 
   return toIssueAgentExecutionHistory(retriedAgentExecution);

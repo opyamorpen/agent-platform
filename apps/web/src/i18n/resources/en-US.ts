@@ -177,6 +177,7 @@ export const enUS = {
       agentKnowledge: 'Agent Knowledge',
       agentWorkspaces: 'Agent Workspaces',
       agentClients: 'Agent Clients',
+      loopRuntimeConfig: 'Loop Engineering',
       aiModelConfig: 'AI Model',
       members: 'Members'
     }
@@ -191,6 +192,7 @@ export const enUS = {
       agentWorkspaces: 'Agent Workspaces',
       agentSkills: 'Agent Skills',
       agentKnowledge: 'Agent Knowledge',
+      loopRuntimeConfig: 'Loop Engineering',
       aiModelConfig: 'AI Model Configuration'
     },
     descriptions: {
@@ -340,6 +342,8 @@ export const enUS = {
       table: {
         agent: 'Agent',
         iteration: 'Iteration',
+        attempt: 'System attempt',
+        attemptNumber: 'Attempt {{count}}',
         initialIteration: 'Initial run',
         revisionIteration: 'Revision {{count}}',
         executeClient: 'Execution client',
@@ -372,11 +376,11 @@ export const enUS = {
         emptyOutput: 'No raw output content'
       },
       retryDialog: {
-        title: 'Reset execution?',
+        title: 'Retry execution?',
         descriptionWithAgent:
-          'This resets the current execution record for agent "{{name}}" to pending without creating a new record.',
+          'This creates another execution attempt for agent "{{name}}" and preserves the current record.',
         descriptionFallback:
-          'This resets the current execution record to pending without creating a new record.'
+          'This creates another execution attempt and preserves the current record.'
       }
     },
     workflows: {
@@ -493,7 +497,9 @@ export const enUS = {
       validation: {
         nameRequired: 'Enter an agent name',
         wikiWriteTargetRequired:
-          'Select a Wiki space for the related Wiki page output'
+          'Select a Wiki space for the related Wiki page output',
+        acceptanceCriterionRequired:
+          'Acceptance criterion names and descriptions are required'
       },
       duplicateInputField:
         'An input binding already exists for top-level field "{{name}}"',
@@ -505,6 +511,7 @@ export const enUS = {
         basic: 'Basic settings',
         inputs: 'Input settings',
         outputs: 'Output settings',
+        acceptance: 'Acceptance',
         prompt: 'Prompt'
       },
       actions: {
@@ -589,6 +596,20 @@ export const enUS = {
           'This field is not an Issue reference field, so internal fields are not needed.',
         moveUpAria: 'Move field {{name}} up',
         moveDownAria: 'Move field {{name}} down'
+      },
+      acceptance: {
+        title: 'Acceptance policy',
+        description:
+          'The automatic correction loop checks every acceptance criterion defined here.',
+        addCriterion: 'Add criterion',
+        knowledgeRequirement: 'Knowledge requirement',
+        knowledgeOptional: 'Knowledge optional',
+        knowledgeRequired: 'Knowledge citation required',
+        empty:
+          'No acceptance criteria configured. Automatic correction remains disabled for this agent.',
+        namePlaceholder: 'Acceptance criterion {{index}}',
+        descriptionPlaceholder:
+          'Describe the verifiable pass condition and quality requirement'
       },
       prompt: {
         placeholder:
@@ -878,6 +899,19 @@ export const enUS = {
         repairing_structure: 'Repairing the file structure'
       }
     },
+    loopRuntimeConfig: {
+      title: 'Loop Engineering Kill Switch',
+      description:
+        'Controls whether this team can create new automatic correction attempts.',
+      switchLabel: 'Enable loop engineering',
+      switchHelp:
+        'When disabled, existing agents and workflow nodes continue in single-run mode.',
+      enabled: 'Enabled',
+      disabled: 'Disabled',
+      loadFailed: 'Failed to load loop engineering config',
+      saveFailed: 'Failed to save loop engineering config',
+      saveSuccess: 'Loop engineering config saved'
+    },
     aiModelConfig: {
       title: 'Organization default AI model',
       description:
@@ -924,6 +958,14 @@ export const enUS = {
         targetStatusRequired: 'Select the target status after task success',
         targetStatusMustDiffer:
           'The success target status must differ from the trigger status',
+        maxAttemptsInvalid: 'Total attempts must be an integer from 1 to 5',
+        maxDurationInvalid:
+          'Total duration must be an integer from 1 to 120 minutes',
+        maxTokensInvalid:
+          'Total tokens must be an integer from 1000 to 1000000',
+        escalationStatusRequired: 'Select the human escalation status',
+        escalationStatusMustDiffer:
+          'The escalation status must differ from the trigger and success statuses',
         incompleteSelection:
           'The form data is incomplete. Reselect the options and try again.'
       },
@@ -946,6 +988,9 @@ export const enUS = {
         revisionContext: 'Revision context',
         revisionEnabled: 'Enabled',
         revisionDisabled: 'Disabled',
+        loopPolicy: 'Automatic correction',
+        loopEnabled: 'Up to {{count}} attempts',
+        loopDisabled: 'Disabled',
         actions: 'Actions'
       },
       dialog: {
@@ -977,6 +1022,15 @@ export const enUS = {
           'Inherit prior results and review comments after rejection',
         revisionContextHelp:
           'When this node is triggered again, the agent reads prior results and new review comments. The task is blocked if no new feedback exists.',
+        loopPolicyLabel: 'Enable automatic correction loop',
+        loopPolicyHelp:
+          'When the team switch is enabled and the published agent has acceptance criteria, rejected candidates start another attempt.',
+        maxAttemptsLabel: 'Total attempts',
+        maxDurationLabel: 'Total duration (minutes)',
+        maxTokensLabel: 'Total tokens',
+        escalationStatusLabel: 'Human escalation status',
+        escalationStatusPlaceholder:
+          'Select the status used when the loop budget is exhausted',
         saving: 'Saving...',
         creating: 'Creating...'
       },

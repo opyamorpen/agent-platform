@@ -18,6 +18,7 @@ import { WorkflowsPage } from '@/pages/workflows-page';
 import { AIModelConfigPage } from '@/pages/ai-model-config-page';
 import { SkillCreatorPage } from '@/pages/skill-creator-page';
 import { KnowledgeSourcesPage } from '@/pages/knowledge-sources-page';
+import { LoopRuntimeConfigPage } from '@/pages/loop-runtime-config-page';
 
 export const router = createHashRouter([
   {
@@ -93,6 +94,14 @@ export const router = createHashRouter([
         element: (
           <AdminRouteGuard>
             <AIModelConfigPage />
+          </AdminRouteGuard>
+        )
+      },
+      {
+        path: 'settings/loop-runtime-config',
+        element: (
+          <AdminRouteGuard>
+            <LoopRuntimeConfigPage />
           </AdminRouteGuard>
         )
       },

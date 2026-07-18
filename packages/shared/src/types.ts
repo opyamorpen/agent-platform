@@ -259,6 +259,102 @@ export interface LoopAIReview {
   findings: LoopAIReviewFinding[];
 }
 
+export type AssetOptimizationRunStatus =
+  | 'generating'
+  | 'ready'
+  | 'failed'
+  | 'completed';
+
+export type AssetOptimizationTrigger = 'manual' | 'automatic';
+
+export type AssetCandidateType = 'prompt' | 'skill' | 'knowledge';
+
+export type AssetCandidateStatus =
+  | 'draft'
+  | 'conflict'
+  | 'applied'
+  | 'reviewed'
+  | 'dismissed';
+
+export interface AssetOptimizationMetrics {
+  totalSamples: number;
+  successCount: number;
+  problemCount: number;
+  retryCount: number;
+  averageAttempts: number;
+  totalTokens: number | null;
+  replaySampleCount: number;
+}
+
+export interface AssetReplayScore {
+  estimatedPassRate: number;
+  expectedAttempts: number;
+  tokenChangePercent: number;
+  findings: string[];
+}
+
+export interface AssetPromptCandidateContent {
+  type: 'prompt';
+  prompt: string;
+}
+
+export interface AssetSkillCandidateContent {
+  type: 'skill';
+  skillUUID: string | null;
+  skillName: string;
+  files: SkillGenerationFile[];
+}
+
+export interface AssetKnowledgeCandidateContent {
+  type: 'knowledge';
+  markdown: string;
+}
+
+export type AssetCandidateContent =
+  | AssetPromptCandidateContent
+  | AssetSkillCandidateContent
+  | AssetKnowledgeCandidateContent;
+
+export interface AssetCandidateSummary {
+  uuid: string;
+  runUUID: string;
+  type: AssetCandidateType;
+  status: AssetCandidateStatus;
+  title: string;
+  summary: string;
+  targetUUID: string | null;
+  baseRevision: number;
+  hasScripts: boolean;
+  replayScore: AssetReplayScore | null;
+  conflictReason: string | null;
+  appliedAssetUUID: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssetCandidate extends AssetCandidateSummary {
+  content: AssetCandidateContent;
+}
+
+export interface AssetOptimizationRunSummary {
+  uuid: string;
+  agent: RefObject;
+  agentVersion: number;
+  trigger: AssetOptimizationTrigger;
+  status: AssetOptimizationRunStatus;
+  metrics: AssetOptimizationMetrics;
+  candidateCount: number;
+  errorMessage: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+}
+
+export interface AssetOptimizationRun extends AssetOptimizationRunSummary {
+  candidates: AssetCandidate[];
+}
+
 export interface AgentFieldMeta {
   uuid: string;
   name: string;

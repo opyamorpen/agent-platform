@@ -18,7 +18,8 @@ export function SiteHeader() {
     '/settings/skills': t('header.titles.agentSkills'),
     '/settings/knowledge-sources': t('header.titles.agentKnowledge'),
     '/settings/ai-model-config': t('header.titles.aiModelConfig'),
-    '/settings/loop-runtime-config': t('header.titles.loopRuntimeConfig')
+    '/settings/loop-runtime-config': t('header.titles.loopRuntimeConfig'),
+    '/settings/asset-optimizations': t('header.titles.assetOptimizations')
   };
   const descriptionMap: Record<string, string> = {
     '/settings/issues': t('header.descriptions.workflowExecution'),

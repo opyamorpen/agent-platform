@@ -20,6 +20,7 @@ import { skillGenerationRoutes } from '../modules/skill-generation/routes.js';
 import { knowledgeSourcesRoutes } from '../modules/knowledge-sources/routes.js';
 import { loopRuntimeConfigRoutes } from '../modules/loop-runtime-config/routes.js';
 import { workspaceVerificationProfilesRoutes } from '../modules/workspace-verification-profiles/routes.js';
+import { assetOptimizationsRoutes } from '../modules/asset-optimizations/routes.js';
 
 export function registerRoutes(app: Hono): void {
   app.get('/health', (c) =>
@@ -61,7 +62,11 @@ export function registerRoutes(app: Hono): void {
   app.route('/api/skill-generation-sessions', skillGenerationRoutes);
   app.route('/api/knowledge-sources', knowledgeSourcesRoutes);
   app.route('/api/loop-runtime-config', loopRuntimeConfigRoutes);
-  app.route('/api/workspace-verification-profiles', workspaceVerificationProfilesRoutes);
+  app.route(
+    '/api/workspace-verification-profiles',
+    workspaceVerificationProfilesRoutes
+  );
+  app.route('/api/asset-optimizations', assetOptimizationsRoutes);
 
   app.notFound((c) =>
     c.json(failure('Route not found', 'common.route_not_found'), 404)

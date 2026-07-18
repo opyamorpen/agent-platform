@@ -20,6 +20,7 @@ import { SkillCreatorPage } from '@/pages/skill-creator-page';
 import { KnowledgeSourcesPage } from '@/pages/knowledge-sources-page';
 import { LoopRuntimeConfigPage } from '@/pages/loop-runtime-config-page';
 import { WorkspaceVerificationProfilesPage } from '@/pages/workspace-verification-profiles-page';
+import { AssetOptimizationsPage } from '@/pages/asset-optimizations-page';
 
 export const router = createHashRouter([
   {
@@ -103,6 +104,14 @@ export const router = createHashRouter([
         element: (
           <AdminRouteGuard>
             <LoopRuntimeConfigPage />
+          </AdminRouteGuard>
+        )
+      },
+      {
+        path: 'settings/asset-optimizations',
+        element: (
+          <AdminRouteGuard>
+            <AssetOptimizationsPage />
           </AdminRouteGuard>
         )
       },

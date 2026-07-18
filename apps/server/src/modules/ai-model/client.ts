@@ -127,7 +127,11 @@ export async function completeAIChatCompletion(input: {
     | 'connection-test'
     | 'agent-execution'
     | 'loop-review'
-    | 'loop-review-repair';
+    | 'loop-review-repair'
+    | 'asset-optimization'
+    | 'asset-optimization-repair'
+    | 'asset-replay'
+    | 'asset-replay-repair';
   messages: AIChatMessage[];
   signal?: AbortSignal;
   temperature?: number;

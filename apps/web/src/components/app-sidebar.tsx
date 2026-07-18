@@ -21,7 +21,8 @@ import {
   SparklesIcon,
   BookOpenIcon,
   Repeat2Icon,
-  ShieldCheckIcon
+  ShieldCheckIcon,
+  ChartNoAxesCombinedIcon
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -68,6 +69,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         name: t('navigation.items.loopRuntimeConfig'),
         url: '/settings/loop-runtime-config',
         icon: <Repeat2Icon />
+      },
+      {
+        name: t('navigation.items.assetOptimizations'),
+        url: '/settings/asset-optimizations',
+        icon: <ChartNoAxesCombinedIcon />
       },
       {
         name: t('navigation.items.workspaceVerificationProfiles'),

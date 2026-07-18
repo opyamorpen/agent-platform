@@ -11,6 +11,9 @@ export const jaJP = {
       back: '戻る',
       save: '保存',
       cancel: 'キャンセル',
+      confirm: '確認',
+      view: '表示',
+      preview: 'プレビュー',
       confirmDelete: '削除の確認',
       retry: '更新後に再試行してください'
     },
@@ -163,7 +166,23 @@ export const jaJP = {
       'knowledge_sources.not_found':
         'ナレッジソースまたは Wiki スペースが見つかりません。',
       'knowledge_sources.conflict':
-        'ナレッジソースが既に存在するか、Agent から参照されています。'
+        'ナレッジソースが既に存在するか、Agent から参照されています。',
+      'asset_optimization.invalid_payload':
+        'アセット最適化リクエストが無効です。',
+      'asset_optimization.invalid_apply_payload':
+        '候補適用リクエストが無効です。',
+      'asset_optimization.invalid_dismiss_payload':
+        '候補除外リクエストが無効です。',
+      'asset_optimization.not_found':
+        'アセット最適化レコードが見つかりません。',
+      'asset_optimization.conflict':
+        'アセットまたは候補が変更されました。更新して再試行してください。',
+      'asset_optimization.no_samples':
+        '現在の Agent バージョンには履歴サンプルがありません。',
+      'asset_optimization.script_review_required':
+        '候補スクリプトを確認してください。',
+      'asset_optimization.invalid_skill_files':
+        '候補 Skill ファイルが安全性検証に失敗しました。'
     }
   },
   language: {
@@ -189,6 +208,7 @@ export const jaJP = {
       agentWorkspaces: 'エージェントワークスペース',
       agentClients: 'エージェントクライアント',
       loopRuntimeConfig: 'ループエンジニアリング',
+      assetOptimizations: 'アセット最適化',
       workspaceVerificationProfiles: 'ワークスペース検証',
       aiModelConfig: 'AI モデル',
       members: 'メンバー'
@@ -205,7 +225,8 @@ export const jaJP = {
       agentSkills: 'エージェントのスキル',
       agentKnowledge: 'エージェントナレッジ',
       loopRuntimeConfig: 'ループエンジニアリング',
-      aiModelConfig: 'AI モデル設定'
+      aiModelConfig: 'AI モデル設定',
+      assetOptimizations: 'アセット最適化'
     },
     descriptions: {
       workflowExecution:
@@ -653,8 +674,10 @@ export const jaJP = {
         verificationProfiles: 'コード検証設定',
         verificationProfilesPlaceholder: 'このワークスペースの検証設定を選択',
         verificationProfilesEmpty: 'このワークスペースに検証設定はありません',
-        verificationProfilesHelp: 'Agent 実行後に選択した検証ステップを順番に実行し、すべて合格してから業務受入へ進みます。',
-        verificationProfilesWorkspaceRequired: '先に基本情報でワークスペースを選択してください。',
+        verificationProfilesHelp:
+          'Agent 実行後に選択した検証ステップを順番に実行し、すべて合格してから業務受入へ進みます。',
+        verificationProfilesWorkspaceRequired:
+          '先に基本情報でワークスペースを選択してください。',
         empty:
           '業務受入基準は未設定です。コード検証設定のみでも自動修正を有効にできます。',
         namePlaceholder: '受入基準 {{index}}',
@@ -681,7 +704,8 @@ export const jaJP = {
     },
     verificationProfiles: {
       title: 'ワークスペース検証',
-      description: 'コードワークスペースのテスト、型チェック、ビルドを設定します。実行ファイルと引数は Shell を使用せず実行されます。',
+      description:
+        'コードワークスペースのテスト、型チェック、ビルドを設定します。実行ファイルと引数は Shell を使用せず実行されます。',
       loadFailed: '検証設定の読み込みに失敗しました',
       workspacesLoadFailed: 'ワークスペースの読み込みに失敗しました',
       saveFailed: '検証設定の保存に失敗しました',
@@ -689,8 +713,10 @@ export const jaJP = {
       deleteFailed: '検証設定の削除に失敗しました',
       deleteSuccess: '検証設定を削除しました',
       deleteConfirm: '検証設定「{{name}}」を削除しますか？',
-      validationRequired: '名前、ワークスペース、少なくとも 1 つの検証ステップを入力してください。',
-      validationStepRequired: '各ステップに名前、リポジトリ、実行ファイルが必要です。',
+      validationRequired:
+        '名前、ワークスペース、少なくとも 1 つの検証ステップを入力してください。',
+      validationStepRequired:
+        '各ステップに名前、リポジトリ、実行ファイルが必要です。',
       create: '検証設定を作成',
       createTitle: 'ワークスペース検証設定を作成',
       editTitle: 'ワークスペース検証設定を編集',
@@ -971,6 +997,71 @@ export const jaJP = {
         repairing_structure: 'ファイル構造を修復中'
       }
     },
+    assetOptimizations: {
+      title: 'Agent アセット最適化',
+      description:
+        '実行履歴からレビュー可能なドラフトを生成し、書き込みなしでリプレイ評価します。',
+      loadFailed: 'アセット最適化レコードの読み込みに失敗しました',
+      agentsLoadFailed: 'Agent の読み込みに失敗しました',
+      generateFailed: 'アセット最適化の作成に失敗しました',
+      generateStarted: 'アセット最適化を開始しました',
+      applyFailed: '候補の適用に失敗しました',
+      applySuccess: '候補を処理しました',
+      dismissFailed: '候補の除外に失敗しました',
+      dismissSuccess: '候補を除外しました',
+      agentPlaceholder: '最適化する Agent を選択',
+      agentEmpty: '利用可能な Agent がありません',
+      generate: '手動最適化',
+      generating: '開始中',
+      empty: 'アセット最適化レコードがありません',
+      apply: '候補を適用',
+      review: 'レビュー済みにする',
+      dismiss: '除外',
+      metrics:
+        'サンプル {{samples}} · 成功 {{success}} · 問題 {{problems}} · 再試行 {{retries}} · リプレイ {{replay}}',
+      table: {
+        agent: 'Agent',
+        trigger: 'トリガー',
+        samples: 'サンプル',
+        problems: '問題',
+        status: 'ステータス',
+        createdAt: '作成日時',
+        actions: '操作'
+      },
+      trigger: { manual: '手動', automatic: '自動しきい値' },
+      runStatus: {
+        generating: '生成中',
+        ready: 'レビュー待ち',
+        failed: '失敗',
+        completed: '完了'
+      },
+      candidateType: {
+        prompt: 'Prompt',
+        skill: 'Skill',
+        knowledge: 'ナレッジ提案'
+      },
+      candidateStatus: {
+        draft: 'ドラフト',
+        conflict: '競合',
+        applied: '適用済み',
+        reviewed: 'レビュー済み',
+        dismissed: '除外済み'
+      },
+      replay: { passRate: '推定合格率', attempts: '予想試行回数' },
+      applyDialog: {
+        title: 'この候補を処理しますか？',
+        description:
+          'Prompt は Agent ドラフトに保存され、Agent は自動公開されません。',
+        scriptDescription:
+          'すべてのスクリプトを確認済みであることを確認してください。Skill バージョンが作成または公開されます。',
+        knowledgeDescription:
+          'ナレッジ提案はレビュー済みになるだけで、ONES Wiki は変更されません。'
+      },
+      dismissDialog: {
+        title: 'この候補を除外しますか？',
+        description: '候補は履歴に残りますが、適用できなくなります。'
+      }
+    },
     loopRuntimeConfig: {
       title: 'ループエンジニアリング総合スイッチ',
       description: 'このチームで新しい自動修正試行を作成できるかを制御します。',
@@ -986,7 +1077,7 @@ export const jaJP = {
     aiModelConfig: {
       title: '組織のデフォルト AI モデル',
       description:
-        'AI Skill 作成と Agent 推奨プロンプトに使用します。Agent Client の実行モデルには影響しません。',
+        '組織モデルでの Agent 実行、AI Skill 作成、プロンプト推奨、アセット最適化に使用します。指定した Agent Client のモデルは変更しません。',
       loadFailed: 'AI モデル設定の読み込みに失敗しました',
       saveFailed: 'AI モデル設定の保存に失敗しました',
       saveSuccess: 'AI モデル設定を保存しました',

@@ -122,6 +122,16 @@ export interface IssueAgentExecutionHistoryWithExecutionRecord extends IssueAgen
   issueExecution: Omit<IssueExecutionHistoryRecord, 'agentExecutions'>;
 }
 
+export interface AgentVersionExecutionAggregate {
+  totalSamples: number;
+  successCount: number;
+  failureCount: number;
+  blockedCount: number;
+  retryCount: number;
+  totalTokens: number | null;
+  averageAttempts: number;
+}
+
 export interface UpsertDispatchedIssueInput {
   uuid: string;
   displayId: string;
@@ -997,6 +1007,91 @@ export async function findIssueAgentExecutionHistoryTeamUUID(
   const matchedEntry = entries.find((entry) => entry.value.uuid === uuid);
 
   return matchedEntry?.value.team_uuid ?? null;
+}
+
+export async function getAgentVersionExecutionAggregate(
+  agentUUID: string,
+  agentVersion: number,
+  teamUUID: string
+): Promise<AgentVersionExecutionAggregate> {
+  const records = (await listTeamIssueAgentExecutionHistoryEntries(teamUUID))
+    .map((entry) => entry.value)
+    .filter(
+      (record) =>
+        record.agent_uuid === agentUUID &&
+        record.agent_version === agentVersion &&
+        ['success', 'failure', 'blocked'].includes(record.status)
+    );
+  const attemptsByExecution = new Map<string, number>();
+
+  for (const record of records) {
+    attemptsByExecution.set(
+      record.issue_execution_uuid,
+      (attemptsByExecution.get(record.issue_execution_uuid) ?? 0) + 1
+    );
+  }
+
+  const retryCount = Array.from(attemptsByExecution.values()).reduce(
+    (total, count) => total + Math.max(0, count - 1),
+    0
+  );
+  const tokenValues = records.flatMap((record) => [
+    record.usage_input_tokens,
+    record.usage_output_tokens
+  ]);
+  const tokensKnown =
+    records.length > 0 &&
+    records.every(
+      (record) =>
+        typeof record.usage_input_tokens === 'number' &&
+        typeof record.usage_output_tokens === 'number' &&
+        record.usage_input_tokens + record.usage_output_tokens > 0
+    );
+
+  return {
+    totalSamples: records.length,
+    successCount: records.filter((record) => record.status === 'success')
+      .length,
+    failureCount: records.filter((record) => record.status === 'failure')
+      .length,
+    blockedCount: records.filter((record) => record.status === 'blocked')
+      .length,
+    retryCount,
+    totalTokens: tokensKnown
+      ? tokenValues.reduce<number>(
+          (total, value) => total + Number(value ?? 0),
+          0
+        )
+      : null,
+    averageAttempts:
+      attemptsByExecution.size > 0
+        ? records.length / attemptsByExecution.size
+        : 0
+  };
+}
+
+export async function listAgentVersionExecutionSamples(
+  agentUUID: string,
+  agentVersion: number,
+  teamUUID: string,
+  limit = 20
+): Promise<IssueAgentExecutionHistoryRecord[]> {
+  const entries = (await listTeamIssueAgentExecutionHistoryEntries(teamUUID))
+    .map((entry) => entry.value)
+    .filter(
+      (record) =>
+        record.agent_uuid === agentUUID &&
+        record.agent_version === agentVersion &&
+        ['success', 'failure', 'blocked'].includes(record.status)
+    )
+    .sort(
+      (left, right) =>
+        (right.finished_at || right.updated_at) -
+        (left.finished_at || left.updated_at)
+    )
+    .slice(0, Math.max(1, Math.min(limit, 20)));
+
+  return Promise.all(entries.map(toIssueAgentExecutionHistoryRecord));
 }
 
 export async function deleteIssueAgentExecutionHistoryByUUID(

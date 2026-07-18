@@ -11,6 +11,9 @@ export const enUS = {
       back: 'Back',
       save: 'Save',
       cancel: 'Cancel',
+      confirm: 'Confirm',
+      view: 'View',
+      preview: 'Preview',
       confirmDelete: 'Confirm delete',
       retry: 'Retry after refresh'
     },
@@ -152,7 +155,23 @@ export const enUS = {
       'knowledge_sources.not_found':
         'Knowledge source or Wiki space not found.',
       'knowledge_sources.conflict':
-        'The knowledge source already exists or is still referenced by an Agent.'
+        'The knowledge source already exists or is still referenced by an Agent.',
+      'asset_optimization.invalid_payload':
+        'The asset optimization payload is invalid.',
+      'asset_optimization.invalid_apply_payload':
+        'The candidate apply payload is invalid.',
+      'asset_optimization.invalid_dismiss_payload':
+        'The candidate dismiss payload is invalid.',
+      'asset_optimization.not_found':
+        'The asset optimization record was not found.',
+      'asset_optimization.conflict':
+        'The asset or candidate changed. Refresh and try again.',
+      'asset_optimization.no_samples':
+        'The current Agent version has no historical samples.',
+      'asset_optimization.script_review_required':
+        'Review and confirm the candidate scripts first.',
+      'asset_optimization.invalid_skill_files':
+        'The candidate Skill files failed safety validation.'
     }
   },
   language: {
@@ -178,6 +197,7 @@ export const enUS = {
       agentWorkspaces: 'Agent Workspaces',
       agentClients: 'Agent Clients',
       loopRuntimeConfig: 'Loop Engineering',
+      assetOptimizations: 'Asset Optimization',
       workspaceVerificationProfiles: 'Workspace Verification',
       aiModelConfig: 'AI Model',
       members: 'Members'
@@ -194,7 +214,8 @@ export const enUS = {
       agentSkills: 'Agent Skills',
       agentKnowledge: 'Agent Knowledge',
       loopRuntimeConfig: 'Loop Engineering',
-      aiModelConfig: 'AI Model Configuration'
+      aiModelConfig: 'AI Model Configuration',
+      assetOptimizations: 'Asset Optimization'
     },
     descriptions: {
       workflowExecution:
@@ -486,7 +507,8 @@ export const enUS = {
       agentClientsLoadFailed: 'Failed to load Agent Clients',
       skillsLoadFailed: 'Failed to load skills',
       knowledgeSourcesLoadFailed: 'Failed to load knowledge sources',
-      verificationProfilesLoadFailed: 'Failed to load code verification profiles',
+      verificationProfilesLoadFailed:
+        'Failed to load code verification profiles',
       wikiSpacesLoadFailed: 'Failed to load Wiki spaces',
       executorSearchFailed: 'Failed to search executors',
       basicConfigSaveFailed: 'Failed to save agent basic settings',
@@ -639,10 +661,14 @@ export const enUS = {
         knowledgeOptional: 'Knowledge grounding optional',
         knowledgeRequired: 'Knowledge grounding required',
         verificationProfiles: 'Code verification profiles',
-        verificationProfilesPlaceholder: 'Select verification profiles for this workspace',
-        verificationProfilesEmpty: 'No verification profiles for this workspace',
-        verificationProfilesHelp: 'The selected steps run in order after Agent execution and must pass before business review.',
-        verificationProfilesWorkspaceRequired: 'Select a workspace in Basic Information first.',
+        verificationProfilesPlaceholder:
+          'Select verification profiles for this workspace',
+        verificationProfilesEmpty:
+          'No verification profiles for this workspace',
+        verificationProfilesHelp:
+          'The selected steps run in order after Agent execution and must pass before business review.',
+        verificationProfilesWorkspaceRequired:
+          'Select a workspace in Basic Information first.',
         empty:
           'No business acceptance criteria configured. Code verification profiles can still enable automatic correction.',
         namePlaceholder: 'Acceptance criterion {{index}}',
@@ -670,7 +696,8 @@ export const enUS = {
     },
     verificationProfiles: {
       title: 'Workspace Verification',
-      description: 'Configure deterministic tests, type checks, and builds for code workspaces. Executables and arguments run without a shell.',
+      description:
+        'Configure deterministic tests, type checks, and builds for code workspaces. Executables and arguments run without a shell.',
       loadFailed: 'Failed to load verification profiles',
       workspacesLoadFailed: 'Failed to load workspaces',
       saveFailed: 'Failed to save verification profile',
@@ -678,8 +705,10 @@ export const enUS = {
       deleteFailed: 'Failed to delete verification profile',
       deleteSuccess: 'Verification profile deleted',
       deleteConfirm: 'Delete verification profile "{{name}}"?',
-      validationRequired: 'Enter a name, workspace, and at least one verification step.',
-      validationStepRequired: 'Every step requires a name, repository, and executable.',
+      validationRequired:
+        'Enter a name, workspace, and at least one verification step.',
+      validationStepRequired:
+        'Every step requires a name, repository, and executable.',
       create: 'New profile',
       createTitle: 'New workspace verification profile',
       editTitle: 'Edit workspace verification profile',
@@ -965,6 +994,71 @@ export const enUS = {
         repairing_structure: 'Repairing the file structure'
       }
     },
+    assetOptimizations: {
+      title: 'Agent Asset Optimization',
+      description:
+        'Generate reviewable drafts from execution samples and assess them with no-write replay.',
+      loadFailed: 'Failed to load asset optimization runs',
+      agentsLoadFailed: 'Failed to load Agents',
+      generateFailed: 'Failed to create asset optimization run',
+      generateStarted: 'Asset optimization started',
+      applyFailed: 'Failed to apply candidate',
+      applySuccess: 'Candidate processed',
+      dismissFailed: 'Failed to dismiss candidate',
+      dismissSuccess: 'Candidate dismissed',
+      agentPlaceholder: 'Select an Agent to optimize',
+      agentEmpty: 'No Agents are available',
+      generate: 'Optimize',
+      generating: 'Starting',
+      empty: 'No asset optimization runs',
+      apply: 'Apply candidate',
+      review: 'Mark reviewed',
+      dismiss: 'Dismiss',
+      metrics:
+        '{{samples}} samples · {{success}} successes · {{problems}} problems · {{retries}} retries · {{replay}} replayed',
+      table: {
+        agent: 'Agent',
+        trigger: 'Trigger',
+        samples: 'Samples',
+        problems: 'Problems',
+        status: 'Status',
+        createdAt: 'Created',
+        actions: 'Actions'
+      },
+      trigger: { manual: 'Manual', automatic: 'Automatic threshold' },
+      runStatus: {
+        generating: 'Generating',
+        ready: 'Review',
+        failed: 'Failed',
+        completed: 'Completed'
+      },
+      candidateType: {
+        prompt: 'Prompt',
+        skill: 'Skill',
+        knowledge: 'Knowledge proposal'
+      },
+      candidateStatus: {
+        draft: 'Draft',
+        conflict: 'Conflict',
+        applied: 'Applied',
+        reviewed: 'Reviewed',
+        dismissed: 'Dismissed'
+      },
+      replay: { passRate: 'Estimated pass', attempts: 'Expected attempts' },
+      applyDialog: {
+        title: 'Process this candidate?',
+        description:
+          'The Prompt will be written to the Agent draft and will not publish the Agent.',
+        scriptDescription:
+          'Confirm that every script file was reviewed. This will create or publish a Skill version.',
+        knowledgeDescription:
+          'The knowledge proposal will only be marked reviewed. ONES Wiki will not be changed.'
+      },
+      dismissDialog: {
+        title: 'Dismiss this candidate?',
+        description: 'The candidate remains in history but cannot be applied.'
+      }
+    },
     loopRuntimeConfig: {
       title: 'Loop Engineering Kill Switch',
       description:
@@ -981,7 +1075,7 @@ export const enUS = {
     aiModelConfig: {
       title: 'Organization default AI model',
       description:
-        'Used for AI Skill creation and Agent prompt recommendations. It does not change the Agent Client execution model.',
+        'Used for organization-model Agent runs, AI Skill creation, prompt recommendations, and asset optimization. It does not change a selected Agent Client model.',
       loadFailed: 'Failed to load AI model configuration',
       saveFailed: 'Failed to save AI model configuration',
       saveSuccess: 'AI model configuration saved',

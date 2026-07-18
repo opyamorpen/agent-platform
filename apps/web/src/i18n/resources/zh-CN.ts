@@ -11,6 +11,9 @@ export const zhCN = {
       back: '返回',
       save: '保存',
       cancel: '取消',
+      confirm: '确认',
+      view: '查看',
+      preview: '预览',
       confirmDelete: '确认删除',
       retry: '刷新后重试'
     },
@@ -119,7 +122,18 @@ export const zhCN = {
       'agent_workspaces.credential_not_found': '未找到对应的工作区凭证。',
       'knowledge_sources.invalid_payload': '知识源请求参数无效。',
       'knowledge_sources.not_found': '未找到对应的知识源或 Wiki 页面组。',
-      'knowledge_sources.conflict': '该知识源已存在或仍被 Agent 引用。'
+      'knowledge_sources.conflict': '该知识源已存在或仍被 Agent 引用。',
+      'asset_optimization.invalid_payload': '资产优化请求参数无效。',
+      'asset_optimization.invalid_apply_payload': '候选应用参数无效。',
+      'asset_optimization.invalid_dismiss_payload': '候选忽略参数无效。',
+      'asset_optimization.not_found': '未找到对应的资产优化记录。',
+      'asset_optimization.conflict': '资产或候选已发生变化，请刷新后重试。',
+      'asset_optimization.no_samples':
+        '当前 Agent 版本没有可用于优化的历史样本。',
+      'asset_optimization.script_review_required':
+        '请先确认已审核候选中的脚本。',
+      'asset_optimization.invalid_skill_files':
+        '候选 Skill 文件不符合安全校验规则。'
     }
   },
   language: {
@@ -145,6 +159,7 @@ export const zhCN = {
       agentWorkspaces: 'Agent 工作区',
       agentClients: 'Agent Client',
       loopRuntimeConfig: '循环工程',
+      assetOptimizations: '资产优化',
       workspaceVerificationProfiles: '工作区验证',
       aiModelConfig: 'AI 模型配置',
       members: '成员管理'
@@ -161,6 +176,7 @@ export const zhCN = {
       agentSkills: 'Agent 技能',
       agentKnowledge: 'Agent 知识',
       loopRuntimeConfig: '循环工程',
+      assetOptimizations: '资产优化',
       aiModelConfig: 'AI 模型配置'
     },
     descriptions: {
@@ -584,7 +600,8 @@ export const zhCN = {
         verificationProfiles: '代码验证配置',
         verificationProfilesPlaceholder: '选择当前工作区的验证配置',
         verificationProfilesEmpty: '当前工作区没有可用验证配置',
-        verificationProfilesHelp: 'Agent 执行后将按顺序运行所选验证步骤，全部通过后才进入业务验收。',
+        verificationProfilesHelp:
+          'Agent 执行后将按顺序运行所选验证步骤，全部通过后才进入业务验收。',
         verificationProfilesWorkspaceRequired: '请先在基础信息中选择工作区。',
         empty: '尚未配置业务验收标准。仍可仅使用代码验证配置启用自动修正循环。',
         namePlaceholder: '验收标准 {{index}}',
@@ -608,7 +625,8 @@ export const zhCN = {
     },
     verificationProfiles: {
       title: '工作区验证',
-      description: '为代码工作区配置确定性的测试、类型检查和构建步骤。命令使用可执行文件和参数运行，不经过 Shell。',
+      description:
+        '为代码工作区配置确定性的测试、类型检查和构建步骤。命令使用可执行文件和参数运行，不经过 Shell。',
       loadFailed: '验证配置加载失败',
       workspacesLoadFailed: '工作区加载失败',
       saveFailed: '验证配置保存失败',
@@ -617,7 +635,8 @@ export const zhCN = {
       deleteSuccess: '验证配置已删除',
       deleteConfirm: '确认删除验证配置“{{name}}”吗？',
       validationRequired: '请填写名称、工作区并至少配置一个验证步骤。',
-      validationStepRequired: '每个验证步骤都必须填写名称、代码仓和可执行文件。',
+      validationStepRequired:
+        '每个验证步骤都必须填写名称、代码仓和可执行文件。',
       create: '新建验证配置',
       createTitle: '新建工作区验证配置',
       editTitle: '编辑工作区验证配置',
@@ -893,6 +912,68 @@ export const zhCN = {
         repairing_structure: '正在修复文件结构'
       }
     },
+    assetOptimizations: {
+      title: 'Agent 资产优化',
+      description: '基于历史执行样本生成候选草稿，并进行无写入回放评估。',
+      loadFailed: '资产优化记录加载失败',
+      agentsLoadFailed: 'Agent 列表加载失败',
+      generateFailed: '创建资产优化任务失败',
+      generateStarted: '资产优化任务已开始',
+      applyFailed: '应用候选失败',
+      applySuccess: '候选已处理',
+      dismissFailed: '忽略候选失败',
+      dismissSuccess: '候选已忽略',
+      agentPlaceholder: '选择要优化的 Agent',
+      agentEmpty: '没有可选 Agent',
+      generate: '手动优化',
+      generating: '正在创建',
+      empty: '暂无资产优化记录',
+      apply: '应用候选',
+      review: '标记已审核',
+      dismiss: '忽略',
+      metrics:
+        '样本 {{samples}} · 成功 {{success}} · 问题 {{problems}} · 重试 {{retries}} · 回放 {{replay}}',
+      table: {
+        agent: 'Agent',
+        trigger: '触发方式',
+        samples: '样本数',
+        problems: '问题数',
+        status: '状态',
+        createdAt: '创建时间',
+        actions: '操作'
+      },
+      trigger: { manual: '手动', automatic: '自动阈值' },
+      runStatus: {
+        generating: '生成中',
+        ready: '待审核',
+        failed: '生成失败',
+        completed: '已完成'
+      },
+      candidateType: {
+        prompt: 'Prompt',
+        skill: 'Skill',
+        knowledge: '知识建议'
+      },
+      candidateStatus: {
+        draft: '草稿',
+        conflict: '存在冲突',
+        applied: '已应用',
+        reviewed: '已审核',
+        dismissed: '已忽略'
+      },
+      replay: { passRate: '估算通过率', attempts: '预计尝试' },
+      applyDialog: {
+        title: '确认处理这个候选？',
+        description: 'Prompt 将写入 Agent 草稿，不会自动发布 Agent。',
+        scriptDescription:
+          '确认已逐文件审核脚本内容。确认后将创建或发布 Skill 版本。',
+        knowledgeDescription: '知识候选只会标记为已审核，不会修改 ONES Wiki。'
+      },
+      dismissDialog: {
+        title: '确认忽略这个候选？',
+        description: '候选将保留在历史记录中，但不能再应用。'
+      }
+    },
     loopRuntimeConfig: {
       title: '循环工程总开关',
       description: '控制当前团队是否允许创建新的自动修正尝试。',
@@ -907,7 +988,7 @@ export const zhCN = {
     aiModelConfig: {
       title: '组织默认 AI 模型',
       description:
-        '用于 AI 创建 Skill 和生成 Agent 推荐提示词，不影响 Agent Client 的执行模型。',
+        '用于组织模型 Agent 执行、AI 创建 Skill、推荐提示词和资产优化，不改变指定 Agent Client 的执行模型。',
       loadFailed: 'AI 模型配置加载失败',
       saveFailed: 'AI 模型配置保存失败',
       saveSuccess: 'AI 模型配置已保存',

@@ -1014,6 +1014,8 @@ export const enUS = {
       apply: 'Apply candidate',
       review: 'Mark reviewed',
       dismiss: 'Dismiss',
+      failedCandidateUnavailable:
+        'Generation or replay did not complete. This candidate is preview-only and cannot be applied.',
       metrics:
         '{{samples}} samples · {{success}} successes · {{problems}} problems · {{retries}} retries · {{replay}} replayed',
       table: {
@@ -1039,18 +1041,32 @@ export const enUS = {
       },
       candidateStatus: {
         draft: 'Draft',
+        applying: 'Applying',
         conflict: 'Conflict',
         applied: 'Applied',
         reviewed: 'Reviewed',
         dismissed: 'Dismissed'
       },
-      replay: { passRate: 'Estimated pass', attempts: 'Expected attempts' },
+      replay: {
+        title: 'No-write historical replay',
+        estimated: 'AI estimate',
+        passRate: 'Estimated pass',
+        attempts: 'Expected attempts',
+        tokens: 'Token change',
+        findings: 'Assessment findings'
+      },
       applyDialog: {
         title: 'Process this candidate?',
         description:
           'The Prompt will be written to the Agent draft and will not publish the Agent.',
         scriptDescription:
           'Confirm that every script file was reviewed. This will create or publish a Skill version.',
+        scriptReviewed:
+          'I reviewed every script file and confirm that it can be published.',
+        skillDescription:
+          'This will publish a new version of the target Skill.',
+        newSkillDescription:
+          'This will create a new Skill and bind it to the current Agent.',
         knowledgeDescription:
           'The knowledge proposal will only be marked reviewed. ONES Wiki will not be changed.'
       },

@@ -1017,6 +1017,8 @@ export const jaJP = {
       apply: '候補を適用',
       review: 'レビュー済みにする',
       dismiss: '除外',
+      failedCandidateUnavailable:
+        '生成またはリプレイが完了していないため、この候補はプレビューのみで適用できません。',
       metrics:
         'サンプル {{samples}} · 成功 {{success}} · 問題 {{problems}} · 再試行 {{retries}} · リプレイ {{replay}}',
       table: {
@@ -1042,18 +1044,31 @@ export const jaJP = {
       },
       candidateStatus: {
         draft: 'ドラフト',
+        applying: '公開中',
         conflict: '競合',
         applied: '適用済み',
         reviewed: 'レビュー済み',
         dismissed: '除外済み'
       },
-      replay: { passRate: '推定合格率', attempts: '予想試行回数' },
+      replay: {
+        title: '書き込みなしの履歴リプレイ',
+        estimated: 'AI 推定',
+        passRate: '推定合格率',
+        attempts: '予想試行回数',
+        tokens: 'Token 変化',
+        findings: '評価根拠'
+      },
       applyDialog: {
         title: 'この候補を処理しますか？',
         description:
           'Prompt は Agent ドラフトに保存され、Agent は自動公開されません。',
         scriptDescription:
           'すべてのスクリプトを確認済みであることを確認してください。Skill バージョンが作成または公開されます。',
+        scriptReviewed:
+          'すべてのスクリプトファイルを確認し、公開可能であることを確認しました。',
+        skillDescription: '対象 Skill の新しいバージョンを公開します。',
+        newSkillDescription:
+          '新しい Skill を作成し、現在の Agent にバインドします。',
         knowledgeDescription:
           'ナレッジ提案はレビュー済みになるだけで、ONES Wiki は変更されません。'
       },

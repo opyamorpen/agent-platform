@@ -931,6 +931,8 @@ export const zhCN = {
       apply: '应用候选',
       review: '标记已审核',
       dismiss: '忽略',
+      failedCandidateUnavailable:
+        '本次生成或回放未完成，候选仅供查看，不能应用。',
       metrics:
         '样本 {{samples}} · 成功 {{success}} · 问题 {{problems}} · 重试 {{retries}} · 回放 {{replay}}',
       table: {
@@ -956,17 +958,28 @@ export const zhCN = {
       },
       candidateStatus: {
         draft: '草稿',
+        applying: '发布中',
         conflict: '存在冲突',
         applied: '已应用',
         reviewed: '已审核',
         dismissed: '已忽略'
       },
-      replay: { passRate: '估算通过率', attempts: '预计尝试' },
+      replay: {
+        title: '无写入历史回放',
+        estimated: 'AI 估算',
+        passRate: '估算通过率',
+        attempts: '预计尝试',
+        tokens: 'Token 变化',
+        findings: '评估依据'
+      },
       applyDialog: {
         title: '确认处理这个候选？',
         description: 'Prompt 将写入 Agent 草稿，不会自动发布 Agent。',
         scriptDescription:
           '确认已逐文件审核脚本内容。确认后将创建或发布 Skill 版本。',
+        scriptReviewed: '我已逐文件审核脚本内容，并确认可以发布。',
+        skillDescription: '确认后将发布目标 Skill 的新版本。',
+        newSkillDescription: '确认后将创建新 Skill，并绑定到当前 Agent。',
         knowledgeDescription: '知识候选只会标记为已审核，不会修改 ONES Wiki。'
       },
       dismissDialog: {

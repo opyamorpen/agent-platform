@@ -271,6 +271,7 @@ export type AssetCandidateType = 'prompt' | 'skill' | 'knowledge';
 
 export type AssetCandidateStatus =
   | 'draft'
+  | 'applying'
   | 'conflict'
   | 'applied'
   | 'reviewed'

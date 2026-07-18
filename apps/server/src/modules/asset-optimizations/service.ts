@@ -11,6 +11,7 @@ import type {
 } from '@ones-ai-workflow/shared';
 import { getLogger } from '../../lib/logger.js';
 import {
+  addAgentSkillBinding,
   findAgentByUUID,
   findAgentVersion,
   listAgents,
@@ -28,6 +29,7 @@ import { validateGeneratedSkillFiles } from '../skill-generation/validation.js';
 import {
   createSkillRecord,
   readCurrentSkillMarkdown,
+  removeSkillRecord,
   uploadSkillVersionRecord
 } from '../skills/service.js';
 import { findSkillByName, findSkillByUUID } from '../skills/repository.js';
@@ -47,6 +49,7 @@ import {
   updateAssetOptimizationRun,
   writeAssetOptimizationReplay,
   writeAssetOptimizationSamples,
+  AssetCandidateRevisionConflictError,
   type AssetCandidateRecord,
   type AssetOptimizationRunRecord
 } from './repository.js';
@@ -58,6 +61,7 @@ const AUTO_SUCCESS_THRESHOLD = 20;
 const AUTO_PROBLEM_THRESHOLD = 5;
 const AUTO_SCAN_INTERVAL_MS = 5 * 60 * 1000;
 const STALE_GENERATION_MS = 15 * 60 * 1000;
+const STALE_APPLY_MS = 15 * 60 * 1000;
 const logger = getLogger('asset-optimizations');
 const activeRunUUIDs = new Set<string>();
 let automaticScanRunning = false;
@@ -184,6 +188,11 @@ export async function applyAssetCandidate(input: {
   if (['applied', 'reviewed'].includes(candidate.status)) {
     return getCandidateWithReplay(candidate);
   }
+  if (candidate.status === 'applying') {
+    throw new AssetOptimizationConflictError(
+      'The candidate is already being applied by another request'
+    );
+  }
   if (candidate.status === 'dismissed') {
     throw new AssetOptimizationConflictError(
       'Dismissed candidates cannot be applied'
@@ -202,50 +211,96 @@ export async function applyAssetCandidate(input: {
       'Candidates can only be applied after replay assessment is ready'
     );
   }
-  const content = await readAssetCandidateContent(candidate);
+  if (candidate.hasScripts && !input.scriptReviewed) {
+    throw new AssetOptimizationScriptReviewRequiredError();
+  }
 
+  let claimed: AssetCandidateRecord;
   try {
+    claimed = await updateAssetCandidate(
+      candidate,
+      {
+        status: 'applying',
+        conflictReason: null,
+        appliedBy: input.userUUID
+      },
+      input.expectedUpdatedAt
+    );
+  } catch (error) {
+    if (error instanceof AssetCandidateRevisionConflictError) {
+      throw new AssetOptimizationConflictError(
+        'The candidate changed in another request. Refresh and try again.'
+      );
+    }
+    throw error;
+  }
+  let updated: AssetCandidateRecord;
+  try {
+    const content = await readAssetCandidateContent(claimed);
     let appliedAssetUUID: string | null = null;
     let status: 'applied' | 'reviewed' = 'applied';
     if (content.type === 'prompt') {
-      appliedAssetUUID = await applyPromptCandidate(run, candidate, content);
+      appliedAssetUUID = await applyPromptCandidate(run, claimed, content);
     } else if (content.type === 'skill') {
       appliedAssetUUID = await applySkillCandidate(
         run,
-        candidate,
+        claimed,
         content,
         input.scriptReviewed
       );
     } else {
+      await assertAgentVersionUnchanged(run, claimed);
       status = 'reviewed';
     }
-    const updated = await updateAssetCandidate(
-      candidate,
+    updated = await updateAssetCandidate(
+      claimed,
       {
         status,
         conflictReason: null,
         appliedAssetUUID,
         appliedBy: input.userUUID
       },
-      input.expectedUpdatedAt
+      claimed.updatedAt
     );
-    await refreshRunCompletion(run);
-    return getCandidateWithReplay(updated);
   } catch (error) {
+    const conflict =
+      error instanceof AssetCandidateRevisionConflictError
+        ? new AssetOptimizationConflictError(
+            'The candidate changed in another request. Refresh and try again.'
+          )
+        : error;
     if (
-      error instanceof AssetOptimizationConflictError ||
-      error instanceof AssetOptimizationScriptReviewRequiredError
+      conflict instanceof AssetOptimizationConflictError ||
+      conflict instanceof AssetOptimizationScriptReviewRequiredError
     ) {
-      if (error instanceof AssetOptimizationConflictError) {
-        await updateAssetCandidate(candidate, {
+      if (conflict instanceof AssetOptimizationConflictError) {
+        await updateAssetCandidate(claimed, {
           status: 'conflict',
-          conflictReason: error.message
+          conflictReason: conflict.message
         }).catch(() => undefined);
       }
-      throw error;
+      throw conflict;
     }
+    await updateAssetCandidate(claimed, {
+      status: 'conflict',
+      conflictReason: truncate(
+        error instanceof Error ? error.message : String(error),
+        512
+      )
+    }).catch(() => undefined);
     throw error;
   }
+  await refreshRunCompletion(run).catch((error) => {
+    logger.warn(
+      '[asset-optimization] candidate applied but run status failed',
+      {
+        runUUID: run.uuid,
+        candidateUUID: updated.uuid,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    );
+  });
+  return getCandidateWithReplay(updated);
 }
 
 export async function dismissAssetCandidate(input: {
@@ -262,15 +317,30 @@ export async function dismissAssetCandidate(input: {
       'Applied or reviewed candidates cannot be dismissed'
     );
   }
-  const updated = await updateAssetCandidate(
-    candidate,
-    {
-      status: 'dismissed',
-      conflictReason: null,
-      appliedBy: input.userUUID
-    },
-    input.expectedUpdatedAt
-  );
+  if (candidate.status === 'applying') {
+    throw new AssetOptimizationConflictError(
+      'Candidates being applied cannot be dismissed'
+    );
+  }
+  let updated: AssetCandidateRecord;
+  try {
+    updated = await updateAssetCandidate(
+      candidate,
+      {
+        status: 'dismissed',
+        conflictReason: null,
+        appliedBy: input.userUUID
+      },
+      input.expectedUpdatedAt
+    );
+  } catch (error) {
+    if (error instanceof AssetCandidateRevisionConflictError) {
+      throw new AssetOptimizationConflictError(
+        'The candidate changed in another request. Refresh and try again.'
+      );
+    }
+    throw error;
+  }
   const run = await findAssetOptimizationRun(candidate.runUUID, input.teamUUID);
   if (run) await refreshRunCompletion(run);
   return getCandidateWithReplay(updated);
@@ -283,6 +353,7 @@ export async function runAutomaticAssetOptimizationScan(): Promise<void> {
     const teamUUIDs = await listWorkflowTeamUUIDs();
     for (const teamUUID of teamUUIDs) {
       await markStaleRunsFailed(teamUUID);
+      await markStaleCandidateApplications(teamUUID);
       if (!(await isLoopRuntimeEnabled(teamUUID))) continue;
       if (!(await getAIModelConfigStatus(teamUUID)).configured) continue;
       const agents = await listAgents(teamUUID);
@@ -542,13 +613,26 @@ async function applySkillCandidate(
     );
     return updated.uuid;
   }
+  const agent = await assertAgentVersionUnchanged(run, candidate);
+  if (agent.draftConfig) {
+    throw new AssetOptimizationConflictError(
+      'The Agent already has an unpublished human draft'
+    );
+  }
   const existing = await findSkillByName(content.skillName, run.teamUUID);
   if (existing) {
     throw new AssetOptimizationConflictError(
       `A Skill named "${content.skillName}" already exists`
     );
   }
-  return (await createSkillRecord({ files }, run.teamUUID)).uuid;
+  const created = await createSkillRecord({ files }, run.teamUUID);
+  try {
+    await addAgentSkillBinding(run.agentUUID, created.uuid, run.teamUUID);
+  } catch (error) {
+    await removeSkillRecord(created.uuid, run.teamUUID).catch(() => undefined);
+    throw error;
+  }
+  return created.uuid;
 }
 
 async function prepareGeneratedCandidate(
@@ -591,9 +675,25 @@ async function prepareGeneratedCandidate(
   return {
     content: { ...content, files: validated.files },
     targetUUID: target?.uuid ?? null,
-    baseRevision: target?.currentVersion ?? 0,
+    baseRevision: resolveSkillCandidateBaseRevision(
+      target?.currentVersion ?? null,
+      agentVersion
+    ),
     hasScripts: validated.hasScripts
   };
+}
+
+async function assertAgentVersionUnchanged(
+  run: AssetOptimizationRunRecord,
+  candidate: AssetCandidateRecord
+) {
+  const agent = await findAgentByUUID(run.agentUUID, run.teamUUID);
+  if (!agent || agent.currentVersion !== candidate.baseRevision) {
+    throw new AssetOptimizationConflictError(
+      'The Agent published version changed after this candidate was generated'
+    );
+  }
+  return agent;
 }
 
 async function loadBoundSkills(skillUUIDs: string[], teamUUID: string) {
@@ -781,6 +881,29 @@ async function markStaleRunsFailed(teamUUID: string) {
   );
 }
 
+async function markStaleCandidateApplications(teamUUID: string) {
+  const runs = await listAssetOptimizationRuns(teamUUID);
+  const candidates = (
+    await Promise.all(
+      runs.map((run) => listAssetCandidatesByRun(run.uuid, teamUUID))
+    )
+  ).flat();
+  const stale = candidates.filter(
+    (candidate) =>
+      candidate.status === 'applying' &&
+      Date.now() - candidate.updatedAt.getTime() > STALE_APPLY_MS
+  );
+  await Promise.all(
+    stale.map((candidate) =>
+      updateAssetCandidate(candidate, {
+        status: 'conflict',
+        conflictReason:
+          'Publication was interrupted before the candidate status was saved'
+      })
+    )
+  );
+}
+
 export function shouldCreateAutomaticAssetOptimization(
   successCount: number,
   problemCount: number
@@ -803,6 +926,13 @@ export function buildAutomaticTriggerSignature(
     `s${Math.floor(successCount / AUTO_SUCCESS_THRESHOLD)}`,
     `p${Math.floor(problemCount / AUTO_PROBLEM_THRESHOLD)}`
   ].join(':');
+}
+
+export function resolveSkillCandidateBaseRevision(
+  targetCurrentVersion: number | null,
+  agentVersion: number
+): number {
+  return targetCurrentVersion ?? agentVersion;
 }
 
 function truncateJSON(value: unknown, maxLength: number): unknown {

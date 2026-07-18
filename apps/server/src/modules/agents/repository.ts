@@ -456,6 +456,35 @@ async function replaceAgentSkillBindings(
   );
 }
 
+export async function addAgentSkillBinding(
+  agentUUID: string,
+  skillUUID: string,
+  teamUUID: string
+): Promise<void> {
+  await getRequiredStoredAgentByUUID(agentUUID, teamUUID);
+  const currentBindings = await listAgentSkillBindingEntriesByAgentUUID(
+    agentUUID,
+    teamUUID
+  );
+  if (
+    currentBindings.some((binding) => binding.value.skill_uuid === skillUUID)
+  ) {
+    return;
+  }
+
+  const binding: StoredAgentSkillBindingEntity = {
+    team_uuid: teamUUID,
+    uuid: randomUUID(),
+    agent_uuid: agentUUID,
+    skill_uuid: skillUUID,
+    created_at: Date.now()
+  };
+  await agentSkillBindingStore.set(
+    getAgentSkillBindingKey(binding.uuid),
+    binding
+  );
+}
+
 export async function replaceAgentKnowledgeBindings(
   agentUUID: string,
   knowledgeSourceUUIDs: string[],

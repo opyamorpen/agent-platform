@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -91,6 +92,7 @@ export function AssetOptimizationsPage() {
     useState<AssetCandidate | null>(null);
   const [selectedSkillPath, setSelectedSkillPath] = useState('');
   const [pendingApply, setPendingApply] = useState<AssetCandidate | null>(null);
+  const [scriptReviewConfirmed, setScriptReviewConfirmed] = useState(false);
   const [pendingDismiss, setPendingDismiss] = useState<AssetCandidate | null>(
     null
   );
@@ -240,7 +242,8 @@ export function AssetOptimizationsPage() {
 
   async function mutateCandidate(
     candidate: AssetCandidate,
-    action: 'apply' | 'dismiss'
+    action: 'apply' | 'dismiss',
+    scriptReviewed = false
   ) {
     setMutatingCandidateUUID(candidate.uuid);
     setErrorMessage(null);
@@ -254,8 +257,7 @@ export function AssetOptimizationsPage() {
             expectedUpdatedAt: candidate.updatedAt,
             ...(action === 'apply'
               ? {
-                  scriptReviewed:
-                    candidate.type === 'skill' && candidate.hasScripts
+                  scriptReviewed
                 }
               : {})
           })
@@ -521,6 +523,9 @@ export function AssetOptimizationsPage() {
                     <Badge
                       variant={getCandidateStatusVariant(candidate.status)}
                     >
+                      {candidate.status === 'applying' ? (
+                        <RefreshCwIcon className="animate-spin" />
+                      ) : null}
                       {t(
                         `pages.assetOptimizations.candidateStatus.${candidate.status}`
                       )}
@@ -531,36 +536,58 @@ export function AssetOptimizationsPage() {
                     {candidate.summary}
                   </p>
                   {candidate.replayScore ? (
-                    <div className="mt-3 grid grid-cols-3 border-y py-2 text-center text-xs">
-                      <div>
-                        <div className="font-medium">
-                          {Math.round(
-                            candidate.replayScore.estimatedPassRate * 100
-                          )}
-                          %
+                    <div className="mt-3 border-y py-3 text-xs">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <span className="font-medium">
+                          {t('pages.assetOptimizations.replay.title')}
+                        </span>
+                        <Badge variant="outline">
+                          {t('pages.assetOptimizations.replay.estimated')}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-3 text-center">
+                        <div>
+                          <div className="font-medium">
+                            {Math.round(
+                              candidate.replayScore.estimatedPassRate * 100
+                            )}
+                            %
+                          </div>
+                          <div className="text-muted-foreground">
+                            {t('pages.assetOptimizations.replay.passRate')}
+                          </div>
                         </div>
-                        <div className="text-muted-foreground">
-                          {t('pages.assetOptimizations.replay.passRate')}
+                        <div className="border-x">
+                          <div className="font-medium">
+                            {candidate.replayScore.expectedAttempts.toFixed(1)}
+                          </div>
+                          <div className="text-muted-foreground">
+                            {t('pages.assetOptimizations.replay.attempts')}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="font-medium">
+                            {candidate.replayScore.tokenChangePercent > 0
+                              ? '+'
+                              : ''}
+                            {Math.round(
+                              candidate.replayScore.tokenChangePercent
+                            )}
+                            %
+                          </div>
+                          <div className="text-muted-foreground">
+                            {t('pages.assetOptimizations.replay.tokens')}
+                          </div>
                         </div>
                       </div>
-                      <div className="border-x">
-                        <div className="font-medium">
-                          {candidate.replayScore.expectedAttempts.toFixed(1)}
-                        </div>
-                        <div className="text-muted-foreground">
-                          {t('pages.assetOptimizations.replay.attempts')}
-                        </div>
+                      <div className="mt-3 text-muted-foreground">
+                        {t('pages.assetOptimizations.replay.findings')}
                       </div>
-                      <div>
-                        <div className="font-medium">
-                          {candidate.replayScore.tokenChangePercent > 0
-                            ? '+'
-                            : ''}
-                          {Math.round(candidate.replayScore.tokenChangePercent)}
-                          %
-                        </div>
-                        <div className="text-muted-foreground">Token</div>
-                      </div>
+                      <ul className="mt-1 space-y-1 pl-4 text-muted-foreground [list-style:disc]">
+                        {candidate.replayScore.findings.map((finding) => (
+                          <li key={finding}>{finding}</li>
+                        ))}
+                      </ul>
                     </div>
                   ) : null}
                   {candidate.conflictReason ? (
@@ -577,11 +604,15 @@ export function AssetOptimizationsPage() {
                       <EyeIcon />
                       {t('common.actions.preview')}
                     </Button>
-                    {['draft', 'conflict'].includes(candidate.status) ? (
+                    {selectedRun.status === 'ready' &&
+                    ['draft', 'conflict'].includes(candidate.status) ? (
                       <>
                         <Button
                           size="sm"
-                          onClick={() => setPendingApply(candidate)}
+                          onClick={() => {
+                            setScriptReviewConfirmed(false);
+                            setPendingApply(candidate);
+                          }}
                           disabled={mutatingCandidateUUID === candidate.uuid}
                         >
                           <CheckCircle2Icon />
@@ -601,6 +632,12 @@ export function AssetOptimizationsPage() {
                       </>
                     ) : null}
                   </div>
+                  {selectedRun.status === 'failed' &&
+                  ['draft', 'conflict'].includes(candidate.status) ? (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      {t('pages.assetOptimizations.failedCandidateUnavailable')}
+                    </p>
+                  ) : null}
                 </article>
               ))}
             </div>
@@ -623,7 +660,12 @@ export function AssetOptimizationsPage() {
 
       <AlertDialog
         open={Boolean(pendingApply)}
-        onOpenChange={(open) => !open && setPendingApply(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingApply(null);
+            setScriptReviewConfirmed(false);
+          }
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -633,21 +675,52 @@ export function AssetOptimizationsPage() {
             <AlertDialogDescription>
               {pendingApply?.type === 'skill' && pendingApply.hasScripts
                 ? t('pages.assetOptimizations.applyDialog.scriptDescription')
-                : pendingApply?.type === 'knowledge'
+                : pendingApply?.content.type === 'skill' &&
+                    pendingApply.content.skillUUID === null
                   ? t(
-                      'pages.assetOptimizations.applyDialog.knowledgeDescription'
+                      'pages.assetOptimizations.applyDialog.newSkillDescription'
                     )
-                  : t('pages.assetOptimizations.applyDialog.description')}
+                  : pendingApply?.type === 'skill'
+                    ? t('pages.assetOptimizations.applyDialog.skillDescription')
+                    : pendingApply?.type === 'knowledge'
+                      ? t(
+                          'pages.assetOptimizations.applyDialog.knowledgeDescription'
+                        )
+                      : t('pages.assetOptimizations.applyDialog.description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {pendingApply?.type === 'skill' && pendingApply.hasScripts ? (
+            <label className="flex cursor-pointer items-start gap-3 border p-3 text-sm">
+              <Checkbox
+                checked={scriptReviewConfirmed}
+                onCheckedChange={(checked) =>
+                  setScriptReviewConfirmed(checked === true)
+                }
+              />
+              <span>
+                {t('pages.assetOptimizations.applyDialog.scriptReviewed')}
+              </span>
+            </label>
+          ) : null}
           <AlertDialogFooter>
             <AlertDialogCancel>{t('common.actions.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 const candidate = pendingApply;
                 setPendingApply(null);
-                if (candidate) void mutateCandidate(candidate, 'apply');
+                if (candidate) {
+                  void mutateCandidate(
+                    candidate,
+                    'apply',
+                    scriptReviewConfirmed
+                  );
+                }
               }}
+              disabled={
+                pendingApply?.type === 'skill' &&
+                pendingApply.hasScripts &&
+                !scriptReviewConfirmed
+              }
             >
               {t('common.actions.confirm')}
             </AlertDialogAction>

@@ -6,6 +6,7 @@ import {
 } from '../src/modules/asset-optimizations/dto.js';
 import {
   buildAutomaticTriggerSignature,
+  resolveSkillCandidateBaseRevision,
   selectReplaySamples,
   shouldCreateAutomaticAssetOptimization
 } from '../src/modules/asset-optimizations/service.js';
@@ -20,6 +21,11 @@ test('automatic trigger signature changes only when a threshold bucket changes',
   const first = buildAutomaticTriggerSignature('agent-a', 3, 20, 5);
   assert.equal(first, buildAutomaticTriggerSignature('agent-a', 3, 39, 9));
   assert.notEqual(first, buildAutomaticTriggerSignature('agent-a', 3, 40, 9));
+});
+
+test('new Skill candidates use the Agent version as the conflict revision', () => {
+  assert.equal(resolveSkillCandidateBaseRevision(null, 7), 7);
+  assert.equal(resolveSkillCandidateBaseRevision(3, 7), 3);
 });
 
 test('no-write replay samples prioritize problem executions and cap the list', () => {

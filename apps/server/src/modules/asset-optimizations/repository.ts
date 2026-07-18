@@ -26,6 +26,13 @@ const candidateStore = createEntityStore<StoredCandidateEntity>(
   CANDIDATE_ENTITY_NAME
 );
 
+export class AssetCandidateRevisionConflictError extends Error {
+  constructor() {
+    super('Asset candidate changed in another request');
+    this.name = 'AssetCandidateRevisionConflictError';
+  }
+}
+
 export interface AssetOptimizationRunRecord {
   teamUUID: string;
   uuid: string;
@@ -413,7 +420,7 @@ export async function updateAssetCandidate(
     throw new Error(`Asset candidate not found: ${record.uuid}`);
   }
   if (expectedUpdatedAt && current.updated_at !== expectedUpdatedAt.getTime()) {
-    throw new Error('ASSET_CANDIDATE_REVISION_CONFLICT');
+    throw new AssetCandidateRevisionConflictError();
   }
   const next: StoredCandidateEntity = {
     ...current,
@@ -430,7 +437,7 @@ export async function updateAssetCandidate(
       patch.appliedBy === undefined
         ? current.applied_by
         : (patch.appliedBy ?? ''),
-    updated_at: Date.now()
+    updated_at: Math.max(Date.now(), current.updated_at + 1)
   };
   await candidateStore.set(getCandidateKey(record.uuid), next);
   return toCandidateRecord(next);

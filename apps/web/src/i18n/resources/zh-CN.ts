@@ -881,7 +881,7 @@ export const zhCN = {
       validation: {
         projectRequired: '请选择项目',
         issueTypeRequired: '请选择工作项类型',
-        statusRequired: '请选择状态',
+        statusRequired: '请选择触发状态',
         agentRequired: '请选择 Agent',
         targetStatusRequired: '请选择任务成功后的目标状态',
         targetStatusMustDiffer: '任务成功后的目标状态不能与触发状态相同',
@@ -903,7 +903,7 @@ export const zhCN = {
         index: '序号',
         project: '项目',
         issueType: '工作项类型',
-        status: '状态',
+        status: '触发状态',
         agent: '绑定 Agent',
         postAction: '成功后置动作',
         transitionTo: '流转到「{{status}}」',
@@ -920,7 +920,7 @@ export const zhCN = {
         createTitle: '新增执行节点',
         editTitle: '编辑执行节点',
         createDescription:
-          '配置这个节点在什么项目、什么工作项类型和状态下触发，并指定执行的 Agent 和任务成功后的目标状态。',
+          '配置这个节点所属的项目、工作项类型和触发状态，并指定执行的 Agent 和任务成功后的目标状态。',
         editDescription:
           '更新执行节点的项目、工作项类型、触发状态、绑定 Agent 和任务成功后的目标状态。',
         projectLabel: '项目',
@@ -931,10 +931,10 @@ export const zhCN = {
         issueTypePlaceholderLoading: '工作项类型加载中...',
         issueTypePlaceholder: '搜索或选择工作项类型',
         issueTypeEmpty: '没有可选工作项类型',
-        statusLabel: '状态',
-        statusPlaceholderLoading: '状态加载中...',
-        statusPlaceholder: '搜索或选择状态',
-        statusEmpty: '没有可选状态',
+        statusLabel: '触发状态',
+        statusPlaceholderLoading: '触发状态加载中...',
+        statusPlaceholder: '搜索或选择触发状态',
+        statusEmpty: '没有可选触发状态',
         agentLabel: 'Agent',
         agentPlaceholderLoading: 'Agent 加载中...',
         agentPlaceholder: '搜索或选择 Agent',
@@ -958,7 +958,7 @@ export const zhCN = {
       deleteDialog: {
         title: '确认删除执行节点？',
         description:
-          '删除后不可恢复，该节点的项目、工作项类型、状态和 Agent 绑定配置都会被移除。'
+          '删除后不可恢复，该节点的项目、工作项类型、触发状态和 Agent 绑定配置都会被移除。'
       }
     },
     agentWorkspaceRepositories: {

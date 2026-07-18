@@ -953,7 +953,7 @@ export const enUS = {
       validation: {
         projectRequired: 'Select a project',
         issueTypeRequired: 'Select an issue type',
-        statusRequired: 'Select a status',
+        statusRequired: 'Select a trigger status',
         agentRequired: 'Select an agent',
         targetStatusRequired: 'Select the target status after task success',
         targetStatusMustDiffer:
@@ -980,7 +980,7 @@ export const enUS = {
         index: 'No.',
         project: 'Project',
         issueType: 'Issue type',
-        status: 'Status',
+        status: 'Trigger status',
         agent: 'Bound agent',
         postAction: 'Success post-action',
         transitionTo: 'Transition to "{{status}}"',
@@ -997,7 +997,7 @@ export const enUS = {
         createTitle: 'New execution node',
         editTitle: 'Edit execution node',
         createDescription:
-          'Configure which project, issue type, and status trigger this node, then choose the agent and target status after task success.',
+          'Configure the project, issue type, and trigger status for this node, then choose the agent and target status after task success.',
         editDescription:
           'Update the project, issue type, trigger status, bound agent, and target status after task success.',
         projectLabel: 'Project',
@@ -1008,10 +1008,10 @@ export const enUS = {
         issueTypePlaceholderLoading: 'Loading issue types...',
         issueTypePlaceholder: 'Search or select an issue type',
         issueTypeEmpty: 'No issue types available',
-        statusLabel: 'Status',
-        statusPlaceholderLoading: 'Loading statuses...',
-        statusPlaceholder: 'Search or select a status',
-        statusEmpty: 'No statuses available',
+        statusLabel: 'Trigger status',
+        statusPlaceholderLoading: 'Loading trigger statuses...',
+        statusPlaceholder: 'Search or select a trigger status',
+        statusEmpty: 'No trigger statuses available',
         agentLabel: 'Agent',
         agentPlaceholderLoading: 'Loading agents...',
         agentPlaceholder: 'Search or select an agent',
@@ -1037,7 +1037,7 @@ export const enUS = {
       deleteDialog: {
         title: 'Delete execution node?',
         description:
-          'This cannot be undone. The project, issue type, status, and bound agent for this node will all be removed.'
+          'This cannot be undone. The project, issue type, trigger status, and bound agent for this node will all be removed.'
       }
     },
     agentWorkspaceRepositories: {

@@ -958,7 +958,7 @@ export const jaJP = {
       validation: {
         projectRequired: 'プロジェクトを選択してください',
         issueTypeRequired: '課題タイプを選択してください',
-        statusRequired: 'ステータスを選択してください',
+        statusRequired: 'トリガーステータスを選択してください',
         agentRequired: 'エージェントを選択してください',
         targetStatusRequired:
           'タスク成功後の遷移先ステータスを選択してください',
@@ -985,7 +985,7 @@ export const jaJP = {
         index: '番号',
         project: 'プロジェクト',
         issueType: '課題タイプ',
-        status: '状態',
+        status: 'トリガーステータス',
         agent: 'バインドされたエージェント',
         postAction: '成功後のアクション',
         transitionTo: '「{{status}}」へ遷移',
@@ -1002,7 +1002,7 @@ export const jaJP = {
         createTitle: '新しい実行ノード',
         editTitle: '実行ノードの編集',
         createDescription:
-          'このノードをトリガーするプロジェクト、課題タイプ、ステータスを設定し、実行するエージェントとタスク成功後の遷移先ステータスを選択します。',
+          'このノードのプロジェクト、課題タイプ、トリガーステータスを設定し、実行するエージェントとタスク成功後の遷移先ステータスを選択します。',
         editDescription:
           'この実行ノードのプロジェクト、課題タイプ、トリガーステータス、バインドされたエージェント、およびタスク成功後の遷移先ステータスを更新します。',
         projectLabel: 'プロジェクト',
@@ -1013,10 +1013,10 @@ export const jaJP = {
         issueTypePlaceholderLoading: '課題タイプを読み込んでいます...',
         issueTypePlaceholder: '課題タイプを検索または選択',
         issueTypeEmpty: '利用可能な課題タイプがありません',
-        statusLabel: '状態',
-        statusPlaceholderLoading: 'ステータスを読み込み中...',
-        statusPlaceholder: 'ステータスを検索または選択します',
-        statusEmpty: '利用可能なステータスがありません',
+        statusLabel: 'トリガーステータス',
+        statusPlaceholderLoading: 'トリガーステータスを読み込み中...',
+        statusPlaceholder: 'トリガーステータスを検索または選択します',
+        statusEmpty: '利用可能なトリガーステータスがありません',
         agentLabel: 'エージェント',
         agentPlaceholderLoading: 'エージェントをロード中...',
         agentPlaceholder: 'エージェントを検索または選択します',
@@ -1042,7 +1042,7 @@ export const jaJP = {
       deleteDialog: {
         title: '実行ノードを削除しますか?',
         description:
-          'これを元に戻すことはできません。このノードのプロジェクト、課題タイプ、ステータス、およびバインドされたエージェントはすべて削除されます。'
+          'これを元に戻すことはできません。このノードのプロジェクト、課題タイプ、トリガーステータス、およびバインドされたエージェントはすべて削除されます。'
       }
     },
     agentWorkspaceRepositories: {

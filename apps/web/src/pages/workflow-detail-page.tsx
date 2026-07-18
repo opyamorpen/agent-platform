@@ -735,6 +735,7 @@ export function WorkflowDetailPage() {
             <FormField data-invalid={Boolean(formErrors.projectUUID)}>
               <FieldLabel>
                 {t('pages.workflowDetail.dialog.projectLabel')}
+                <span className="text-destructive">*</span>
               </FieldLabel>
               <FieldContent>
                 <SearchSelect
@@ -768,6 +769,7 @@ export function WorkflowDetailPage() {
             <FormField data-invalid={Boolean(formErrors.issueTypeUUID)}>
               <FieldLabel>
                 {t('pages.workflowDetail.dialog.issueTypeLabel')}
+                <span className="text-destructive">*</span>
               </FieldLabel>
               <FieldContent>
                 <SearchSelect
@@ -801,6 +803,7 @@ export function WorkflowDetailPage() {
             <FormField data-invalid={Boolean(formErrors.statusUUID)}>
               <FieldLabel>
                 {t('pages.workflowDetail.dialog.statusLabel')}
+                <span className="text-destructive">*</span>
               </FieldLabel>
               <FieldContent>
                 <SearchSelect
@@ -839,6 +842,7 @@ export function WorkflowDetailPage() {
             <FormField data-invalid={Boolean(formErrors.agentUUID)}>
               <FieldLabel>
                 {t('pages.workflowDetail.dialog.agentLabel')}
+                <span className="text-destructive">*</span>
               </FieldLabel>
               <FieldContent>
                 <SearchSelect

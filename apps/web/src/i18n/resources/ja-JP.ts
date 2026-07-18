@@ -952,7 +952,7 @@ export const jaJP = {
         agent: 'バインドされたエージェント',
         postAction: '成功後のアクション',
         transitionTo: '「{{status}}」へ遷移',
-        noPostAction: 'なし',
+        missingPostAction: '未設定（編集時に設定が必要）',
         revisionContext: '再作業コンテキスト',
         revisionEnabled: '有効',
         revisionDisabled: '無効',
@@ -962,9 +962,9 @@ export const jaJP = {
         createTitle: '新しい実行ノード',
         editTitle: '実行ノードの編集',
         createDescription:
-          'このノードをトリガーするプロジェクト、課題タイプ、ステータスを設定し、実行するエージェントを選択します。',
+          'このノードをトリガーするプロジェクト、課題タイプ、ステータスを設定し、実行するエージェントとタスク成功後の遷移先ステータスを選択します。',
         editDescription:
-          'この実行ノードのプロジェクト、課題タイプ、ステータス、およびバインドされたエージェントを更新します。',
+          'この実行ノードのプロジェクト、課題タイプ、トリガーステータス、バインドされたエージェント、およびタスク成功後の遷移先ステータスを更新します。',
         projectLabel: 'プロジェクト',
         projectPlaceholderLoading: 'プロジェクトを読み込んでいます...',
         projectPlaceholder: 'プロジェクトを検索または選択します',
@@ -981,7 +981,7 @@ export const jaJP = {
         agentPlaceholderLoading: 'エージェントをロード中...',
         agentPlaceholder: 'エージェントを検索または選択します',
         agentEmpty: '一致するエージェントがありません',
-        successTransitionLabel: 'タスク成功後に課題ステータスを自動遷移する',
+        successTransitionLabel: 'タスク成功後の遷移先ステータス',
         successTransitionPlaceholder: '成功後の遷移先ステータスを選択',
         revisionContextLabel:
           '差し戻し時に過去の結果とレビューコメントを引き継ぐ',

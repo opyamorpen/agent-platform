@@ -875,7 +875,7 @@ export const zhCN = {
         agent: '绑定 Agent',
         postAction: '成功后置动作',
         transitionTo: '流转到「{{status}}」',
-        noPostAction: '无',
+        missingPostAction: '未配置，编辑时需补齐',
         revisionContext: '返工上下文',
         revisionEnabled: '已启用',
         revisionDisabled: '未启用',
@@ -885,8 +885,9 @@ export const zhCN = {
         createTitle: '新增执行节点',
         editTitle: '编辑执行节点',
         createDescription:
-          '配置这个节点在什么项目、什么工作项类型和状态下触发，并指定执行的 Agent。',
-        editDescription: '更新执行节点的项目、工作项类型、状态和绑定 Agent。',
+          '配置这个节点在什么项目、什么工作项类型和状态下触发，并指定执行的 Agent 和任务成功后的目标状态。',
+        editDescription:
+          '更新执行节点的项目、工作项类型、触发状态、绑定 Agent 和任务成功后的目标状态。',
         projectLabel: '项目',
         projectPlaceholderLoading: '项目加载中...',
         projectPlaceholder: '搜索或选择项目',
@@ -903,7 +904,7 @@ export const zhCN = {
         agentPlaceholderLoading: 'Agent 加载中...',
         agentPlaceholder: '搜索或选择 Agent',
         agentEmpty: '没有匹配的 Agent',
-        successTransitionLabel: '任务成功后自动流转工作项状态',
+        successTransitionLabel: '任务成功后的目标状态',
         successTransitionPlaceholder: '选择任务成功后的目标状态',
         revisionContextLabel: '审核退回时继承历史结果和评论',
         revisionContextHelp:

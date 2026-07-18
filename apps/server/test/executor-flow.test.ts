@@ -130,16 +130,38 @@ test('validateWorkflowNodeExecutorBindings accepts shared executor', () => {
   );
 });
 
-test('workflow node DTO keeps old nodes compatible without post-actions', () => {
-  const parsed = createWorkflowNodeSchema.parse({
+test('workflow node DTO requires exactly one success transition', () => {
+  const baseNode = {
     project: { uuid: 'project-1', name: 'Project' },
     issueType: { uuid: 'type-1', name: 'Requirement' },
     status: { uuid: 'status-1', name: 'In progress' },
     agentUUID: 'agent-1'
-  });
+  };
 
-  assert.deepEqual(parsed.postActions, []);
-  assert.deepEqual(parsed.revisionContext, { enabled: false });
+  assert.equal(createWorkflowNodeSchema.safeParse(baseNode).success, false);
+  assert.equal(
+    createWorkflowNodeSchema.safeParse({
+      ...baseNode,
+      postActions: []
+    }).success,
+    false
+  );
+  assert.equal(
+    createWorkflowNodeSchema.safeParse({
+      ...baseNode,
+      postActions: [
+        {
+          type: 'transition_issue_status',
+          targetStatus: { uuid: 'status-2', name: 'Review' }
+        },
+        {
+          type: 'transition_issue_status',
+          targetStatus: { uuid: 'status-3', name: 'Done' }
+        }
+      ]
+    }).success,
+    false
+  );
 });
 
 test('workflow node DTO accepts revision context opt-in', () => {
@@ -148,6 +170,12 @@ test('workflow node DTO accepts revision context opt-in', () => {
     issueType: { uuid: 'type-1', name: 'Requirement' },
     status: { uuid: 'status-1', name: 'In progress' },
     agentUUID: 'agent-1',
+    postActions: [
+      {
+        type: 'transition_issue_status',
+        targetStatus: { uuid: 'status-2', name: 'Review' }
+      }
+    ],
     revisionContext: { enabled: true }
   });
 
@@ -171,6 +199,29 @@ test('workflow node DTO rejects a post-action that keeps the trigger status', ()
       }),
     /must differ from trigger status/u
   );
+});
+
+test('workflow node DTO accepts one deterministic success transition', () => {
+  const parsed = createWorkflowNodeSchema.parse({
+    project: { uuid: 'project-1', name: 'Project' },
+    issueType: { uuid: 'type-1', name: 'Requirement' },
+    status: { uuid: 'status-1', name: 'In progress' },
+    agentUUID: 'agent-1',
+    postActions: [
+      {
+        type: 'transition_issue_status',
+        targetStatus: { uuid: 'status-2', name: 'Review' }
+      }
+    ]
+  });
+
+  assert.deepEqual(parsed.postActions, [
+    {
+      type: 'transition_issue_status',
+      targetStatus: { uuid: 'status-2', name: 'Review' }
+    }
+  ]);
+  assert.deepEqual(parsed.revisionContext, { enabled: false });
 });
 
 test('configured post-action selects exactly one executable workflow', () => {

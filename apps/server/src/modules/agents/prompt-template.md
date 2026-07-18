@@ -87,19 +87,21 @@ Do not default to English merely because this template is written in English.
 Rules for writing the output:
 
 1. Each `<output>` node corresponds to one top-level output field.
-2. For normal fields, fill `<set-value>`.
-3. For reference object fields, use `<objects>` and one or more `<object>` nodes instead of flattening the object into plain text.
-4. Do not omit the entire `<output>` for object output fields. If no object needs to be created, updated, appended, or selected for that field in this run, output an empty collection `<objects />` to indicate a no-op.
-5. Only `issue` objects support `create` or `update` via `<object-write-mode>`. When `<object-write-mode>` is `update`, you must provide `<object-uuid>`. When it is `create`, do not fabricate `<object-uuid>`.
-6. `comment` objects are a special case: they support create only. Follow the template with `<object-write-mode>create</object-write-mode>` and fill the comment content inside `<fields>`.
-7. `attachment` objects support two forms: to upload a new workspace file, use `<object-write-mode>create</object-write-mode>` and provide `local_path` in `<fields>`; to reuse an existing attachment, provide `object-uuid` or `object-name` and do not include `local_path`.
-8. Other non-`issue` reference objects do not use `<object-write-mode>`. If `<object-uuid>` is provided, the system prefers UUID resolution. If only `<object-name>` is provided, the system performs exact matching by object type.
-9. Regular `multi_reference_object` fields may optionally include `<field-write-mode>`: `set` replaces the current field with the output object collection, and `append` appends the output objects to the existing field with automatic deduplication. If omitted, the default is `set`. `comment` and `attachment` do not use this field.
-10. If an output `issue`, `comment`, or `attachment` object contains `<fields>`, each `<field>` represents a field to write on that object. Fields not output are left unchanged.
-11. If you need to upload a new attachment for a top-level attachment output field, you must output an `attachment` object and provide its workspace-relative path in the `local_path` field.
-12. If you are filling attachments inside subfields of a created or updated issue object, you may either reuse an existing attachment through `object-uuid` or `object-name`, or upload a new workspace file using `local_path`. The system uploads new files first and then writes the attachment field back to the issue.
-13. Do not output free-form text outside the XML structure.
-14. If `<revision-context>` has mode `revision`, fill the fixed `<revision-summary>` block. Summarize what this run actually changed compared with the previous iteration; do not merely restate the review feedback. Keep the summary concise and list at most five concrete changes.
+2. Copy every `<field-uuid>` exactly from the provided output template. The UUID is an authoritative identifier: never invent, infer, translate, shorten, or replace it with a familiar ONES standard-field alias such as `field016`.
+3. `<field-name>` is descriptive metadata only and never replaces `<field-uuid>`. Keep the provided `<field-name>`, `<field-value-type>`, and `<field-reference-object-type>` unchanged.
+4. For normal fields, fill `<set-value>`.
+5. For reference object fields, use `<objects>` and one or more `<object>` nodes instead of flattening the object into plain text.
+6. Do not omit the entire `<output>` for object output fields. If no object needs to be created, updated, appended, or selected for that field in this run, output an empty collection `<objects />` to indicate a no-op.
+7. Only `issue` objects support `create` or `update` via `<object-write-mode>`. When `<object-write-mode>` is `update`, you must provide `<object-uuid>`. When it is `create`, do not fabricate `<object-uuid>`.
+8. `comment` objects are a special case: they support create only. Follow the template with `<object-write-mode>create</object-write-mode>` and fill the comment content inside `<fields>`.
+9. `attachment` objects support two forms: to upload a new workspace file, use `<object-write-mode>create</object-write-mode>` and provide `local_path` in `<fields>`; to reuse an existing attachment, provide `object-uuid` or `object-name` and do not include `local_path`.
+10. Other non-`issue` reference objects do not use `<object-write-mode>`. If `<object-uuid>` is provided, the system prefers UUID resolution. If only `<object-name>` is provided, the system performs exact matching by object type.
+11. Regular `multi_reference_object` fields may optionally include `<field-write-mode>`: `set` replaces the current field with the output object collection, and `append` appends the output objects to the existing field with automatic deduplication. If omitted, the default is `set`. `comment` and `attachment` do not use this field.
+12. If an output `issue`, `comment`, or `attachment` object contains `<fields>`, each `<field>` represents a field to write on that object. Fields not output are left unchanged.
+13. If you need to upload a new attachment for a top-level attachment output field, you must output an `attachment` object and provide its workspace-relative path in the `local_path` field.
+14. If you are filling attachments inside subfields of a created or updated issue object, you may either reuse an existing attachment through `object-uuid` or `object-name`, or upload a new workspace file using `local_path`. The system uploads new files first and then writes the attachment field back to the issue.
+15. Do not output free-form text outside the XML structure.
+16. If `<revision-context>` has mode `revision`, fill the fixed `<revision-summary>` block. Summarize what this run actually changed compared with the previous iteration; do not merely restate the review feedback. Keep the summary concise and list at most five concrete changes.
 
 ### @User Format
 

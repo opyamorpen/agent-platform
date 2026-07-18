@@ -42,7 +42,7 @@ export const createWorkflowNodeSchema = z
     issueType: refObjectSchema,
     status: refObjectSchema,
     agentUUID: z.string().min(1),
-    postActions: z.array(workflowNodePostActionSchema).max(1).default([]),
+    postActions: z.array(workflowNodePostActionSchema).length(1),
     revisionContext: workflowNodeRevisionContextSchema.default({
       enabled: false
     })

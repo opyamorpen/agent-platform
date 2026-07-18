@@ -942,7 +942,7 @@ export const enUS = {
         agent: 'Bound agent',
         postAction: 'Success post-action',
         transitionTo: 'Transition to "{{status}}"',
-        noPostAction: 'None',
+        missingPostAction: 'Not configured; required when editing',
         revisionContext: 'Revision context',
         revisionEnabled: 'Enabled',
         revisionDisabled: 'Disabled',
@@ -952,9 +952,9 @@ export const enUS = {
         createTitle: 'New execution node',
         editTitle: 'Edit execution node',
         createDescription:
-          'Configure which project, issue type, and status trigger this node, then choose the agent to execute.',
+          'Configure which project, issue type, and status trigger this node, then choose the agent and target status after task success.',
         editDescription:
-          'Update the project, issue type, status, and bound agent for this execution node.',
+          'Update the project, issue type, trigger status, bound agent, and target status after task success.',
         projectLabel: 'Project',
         projectPlaceholderLoading: 'Loading projects...',
         projectPlaceholder: 'Search or select a project',
@@ -971,7 +971,7 @@ export const enUS = {
         agentPlaceholderLoading: 'Loading agents...',
         agentPlaceholder: 'Search or select an agent',
         agentEmpty: 'No matching agents',
-        successTransitionLabel: 'Transition issue status after task success',
+        successTransitionLabel: 'Target status after task success',
         successTransitionPlaceholder: 'Select the target status after success',
         revisionContextLabel:
           'Inherit prior results and review comments after rejection',

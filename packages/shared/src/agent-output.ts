@@ -162,6 +162,89 @@ function usesObjectOutput(field: AgentOutputField): boolean {
   );
 }
 
+function getOutputProtocolValueType(field: AgentOutputField): string {
+  return field.kind === 'wiki_page' ? 'wiki_page' : field.field.valueType;
+}
+
+function getOutputHeaderContent(outputBlock: string): string {
+  const contentStarts = ['set-value', 'objects', 'wiki-action']
+    .map((tagName) => findXmlTagBounds(outputBlock, tagName)?.outerStart)
+    .filter((value): value is number => value !== undefined);
+  const headerEnd =
+    contentStarts.length === 0
+      ? outputBlock.length
+      : Math.min(...contentStarts);
+
+  return outputBlock.slice(0, headerEnd).trim();
+}
+
+function resolveOutputField(
+  outputHeaderContent: string,
+  reportedFieldUUID: string,
+  allowedFields: Map<string, AgentOutputField>,
+  fields: AgentOutputField[]
+): AgentOutputField {
+  const exactField = allowedFields.get(reportedFieldUUID);
+
+  if (exactField) {
+    return exactField;
+  }
+
+  const reportedFieldName = parseXmlTagContent(
+    outputHeaderContent,
+    'field-name'
+  )?.trim();
+
+  if (!reportedFieldName) {
+    throw new Error(`Unknown output field "${reportedFieldUUID}"`);
+  }
+
+  const nameMatches = fields.filter(
+    (field) => field.field.name.trim() === reportedFieldName
+  );
+
+  if (nameMatches.length === 0) {
+    throw new Error(`Unknown output field "${reportedFieldUUID}"`);
+  }
+
+  if (nameMatches.length > 1) {
+    throw new Error(
+      `Ambiguous output field name "${reportedFieldName}" for unknown field "${reportedFieldUUID}"`
+    );
+  }
+
+  const matchedField = nameMatches[0];
+  const reportedValueType = parseXmlTagContent(
+    outputHeaderContent,
+    'field-value-type'
+  )?.trim();
+  const configuredValueType = getOutputProtocolValueType(matchedField);
+
+  if (reportedValueType !== configuredValueType) {
+    throw new Error(
+      `Output field "${reportedFieldUUID}" reported value type "${reportedValueType ?? ''}" but configured field "${matchedField.field.uuid}" requires "${configuredValueType}"`
+    );
+  }
+
+  const reportedReferenceObjectType = parseXmlTagContent(
+    outputHeaderContent,
+    'field-reference-object-type'
+  )?.trim();
+  const configuredReferenceObjectType =
+    matchedField.field.referenceObjectType?.trim() || null;
+
+  if (
+    reportedReferenceObjectType &&
+    reportedReferenceObjectType !== configuredReferenceObjectType
+  ) {
+    throw new Error(
+      `Output field "${reportedFieldUUID}" reported reference object type "${reportedReferenceObjectType}" but configured field "${matchedField.field.uuid}" requires "${configuredReferenceObjectType ?? ''}"`
+    );
+  }
+
+  return matchedField;
+}
+
 function getAllowedSubFields(
   field: AgentOutputField
 ): Map<string, ObjectSubFieldConfig> {
@@ -382,17 +465,23 @@ export function parseAgentOutputString(
   const outputBlocks = collectXmlTagContents(outputsContent, 'output');
 
   for (const outputBlock of outputBlocks) {
-    const fieldUUIDPath = parseXmlTagContent(outputBlock, 'field-uuid');
+    const outputHeaderContent = getOutputHeaderContent(outputBlock);
+    const reportedFieldUUID = parseXmlTagContent(
+      outputHeaderContent,
+      'field-uuid'
+    );
 
-    if (!fieldUUIDPath) {
+    if (!reportedFieldUUID) {
       throw new Error('Missing <field-uuid> in <output> block');
     }
 
-    const field = allowedFields.get(fieldUUIDPath);
-
-    if (!field) {
-      throw new Error(`Unknown output field "${fieldUUIDPath}"`);
-    }
+    const field = resolveOutputField(
+      outputHeaderContent,
+      reportedFieldUUID,
+      allowedFields,
+      fields
+    );
+    const fieldUUIDPath = field.field.uuid;
 
     if (seenFieldUUIDPaths.has(fieldUUIDPath)) {
       throw new Error(`Duplicated output field "${fieldUUIDPath}"`);

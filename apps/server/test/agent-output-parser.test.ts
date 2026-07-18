@@ -76,6 +76,258 @@ test('parseAgentOutputString keeps plain set-value unchanged', () => {
   ]);
 });
 
+test('parseAgentOutputString safely resolves an unknown root UUID by unique field metadata', () => {
+  const result = parseAgentOutputString(
+    [
+      '<outputs>',
+      '  <output>',
+      '    <field-uuid>field016</field-uuid>',
+      '    <field-name>需求分析报告</field-name>',
+      '    <field-value-type>richtext</field-value-type>',
+      '    <set-value><![CDATA[修订后的报告]]></set-value>',
+      '  </output>',
+      '</outputs>'
+    ].join('\n'),
+    [
+      {
+        mode: 'set_value',
+        field: {
+          uuid: '9Ci7V1H7',
+          name: '需求分析报告',
+          valueType: 'richtext',
+          referenceObjectType: null
+        },
+        description: '写入需求分析报告',
+        subFields: []
+      }
+    ]
+  );
+
+  assert.deepEqual(result, [
+    {
+      mode: 'set_value',
+      fieldUUIDPath: '9Ci7V1H7',
+      value: '修订后的报告'
+    }
+  ]);
+});
+
+test('parseAgentOutputString rejects an unknown UUID when the field name is ambiguous', () => {
+  assert.throws(
+    () =>
+      parseAgentOutputString(
+        [
+          '<outputs>',
+          '  <output>',
+          '    <field-uuid>field016</field-uuid>',
+          '    <field-name>报告</field-name>',
+          '    <field-value-type>richtext</field-value-type>',
+          '    <set-value>内容</set-value>',
+          '  </output>',
+          '</outputs>'
+        ].join('\n'),
+        [
+          {
+            mode: 'set_value',
+            field: {
+              uuid: 'field-a',
+              name: '报告',
+              valueType: 'richtext',
+              referenceObjectType: null
+            },
+            description: '',
+            subFields: []
+          },
+          {
+            mode: 'set_value',
+            field: {
+              uuid: 'field-b',
+              name: '报告',
+              valueType: 'richtext',
+              referenceObjectType: null
+            },
+            description: '',
+            subFields: []
+          }
+        ]
+      ),
+    /Ambiguous output field name "报告"/u
+  );
+});
+
+test('parseAgentOutputString rejects an unknown UUID when the value type mismatches', () => {
+  assert.throws(
+    () =>
+      parseAgentOutputString(
+        [
+          '<outputs>',
+          '  <output>',
+          '    <field-uuid>field016</field-uuid>',
+          '    <field-name>需求分析报告</field-name>',
+          '    <field-value-type>multi_line_text</field-value-type>',
+          '    <set-value>内容</set-value>',
+          '  </output>',
+          '</outputs>'
+        ].join('\n'),
+        [
+          {
+            mode: 'set_value',
+            field: {
+              uuid: '9Ci7V1H7',
+              name: '需求分析报告',
+              valueType: 'richtext',
+              referenceObjectType: null
+            },
+            description: '',
+            subFields: []
+          }
+        ]
+      ),
+    /reported value type "multi_line_text".*requires "richtext"/u
+  );
+});
+
+test('parseAgentOutputString rejects an unknown UUID when the reference object type mismatches', () => {
+  assert.throws(
+    () =>
+      parseAgentOutputString(
+        [
+          '<outputs>',
+          '  <output>',
+          '    <field-uuid>field016</field-uuid>',
+          '    <field-name>负责人</field-name>',
+          '    <field-value-type>single_reference_object</field-value-type>',
+          '    <field-reference-object-type>issue_status</field-reference-object-type>',
+          '    <objects />',
+          '  </output>',
+          '</outputs>'
+        ].join('\n'),
+        [
+          {
+            mode: 'set_value',
+            field: {
+              uuid: 'assignee-uuid',
+              name: '负责人',
+              valueType: 'single_reference_object',
+              referenceObjectType: 'user'
+            },
+            description: '',
+            subFields: []
+          }
+        ]
+      ),
+    /reported reference object type "issue_status".*requires "user"/u
+  );
+});
+
+test('parseAgentOutputString rejects an unknown UUID when the field name is unknown', () => {
+  assert.throws(
+    () =>
+      parseAgentOutputString(
+        [
+          '<outputs>',
+          '  <output>',
+          '    <field-uuid>field016</field-uuid>',
+          '    <field-name>不存在的字段</field-name>',
+          '    <field-value-type>richtext</field-value-type>',
+          '    <set-value>内容</set-value>',
+          '  </output>',
+          '</outputs>'
+        ].join('\n'),
+        [
+          {
+            mode: 'set_value',
+            field: {
+              uuid: '9Ci7V1H7',
+              name: '需求分析报告',
+              valueType: 'richtext',
+              referenceObjectType: null
+            },
+            description: '',
+            subFields: []
+          }
+        ]
+      ),
+    /Unknown output field "field016"/u
+  );
+});
+
+test('parseAgentOutputString does not use nested field metadata for UUID recovery', () => {
+  assert.throws(
+    () =>
+      parseAgentOutputString(
+        [
+          '<outputs>',
+          '  <output>',
+          '    <field-uuid>field016</field-uuid>',
+          '    <objects>',
+          '      <object>',
+          '        <object-type>issue</object-type>',
+          '        <fields>',
+          '          <field>',
+          '            <field-name>关联工作项</field-name>',
+          '            <field-value-type>single_reference_object</field-value-type>',
+          '          </field>',
+          '        </fields>',
+          '      </object>',
+          '    </objects>',
+          '  </output>',
+          '</outputs>'
+        ].join('\n'),
+        [
+          {
+            mode: 'set_value',
+            field: {
+              uuid: 'linked-issue-uuid',
+              name: '关联工作项',
+              valueType: 'single_reference_object',
+              referenceObjectType: 'issue'
+            },
+            description: '',
+            subFields: []
+          }
+        ]
+      ),
+    /Unknown output field "field016"/u
+  );
+});
+
+test('parseAgentOutputString detects duplicates after UUID normalization', () => {
+  assert.throws(
+    () =>
+      parseAgentOutputString(
+        [
+          '<outputs>',
+          '  <output>',
+          '    <field-uuid>9Ci7V1H7</field-uuid>',
+          '    <set-value>第一次</set-value>',
+          '  </output>',
+          '  <output>',
+          '    <field-uuid>field016</field-uuid>',
+          '    <field-name>需求分析报告</field-name>',
+          '    <field-value-type>richtext</field-value-type>',
+          '    <set-value>第二次</set-value>',
+          '  </output>',
+          '</outputs>'
+        ].join('\n'),
+        [
+          {
+            mode: 'set_value',
+            field: {
+              uuid: '9Ci7V1H7',
+              name: '需求分析报告',
+              valueType: 'richtext',
+              referenceObjectType: null
+            },
+            description: '',
+            subFields: []
+          }
+        ]
+      ),
+    /Duplicated output field "9Ci7V1H7"/u
+  );
+});
+
 test('parseAgentOutputString parses output fields blocks', () => {
   const result = parseAgentOutputString(
     [
@@ -912,6 +1164,16 @@ test('buildAgentPrompt injects runtime input context xml', () => {
     /`single_reference_object`: A single referenced object, usually represented as one `<object>`\./
   );
   assert.match(markdown, /<set-value><\/set-value>/);
+  assert.match(
+    markdown,
+    /Copy every `<field-uuid>` exactly from the provided output template/u
+  );
+  assert.match(markdown, /never invent, infer, translate, shorten/u);
+  assert.match(markdown, /such as `field016`/u);
+  assert.match(
+    markdown,
+    /`<field-name>` is descriptive metadata only and never replaces `<field-uuid>`/u
+  );
   assert.match(markdown, /## Original Task/);
   assert.match(markdown, /处理输入并生成输出/);
 });

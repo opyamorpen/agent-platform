@@ -19,6 +19,7 @@ import {
   AlertDialogTitle
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
@@ -82,7 +83,6 @@ const DEFAULT_FORM_STATE = {
   issueTypeUUID: '',
   statusUUID: '',
   agentUUID: '',
-  enableSuccessTransition: false,
   targetStatusUUID: '',
   enableRevisionContext: false
 };
@@ -213,7 +213,6 @@ export function WorkflowDetailPage() {
       issueTypeUUID: node.issueType.uuid,
       statusUUID: node.status.uuid,
       agentUUID: node.agent.uuid,
-      enableSuccessTransition: node.postActions.length > 0,
       targetStatusUUID:
         node.postActions[0]?.type === 'transition_issue_status'
           ? node.postActions[0].targetStatus.uuid
@@ -367,14 +366,15 @@ export function WorkflowDetailPage() {
       nextErrors.agentUUID = t('pages.workflowDetail.validation.agentRequired');
     }
 
-    if (formData.enableSuccessTransition && !formData.targetStatusUUID) {
+    if (!formData.targetStatusUUID) {
       nextErrors.targetStatusUUID = t(
         'pages.workflowDetail.validation.targetStatusRequired'
       );
     }
 
     if (
-      formData.enableSuccessTransition &&
+      formData.targetStatusUUID &&
+      formData.statusUUID &&
       formData.targetStatusUUID === formData.statusUUID
     ) {
       nextErrors.targetStatusUUID = t(
@@ -407,16 +407,11 @@ export function WorkflowDetailPage() {
     const status = issueStatuses.find(
       (item) => item.uuid === formData.statusUUID
     );
-    const targetStatus = formData.enableSuccessTransition
-      ? issueStatuses.find((item) => item.uuid === formData.targetStatusUUID)
-      : null;
+    const targetStatus = issueStatuses.find(
+      (item) => item.uuid === formData.targetStatusUUID
+    );
 
-    if (
-      !project ||
-      !issueType ||
-      !status ||
-      (formData.enableSuccessTransition && !targetStatus)
-    ) {
+    if (!project || !issueType || !status || !targetStatus) {
       setFormErrors({
         submit: t('pages.workflowDetail.validation.incompleteSelection')
       });
@@ -432,14 +427,12 @@ export function WorkflowDetailPage() {
         issueType,
         status,
         agentUUID: formData.agentUUID,
-        postActions: targetStatus
-          ? [
-              {
-                type: 'transition_issue_status' as const,
-                targetStatus
-              }
-            ]
-          : [],
+        postActions: [
+          {
+            type: 'transition_issue_status' as const,
+            targetStatus
+          }
+        ],
         revisionContext: {
           enabled: formData.enableRevisionContext
         }
@@ -559,6 +552,13 @@ export function WorkflowDetailPage() {
     () => toSearchSelectOptions(issueStatuses),
     [issueStatuses]
   );
+  const successTargetStatusOptions = useMemo(
+    () =>
+      toSearchSelectOptions(
+        issueStatuses.filter((status) => status.uuid !== formData.statusUUID)
+      ),
+    [formData.statusUUID, issueStatuses]
+  );
 
   const agentOptions = useMemo(
     () =>
@@ -655,11 +655,16 @@ export function WorkflowDetailPage() {
                     <TableCell>{node.status.name}</TableCell>
                     <TableCell className="pr-4">{node.agent.name}</TableCell>
                     <TableCell>
-                      {node.postActions[0]?.type === 'transition_issue_status'
-                        ? t('pages.workflowDetail.table.transitionTo', {
-                            status: node.postActions[0].targetStatus.name
-                          })
-                        : t('pages.workflowDetail.table.noPostAction')}
+                      {node.postActions[0]?.type ===
+                      'transition_issue_status' ? (
+                        t('pages.workflowDetail.table.transitionTo', {
+                          status: node.postActions[0].targetStatus.name
+                        })
+                      ) : (
+                        <Badge variant="destructive">
+                          {t('pages.workflowDetail.table.missingPostAction')}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       {node.revisionContext.enabled
@@ -804,11 +809,16 @@ export function WorkflowDetailPage() {
                   onValueChange={(value) => {
                     setFormData((current) => ({
                       ...current,
-                      statusUUID: value ?? ''
+                      statusUUID: value ?? '',
+                      targetStatusUUID:
+                        current.targetStatusUUID === value
+                          ? ''
+                          : current.targetStatusUUID
                     }));
                     setFormErrors((current) => ({
                       ...current,
                       statusUUID: undefined,
+                      targetStatusUUID: undefined,
                       submit: undefined
                     }));
                   }}
@@ -858,16 +868,18 @@ export function WorkflowDetailPage() {
               </FieldContent>
             </FormField>
             <FormField data-invalid={Boolean(formErrors.targetStatusUUID)}>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="workflow-node-success-transition"
-                  checked={formData.enableSuccessTransition}
-                  onCheckedChange={(checked) => {
+              <FieldLabel>
+                {t('pages.workflowDetail.dialog.successTransitionLabel')}
+                <span className="text-destructive">*</span>
+              </FieldLabel>
+              <FieldContent>
+                <SearchSelect
+                  options={successTargetStatusOptions}
+                  value={formData.targetStatusUUID || undefined}
+                  onValueChange={(value) => {
                     setFormData((current) => ({
                       ...current,
-                      enableSuccessTransition: checked === true,
-                      targetStatusUUID:
-                        checked === true ? current.targetStatusUUID : ''
+                      targetStatusUUID: value ?? ''
                     }));
                     setFormErrors((current) => ({
                       ...current,
@@ -875,37 +887,15 @@ export function WorkflowDetailPage() {
                       submit: undefined
                     }));
                   }}
+                  placeholder={t(
+                    'pages.workflowDetail.dialog.successTransitionPlaceholder'
+                  )}
+                  emptyText={t('pages.workflowDetail.dialog.statusEmpty')}
+                  disabled={isLoadingOptions || Boolean(optionsErrorMessage)}
+                  portalContainer={dialogContentElement}
                 />
-                <FieldLabel htmlFor="workflow-node-success-transition">
-                  {t('pages.workflowDetail.dialog.successTransitionLabel')}
-                </FieldLabel>
-              </div>
-              {formData.enableSuccessTransition ? (
-                <FieldContent>
-                  <SearchSelect
-                    options={issueStatusOptions}
-                    value={formData.targetStatusUUID || undefined}
-                    onValueChange={(value) => {
-                      setFormData((current) => ({
-                        ...current,
-                        targetStatusUUID: value ?? ''
-                      }));
-                      setFormErrors((current) => ({
-                        ...current,
-                        targetStatusUUID: undefined,
-                        submit: undefined
-                      }));
-                    }}
-                    placeholder={t(
-                      'pages.workflowDetail.dialog.successTransitionPlaceholder'
-                    )}
-                    emptyText={t('pages.workflowDetail.dialog.statusEmpty')}
-                    disabled={isLoadingOptions || Boolean(optionsErrorMessage)}
-                    portalContainer={dialogContentElement}
-                  />
-                  <FieldError>{formErrors.targetStatusUUID}</FieldError>
-                </FieldContent>
-              ) : null}
+                <FieldError>{formErrors.targetStatusUUID}</FieldError>
+              </FieldContent>
             </FormField>
             <FormField>
               <div className="flex items-start gap-2">

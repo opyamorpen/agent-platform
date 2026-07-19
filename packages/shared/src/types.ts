@@ -280,8 +280,6 @@ export type AssetCandidateStatus =
 export interface AssetOptimizationMetrics {
   totalSamples: number;
   successCount: number;
-  failureCount: number;
-  blockedCount: number;
   problemCount: number;
   retryCount: number;
   averageAttempts: number;
@@ -356,184 +354,6 @@ export interface AssetOptimizationRunSummary {
 
 export interface AssetOptimizationRun extends AssetOptimizationRunSummary {
   candidates: AssetCandidate[];
-}
-
-export type ExecutionFeedbackSource =
-  | 'human_comment'
-  | 'status_return'
-  | 'field_change';
-
-export type ExecutionFeedbackStatus =
-  | 'pending'
-  | 'included'
-  | 'resolved'
-  | 'unconfirmed';
-
-export interface ExecutionFeedback {
-  uuid: string;
-  issueExecutionUUID: string;
-  loopTraceUUID: string;
-  dispatchedIssueUUID: string;
-  iteration: number;
-  commentUUID: string | null;
-  source: ExecutionFeedbackSource;
-  status: ExecutionFeedbackStatus;
-  excerpt: string;
-  contentHash: string;
-  criterionUUIDs: string[];
-  resolution: string | null;
-  writeTargets: string[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface LoopAttempt {
-  uuid: string;
-  attemptNumber: number;
-  previousAttemptUUID: string | null;
-  status: AgentExecutionStatus;
-  executor: RefObject | null;
-  executeClient: RefObject | null;
-  failureSignature: string | null;
-  leaseExpiresAt: string | null;
-  recoveredAt: string | null;
-  startedAt: string | null;
-  finishedAt: string | null;
-  durationMs: number | null;
-  modelDurationMs: number | null;
-  usage: AgentTokenUsage | null;
-  evaluation: Record<string, unknown> | null;
-  verification: Array<{
-    profileUUID: string;
-    profileName: string;
-    status: 'passed' | 'failed';
-  }>;
-  writeTargets: string[];
-}
-
-export interface LoopTrace {
-  uuid: string;
-  issueExecutionUUID: string;
-  dispatchedIssueUUID: string;
-  workflow: RefObject;
-  workflowNode: RefObject;
-  iteration: number;
-  triggerReason: 'initial' | 'revision';
-  status: IssueExecutionStatus;
-  blockReason: string | null;
-  cancelRequestedAt: string | null;
-  cancelReason: string | null;
-  attempts: LoopAttempt[];
-  feedbackCount: number;
-  createdAt: string;
-  startedAt: string | null;
-  finishedAt: string | null;
-}
-
-export type ShadowReplayStatus =
-  | 'running'
-  | 'completed'
-  | 'failed'
-  | 'unsupported';
-
-export interface ShadowReplaySampleResult {
-  sampleUUID: string;
-  status: 'passed' | 'failed';
-  deterministicPassed: boolean;
-  deterministicErrors: string[];
-  review: LoopAIReview | null;
-  durationMs: number;
-  usage: AgentTokenUsage | null;
-}
-
-export interface ShadowReplayRun {
-  uuid: string;
-  candidateUUID: string;
-  agent: RefObject;
-  agentVersion: number;
-  status: ShadowReplayStatus;
-  sampleCount: number;
-  passedCount: number;
-  totalTokens: number | null;
-  errorMessage: string | null;
-  results: ShadowReplaySampleResult[];
-  createdBy: string;
-  createdAt: string;
-  completedAt: string | null;
-}
-
-export type ExperiencePatternType =
-  | 'deterministic_error'
-  | 'acceptance_failure'
-  | 'human_feedback'
-  | 'knowledge_gap'
-  | 'verification_failure';
-
-export interface ExperiencePattern {
-  uuid: string;
-  type: ExperiencePatternType;
-  agentUUID: string | null;
-  agentName: string | null;
-  workflowUUID: string | null;
-  workflowName: string | null;
-  issueTypeUUID: string | null;
-  businessTags: string[];
-  title: string;
-  repairStrategy: string;
-  evidenceCount: number;
-  successCount: number;
-  confidence: number;
-  allowedForPromptRecommendation: boolean;
-  allowedForCandidateGeneration: boolean;
-  allowedForRuntime: boolean;
-  firstSeenAt: string;
-  lastSeenAt: string;
-  expiresAt: string | null;
-}
-
-export type AssetEffectVerdict =
-  | 'effective'
-  | 'no_change'
-  | 'negative'
-  | 'insufficient_samples';
-
-export interface AssetEffectSnapshot {
-  releaseUUID: string;
-  sampleCount: number;
-  successRateBefore: number;
-  successRateAfter: number;
-  averageAttemptsBefore: number;
-  averageAttemptsAfter: number;
-  blockedRateBefore: number;
-  blockedRateAfter: number;
-  totalTokensBefore: number | null;
-  totalTokensAfter: number | null;
-  revisionRateBefore: number | null;
-  revisionRateAfter: number | null;
-  knowledgeHitRateBefore: number | null;
-  knowledgeHitRateAfter: number | null;
-  wikiWriteSuccessRateBefore: number | null;
-  wikiWriteSuccessRateAfter: number | null;
-  acceptancePassRateBefore: number | null;
-  acceptancePassRateAfter: number | null;
-  verdict: AssetEffectVerdict;
-  measuredAt: string;
-}
-
-export interface AssetRelease {
-  uuid: string;
-  candidateUUID: string;
-  agentUUID: string;
-  assetType: AssetCandidateType;
-  assetUUID: string | null;
-  baseVersion: number;
-  publishedVersion: number | null;
-  status: 'awaiting_publication' | 'observing' | 'reviewed' | 'rolled_back';
-  effect: AssetEffectSnapshot | null;
-  rollbackDraftCreated: boolean;
-  publishedBy: string;
-  publishedAt: string | null;
-  createdAt: string;
 }
 
 export interface AgentFieldMeta {
@@ -733,11 +553,6 @@ export interface IssueAgentExecutionHistory {
   logs?: string;
   usage: AgentTokenUsage | null;
   executeClient: RefObject | null;
-  attemptNumber: number;
-  previousAttemptUUID: string | null;
-  failureSignature: string | null;
-  leaseExpiresAt: string | null;
-  recoveredAt: string | null;
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
@@ -752,10 +567,6 @@ export interface IssueExecutionHistory {
   iteration: number;
   triggerReason: 'initial' | 'revision';
   previousExecutionUUID: string | null;
-  loopTraceUUID: string;
-  blockReason: string | null;
-  cancelRequestedAt: string | null;
-  cancelReason: string | null;
   createdAt: string;
   currentAgentUUID: string;
   startedAt: string | null;
@@ -778,7 +589,6 @@ export interface AgentClientTaskReport {
   attachmentUploads?: AgentClientTaskAttachmentOutput[];
   verificationResults?: AgentClientVerificationProfileResult[];
   workspacePatch?: AgentClientWorkspacePatchUpload;
-  modelDurationMs?: number;
   usage: AgentTokenUsage | null;
   startedAt: string | null;
   finishedAt: string | null;

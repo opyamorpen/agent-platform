@@ -21,13 +21,11 @@ import {
 import { findAgentClientByUUID } from './repository.js';
 import {
   AgentClientInvalidAttachmentUploadError,
-  AgentClientInvalidWorkspacePatchError,
   AgentClientNotFoundError,
   approveAgentClientConnection,
   claimAgentClientTasks,
   createAgentClientConnection,
   getAgentClientTaskRuntimeEnv,
-  getAgentClientPreviousWorkspacePatchDownload,
   getAgentClients,
   getSelectableAgentClients,
   InvalidAgentClientConnectionRequestError,
@@ -35,7 +33,6 @@ import {
   pollAgentClientConnection,
   reportAgentClientTasks,
   stageAgentClientTaskAttachments,
-  uploadAgentClientTaskWorkspacePatch,
   revokeAgentClientConnection
 } from './service.js';
 
@@ -356,67 +353,6 @@ export async function getAgentClientTaskRuntimeEnvHandler(c: Context) {
       return c.json(failure(error.message), 400);
     }
 
-    throw error;
-  }
-}
-
-export async function uploadAgentClientTaskWorkspacePatchHandler(c: Context) {
-  const taskUUID = c.req.param('taskUUID');
-  if (!taskUUID) {
-    return c.json(failure('Task uuid is required'), 400);
-  }
-  try {
-    const client = await loadAuthenticatedAgentClient(c);
-    if (!client) {
-      return c.json(failure('Agent client not found'), 404);
-    }
-    const formData = await c.req.formData();
-    const file = formData.get('file');
-    if (!file || typeof file === 'string' || typeof file.arrayBuffer !== 'function') {
-      return c.json(failure('Workspace patch file is required'), 400);
-    }
-    return c.json(
-      success(
-        await uploadAgentClientTaskWorkspacePatch(
-          client,
-          taskUUID,
-          new Uint8Array(await file.arrayBuffer())
-        )
-      )
-    );
-  } catch (error) {
-    if (error instanceof AgentClientAuthError) {
-      return c.json(failure(error.message), 401);
-    }
-    if (error instanceof AgentClientInvalidWorkspacePatchError) {
-      return c.json(failure(error.message), 400);
-    }
-    throw error;
-  }
-}
-
-export async function downloadAgentClientPreviousWorkspacePatchHandler(c: Context) {
-  const taskUUID = c.req.param('taskUUID');
-  if (!taskUUID) {
-    return c.json(failure('Task uuid is required'), 400);
-  }
-  try {
-    const client = await loadAuthenticatedAgentClient(c);
-    if (!client) {
-      return c.json(failure('Agent client not found'), 404);
-    }
-    const download = await getAgentClientPreviousWorkspacePatchDownload(
-      client,
-      taskUUID
-    );
-    return c.redirect(download.downloadUrl, 302);
-  } catch (error) {
-    if (error instanceof AgentClientAuthError) {
-      return c.json(failure(error.message), 401);
-    }
-    if (error instanceof AgentClientInvalidWorkspacePatchError) {
-      return c.json(failure(error.message), 404);
-    }
     throw error;
   }
 }

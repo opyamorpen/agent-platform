@@ -9,8 +9,6 @@ import * as path from 'node:path';
 import type {
   AgentClientTask,
   AgentClientTaskAttachmentOutput,
-  AgentClientVerificationProfileResult,
-  AgentClientWorkspacePatchUpload,
   AgentClientTaskReport,
   AgentClientTaskStatus,
   AgentTokenUsage
@@ -25,8 +23,6 @@ interface StoredTaskRecord {
   logs: string;
   executeResult: string;
   attachmentUploads?: AgentClientTaskAttachmentOutput[];
-  verificationResults?: AgentClientVerificationProfileResult[];
-  workspacePatch?: AgentClientWorkspacePatchUpload;
   usage: AgentTokenUsage | null;
   startedAt: string | null;
   finishedAt: string | null;
@@ -134,8 +130,6 @@ export class TaskStoreFileService implements TaskStoreContract {
         logs: '',
         executeResult: '',
         attachmentUploads: undefined,
-        verificationResults: undefined,
-        workspacePatch: undefined,
         usage: null,
         startedAt: null,
         finishedAt: null,
@@ -204,8 +198,6 @@ export class TaskStoreFileService implements TaskStoreContract {
           logs: record.logs,
           executeResult: record.executeResult,
           attachmentUploads: record.attachmentUploads,
-          verificationResults: record.verificationResults,
-          workspacePatch: record.workspacePatch,
           usage: record.usage,
           startedAt: record.startedAt,
           finishedAt: record.finishedAt
@@ -286,9 +278,7 @@ export class TaskStoreFileService implements TaskStoreContract {
     appendLogs?: string,
     executeResult?: string,
     attachmentUploads?: AgentClientTaskAttachmentOutput[],
-    usage?: AgentTokenUsage | null,
-    verificationResults?: AgentClientVerificationProfileResult[],
-    workspacePatch?: AgentClientWorkspacePatchUpload
+    usage?: AgentTokenUsage | null
   ): void {
     const record = this.tasksById.get(taskUUID);
 
@@ -314,8 +304,6 @@ export class TaskStoreFileService implements TaskStoreContract {
       logs: nextLogs,
       executeResult: executeResult ?? record.executeResult,
       attachmentUploads: attachmentUploads ?? record.attachmentUploads,
-      verificationResults: verificationResults ?? record.verificationResults,
-      workspacePatch: workspacePatch ?? record.workspacePatch,
       usage: usage !== undefined ? usage : record.usage,
       startedAt,
       finishedAt,
@@ -398,13 +386,6 @@ function toStoredTaskRecord(value: Partial<StoredTaskRecord>): StoredTaskRecord 
     attachmentUploads: Array.isArray(value.attachmentUploads)
       ? value.attachmentUploads
       : undefined,
-    verificationResults: Array.isArray(value.verificationResults)
-      ? value.verificationResults
-      : undefined,
-    workspacePatch:
-      value.workspacePatch && typeof value.workspacePatch === 'object'
-        ? value.workspacePatch
-        : undefined,
     usage: isAgentTokenUsage(value.usage) ? value.usage : null,
     startedAt: typeof value.startedAt === 'string' ? value.startedAt : null,
     finishedAt: typeof value.finishedAt === 'string' ? value.finishedAt : null,

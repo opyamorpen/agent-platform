@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type {
   AgentConfig,
   AssetCandidate,
@@ -6,7 +6,8 @@ import type {
   AssetCandidateSummary,
   AssetOptimizationMetrics,
   AssetOptimizationRun,
-  AssetOptimizationRunSummary
+  AssetOptimizationRunSummary,
+  AssetOptimizationTrigger
 } from '@ones-ai-workflow/shared';
 import { getLogger } from '../../lib/logger.js';
 import {
@@ -34,14 +35,6 @@ import {
 import { findSkillByName, findSkillByUUID } from '../skills/repository.js';
 import { listWorkflowTeamUUIDs } from '../workflows/repository.js';
 import { generateAssetCandidates, replayAssetCandidates } from './model.js';
-import {
-  getExperiencePatterns,
-  learnExperiencePatternsFromExecutions
-} from '../experience-patterns/service.js';
-import {
-  recordAssetCandidateRelease,
-  refreshAgentAssetEffects
-} from '../asset-effects/service.js';
 import {
   createAssetCandidate,
   createAssetOptimizationRun,
@@ -167,17 +160,6 @@ export async function createManualAssetOptimization(input: {
     );
   }
   if (aggregate.totalSamples === 0) throw new AssetOptimizationNoSamplesError();
-  const duplicateRun = (await listAssetOptimizationRuns(input.teamUUID)).find(
-    (run) =>
-      run.agentUUID === agent.uuid &&
-      run.agentVersion === agent.currentVersion &&
-      (run.status === 'generating' || run.status === 'ready')
-  );
-  if (duplicateRun) {
-    throw new AssetOptimizationConflictError(
-      'This Agent version already has an unfinished optimization run'
-    );
-  }
 
   const run = await createAssetOptimizationRun({
     teamUUID: input.teamUUID,
@@ -253,11 +235,8 @@ export async function applyAssetCandidate(input: {
     throw error;
   }
   let updated: AssetCandidateRecord;
-  let appliedContent: AssetCandidateContent | null = null;
-  let releasedAssetUUID: string | null = null;
   try {
     const content = await readAssetCandidateContent(claimed);
-    appliedContent = content;
     let appliedAssetUUID: string | null = null;
     let status: 'applied' | 'reviewed' = 'applied';
     if (content.type === 'prompt') {
@@ -283,7 +262,6 @@ export async function applyAssetCandidate(input: {
       },
       claimed.updatedAt
     );
-    releasedAssetUUID = appliedAssetUUID;
   } catch (error) {
     const conflict =
       error instanceof AssetCandidateRevisionConflictError
@@ -311,28 +289,6 @@ export async function applyAssetCandidate(input: {
       )
     }).catch(() => undefined);
     throw error;
-  }
-  if (appliedContent) {
-    await recordAssetCandidateRelease({
-      teamUUID: input.teamUUID,
-      candidateUUID: updated.uuid,
-      agentUUID: run.agentUUID,
-      assetType: appliedContent.type,
-      assetUUID: releasedAssetUUID,
-      baseVersion: run.agentVersion,
-      publishedVersion:
-        appliedContent.type === 'skill' ? updated.baseRevision + 1 : null,
-      baseline: run.metrics,
-      userUUID: input.userUUID
-    }).catch((error) => {
-      logger.warn(
-        '[asset-optimization] candidate applied but release tracking failed',
-        {
-          candidateUUID: updated.uuid,
-          error: error instanceof Error ? error.message : String(error)
-        }
-      );
-    });
   }
   await refreshRunCompletion(run).catch((error) => {
     logger.warn(
@@ -398,20 +354,9 @@ export async function runAutomaticAssetOptimizationScan(): Promise<void> {
     for (const teamUUID of teamUUIDs) {
       await markStaleRunsFailed(teamUUID);
       await markStaleCandidateApplications(teamUUID);
-      const agents = await listAgents(teamUUID);
-      await Promise.all(
-        agents.map((agent) =>
-          refreshAgentAssetEffects(agent.uuid, teamUUID).catch((error) => {
-            logger.warn('[asset-optimization] effect refresh failed', {
-              teamUUID,
-              agentUUID: agent.uuid,
-              error: error instanceof Error ? error.message : String(error)
-            });
-          })
-        )
-      );
       if (!(await isLoopRuntimeEnabled(teamUUID))) continue;
       if (!(await getAIModelConfigStatus(teamUUID)).configured) continue;
+      const agents = await listAgents(teamUUID);
       for (const summary of agents) {
         const agent = await findAgentByUUID(summary.uuid, teamUUID);
         if (!agent || agent.currentVersion === null) continue;
@@ -512,16 +457,6 @@ async function processRun(run: AssetOptimizationRunRecord): Promise<void> {
     if (records.length === 0) throw new AssetOptimizationNoSamplesError();
     const samples = records.map(toStoredSample);
     const metrics = buildMetrics(aggregate, samples);
-    await learnExperiencePatternsFromExecutions({
-      teamUUID: run.teamUUID,
-      agentUUID: run.agentUUID,
-      agentName: run.agentName,
-      records
-    });
-    const experiencePatterns = await getExperiencePatterns({
-      teamUUID: run.teamUUID,
-      agentUUID: run.agentUUID
-    });
     await writeAssetOptimizationSamples(run, samples);
     run = await updateAssetOptimizationRun(run, { metrics });
 
@@ -541,16 +476,6 @@ async function processRun(run: AssetOptimizationRunRecord): Promise<void> {
         description: source.description,
         spaceName: source.spaceName
       })),
-      experiencePatterns: experiencePatterns
-        .filter((pattern) => pattern.allowedForCandidateGeneration)
-        .slice(0, 20)
-        .map((pattern) => ({
-          type: pattern.type,
-          title: pattern.title,
-          repairStrategy: pattern.repairStrategy,
-          evidenceCount: pattern.evidenceCount,
-          confidence: pattern.confidence
-        })),
       samples: samples.slice(0, MAX_GENERATION_SAMPLES)
     });
 
@@ -558,7 +483,6 @@ async function processRun(run: AssetOptimizationRunRecord): Promise<void> {
       record: AssetCandidateRecord;
       content: AssetCandidateContent;
     }> = [];
-    const candidateFingerprints = await loadPriorCandidateFingerprints(run);
     for (const generatedCandidate of generated.candidates) {
       const prepared = await prepareGeneratedCandidate(
         generatedCandidate.content,
@@ -566,9 +490,6 @@ async function processRun(run: AssetOptimizationRunRecord): Promise<void> {
         run.teamUUID,
         run.agentVersion
       );
-      const fingerprint = buildCandidateFingerprint(prepared.content);
-      if (candidateFingerprints.has(fingerprint)) continue;
-      candidateFingerprints.add(fingerprint);
       const record = await createAssetCandidate({
         teamUUID: run.teamUUID,
         uuid: randomUUID(),
@@ -583,17 +504,6 @@ async function processRun(run: AssetOptimizationRunRecord): Promise<void> {
         createdBy: run.createdBy
       });
       candidates.push({ record, content: prepared.content });
-    }
-
-    if (candidates.length === 0) {
-      await writeAssetOptimizationReplay(run, {});
-      await updateAssetOptimizationRun(run, {
-        status: 'completed',
-        metrics,
-        completedAt: new Date(),
-        errorMessage: null
-      });
-      return;
     }
 
     const replaySamples = selectReplaySamples(samples);
@@ -634,36 +544,6 @@ async function processRun(run: AssetOptimizationRunRecord): Promise<void> {
     }).catch(() => undefined);
     throw error;
   }
-}
-
-function buildCandidateFingerprint(content: AssetCandidateContent): string {
-  return createHash('sha256').update(JSON.stringify(content)).digest('hex');
-}
-
-async function loadPriorCandidateFingerprints(
-  run: AssetOptimizationRunRecord
-): Promise<Set<string>> {
-  const priorRuns = (await listAssetOptimizationRuns(run.teamUUID)).filter(
-    (candidateRun) =>
-      candidateRun.uuid !== run.uuid &&
-      candidateRun.agentUUID === run.agentUUID &&
-      candidateRun.agentVersion === run.agentVersion
-  );
-  const records = (
-    await Promise.all(
-      priorRuns.map((candidateRun) =>
-        listAssetCandidatesByRun(candidateRun.uuid, run.teamUUID)
-      )
-    )
-  )
-    .flat()
-    .filter(
-      (candidate) => !['dismissed', 'conflict'].includes(candidate.status)
-    );
-  const contents = await Promise.all(
-    records.map((candidate) => readAssetCandidateContent(candidate))
-  );
-  return new Set(contents.map(buildCandidateFingerprint));
 }
 
 async function applyPromptCandidate(
@@ -852,7 +732,6 @@ function toStoredSample(record: IssueAgentExecutionHistoryRecord) {
     status: record.status,
     taskPromptExcerpt: record.prompt.slice(0, 3_000),
     executePayload: truncateJSON(record.executePayload, 6_000),
-    executeOption: compactReplayExecuteOption(record.executeOption),
     candidateOutput: (
       record.rawExecuteResult || JSON.stringify(record.executeResult)
     ).slice(0, 8_000),
@@ -871,20 +750,6 @@ function toStoredSample(record: IssueAgentExecutionHistoryRecord) {
   };
 }
 
-function compactReplayExecuteOption(value: unknown): unknown {
-  if (!isRecord(value) || !isRecord(value.wikiContext)) return null;
-  return {
-    wikiContext: {
-      inputPages: Array.isArray(value.wikiContext.inputPages)
-        ? value.wikiContext.inputPages
-        : [],
-      knowledgeSources: Array.isArray(value.wikiContext.knowledgeSources)
-        ? value.wikiContext.knowledgeSources
-        : []
-    }
-  };
-}
-
 export function selectReplaySamples<T extends { status: string }>(
   samples: T[]
 ): T[] {
@@ -900,8 +765,6 @@ function buildMetrics(
   return {
     totalSamples: aggregate.totalSamples,
     successCount: aggregate.successCount,
-    failureCount: aggregate.failureCount,
-    blockedCount: aggregate.blockedCount,
     problemCount:
       aggregate.failureCount + aggregate.blockedCount + aggregate.retryCount,
     retryCount: aggregate.retryCount,

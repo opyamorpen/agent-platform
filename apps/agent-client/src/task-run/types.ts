@@ -2,12 +2,7 @@ import type {
   AgentTokenUsage,
   AgentClientTaskAttachmentOutput,
   AgentClientTaskRuntimeEnvResponse,
-  AgentClientTaskAttachmentUploadResponse,
-  AgentClientPreviousWorkspacePatch,
-  AgentClientVerificationProfileResult,
-  AgentClientWorkspacePatchUpload,
-  AgentClientWorkspacePatchUploadResponse,
-  WorkspaceVerificationProfile
+  AgentClientTaskAttachmentUploadResponse
 } from '@ones-ai-workflow/shared';
 import type {
   ExecuteAgentType,
@@ -30,26 +25,18 @@ export interface TaskRunInput {
   model?: string;
   modelReasoningEffort?: ModelReasoningEffort;
   executeOption?: Record<string, unknown>;
-  verificationProfiles?: WorkspaceVerificationProfile[];
-  previousWorkspacePatch?: AgentClientPreviousWorkspacePatch | null;
 }
 
 export interface TaskRunCallback {
   onProgress: (info: { logs: string }) => void;
-  onError(
-    error: Error,
-    usage: AgentTokenUsage | null,
-    verificationResults?: AgentClientVerificationProfileResult[],
-    workspacePatch?: AgentClientWorkspacePatchUpload
-  ): void;
-  onFinish: (
+  onError(error: Error, usage: AgentTokenUsage | null): void;
+  onFinish(
     result: string,
     attachmentUploads?: AgentClientTaskAttachmentOutput[],
-    usage?: AgentTokenUsage | null,
-    verificationResults?: AgentClientVerificationProfileResult[],
-    workspacePatch?: AgentClientWorkspacePatchUpload
-  ) => void;
+    usage?: AgentTokenUsage | null
+  ): void;
 }
+
 export interface TaskRunDependencies {
   createAgentSession: (
     input: {
@@ -70,10 +57,7 @@ export interface TaskRunDependencies {
   ) => {
     execute(
       onProgress: (info: { logs: string }) => void
-    ): Promise<{
-      result: string;
-      usage: AgentTokenUsage | null;
-    }>;
+    ): Promise<{ result: string; usage: AgentTokenUsage | null }>;
     abort(): Promise<void> | void;
   };
   listWorkspaceRepoNames: (workspaceRoot: string) => Promise<string[]>;
@@ -85,13 +69,6 @@ export interface TaskRunDependencies {
     taskUUID: string,
     files: TaskRunAttachmentUploadFile[]
   ) => Promise<AgentClientTaskAttachmentUploadResponse>;
-  downloadPreviousWorkspacePatch: (
-    patch: AgentClientPreviousWorkspacePatch
-  ) => Promise<Uint8Array>;
-  uploadTaskWorkspacePatch: (
-    taskUUID: string,
-    bytes: Uint8Array
-  ) => Promise<AgentClientWorkspacePatchUploadResponse>;
 }
 
 export interface TaskRunAttachmentUploadFile {

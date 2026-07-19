@@ -12,7 +12,6 @@ import { createOnesOpenApiClient } from '../../ones/index.js';
 import type { IssueExecutionHistoryRecord } from './repository.js';
 import { isRevisionSummaryCommentText } from './revision-summary.js';
 import { isLoopLifecycleCommentText } from './loop-engineering.js';
-import { upsertExecutionFeedback } from './feedback-repository.js';
 
 const MAX_COMMENT_COUNT = 1000;
 const MAX_COMMENT_SCAN_BYTES = 1024 * 1024;
@@ -52,7 +51,6 @@ export interface RevisionRuntimeContext {
     previousExecutionUUID: string;
     historyExecutionUUIDs: string[];
     feedbackCommentCount: number;
-    feedbackUUIDs: string[];
     snapshotAt: string;
     currentOutputs: AppliedWriteSnapshot[];
     currentWikiPages: Array<{
@@ -122,31 +120,6 @@ export function isPluginLifecycleComment(
 
 function getLatestAgentExecution(execution: IssueExecutionHistoryRecord) {
   return execution.agentExecutions.at(-1) ?? null;
-}
-
-function getAppliedWriteSnapshots(
-  execution: IssueExecutionHistoryRecord
-): AppliedWriteSnapshot[] {
-  const executeResult = getLatestAgentExecution(execution)?.executeResult;
-  if (
-    !executeResult ||
-    typeof executeResult !== 'object' ||
-    Array.isArray(executeResult)
-  ) {
-    return [];
-  }
-  const values = (executeResult as { appliedWrites?: unknown }).appliedWrites;
-  if (!Array.isArray(values)) return [];
-  return values.filter((value): value is AppliedWriteSnapshot => {
-    if (!value || typeof value !== 'object' || Array.isArray(value))
-      return false;
-    const record = value as Partial<AppliedWriteSnapshot>;
-    return (
-      typeof record.fieldUUID === 'string' &&
-      typeof record.fieldName === 'string' &&
-      typeof record.valueType === 'string'
-    );
-  });
 }
 
 function extractRefUUIDs(value: unknown): string[] {
@@ -356,67 +329,12 @@ export async function buildRevisionRuntimeContext(input: {
   });
   const latestFeedback = feedbackByExecution.at(-1) ?? [];
   assertRevisionFeedbackPresent(latestFeedback);
-  const structuredFeedback = await Promise.all(
-    latestFeedback.map((comment) =>
-      upsertExecutionFeedback({
-        teamUUID: input.onesContext.teamUUID,
-        issueExecutionUUID: input.currentExecution.uuid,
-        loopTraceUUID: input.currentExecution.loopTraceUUID,
-        dispatchedIssueUUID: input.currentExecution.dispatchedIssueUUID,
-        iteration: input.currentExecution.iteration,
-        commentUUID: comment.id,
-        source: 'human_comment',
-        excerpt: comment.text,
-        content: comment.text
-      })
-    )
-  );
-
-  structuredFeedback.push(
-    await upsertExecutionFeedback({
-      teamUUID: input.onesContext.teamUUID,
-      issueExecutionUUID: input.currentExecution.uuid,
-      loopTraceUUID: input.currentExecution.loopTraceUUID,
-      dispatchedIssueUUID: input.currentExecution.dispatchedIssueUUID,
-      iteration: input.currentExecution.iteration,
-      commentUUID: null,
-      source: 'status_return',
-      excerpt: `工作项状态退回至触发状态“${input.currentExecution.triggerStatusName}”`,
-      content: `${input.currentExecution.previousExecutionUUID}:${input.currentExecution.triggerStatusUUID}`
-    })
-  );
 
   const currentOutputs = await loadAppliedWriteSnapshot(
     input.currentExecution.dispatchedIssueUUID,
     input.agentConfig.outputs,
     input.onesContext
   );
-  const previousExecution = successfulExecutions.at(-1);
-  const previousOutputs = previousExecution
-    ? getAppliedWriteSnapshots(previousExecution)
-    : [];
-  const previousOutputsByField = new Map(
-    previousOutputs.map((output) => [output.fieldUUID, output])
-  );
-  for (const output of currentOutputs) {
-    const previous = previousOutputsByField.get(output.fieldUUID);
-    if (!previous || stringify(previous.value) === stringify(output.value)) {
-      continue;
-    }
-    structuredFeedback.push(
-      await upsertExecutionFeedback({
-        teamUUID: input.onesContext.teamUUID,
-        issueExecutionUUID: input.currentExecution.uuid,
-        loopTraceUUID: input.currentExecution.loopTraceUUID,
-        dispatchedIssueUUID: input.currentExecution.dispatchedIssueUUID,
-        iteration: input.currentExecution.iteration,
-        commentUUID: null,
-        source: 'field_change',
-        excerpt: `人工修改了输出字段“${output.fieldName}”`,
-        content: `${output.fieldUUID}:${stringify(previous.value)}:${stringify(output.value)}`
-      })
-    );
-  }
   const wikiClient = await createOnesOpenApiClient(input.onesContext);
   const currentWikiPages = (
     await Promise.all(
@@ -482,7 +400,6 @@ export async function buildRevisionRuntimeContext(input: {
         (execution) => execution.uuid
       ),
       feedbackCommentCount: latestFeedback.length,
-      feedbackUUIDs: structuredFeedback.map((feedback) => feedback.uuid),
       snapshotAt: snapshotAt.toISOString(),
       currentOutputs,
       currentWikiPages

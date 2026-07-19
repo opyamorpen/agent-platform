@@ -18,7 +18,3 @@ export const dismissAssetCandidateSchema = z.object({
     .datetime()
     .transform((value) => new Date(value))
 });
-
-export const createShadowReplaySchema = z.object({
-  candidateUUID: z.string().trim().min(1).max(64)
-});

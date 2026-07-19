@@ -85,8 +85,6 @@ interface StoredRunEntity {
   replay_object_key: string;
   sample_count: number;
   success_count: number;
-  failure_count: number;
-  blocked_count: number;
   problem_count: number;
   retry_count: number;
   average_attempts: number;
@@ -183,8 +181,6 @@ function toRunRecord(value: StoredRunEntity): AssetOptimizationRunRecord {
     metrics: {
       totalSamples: value.sample_count,
       successCount: value.success_count,
-      failureCount: value.failure_count ?? 0,
-      blockedCount: value.blocked_count ?? 0,
       problemCount: value.problem_count,
       retryCount: value.retry_count,
       averageAttempts: value.average_attempts,
@@ -287,8 +283,6 @@ export async function createAssetOptimizationRun(input: {
     replay_object_key: getRunReplayObjectKey(input.teamUUID, input.uuid),
     sample_count: 0,
     success_count: 0,
-    failure_count: 0,
-    blocked_count: 0,
     problem_count: 0,
     retry_count: 0,
     average_attempts: 0,
@@ -324,8 +318,6 @@ export async function updateAssetOptimizationRun(
     status: patch.status ?? current.status,
     sample_count: metrics.totalSamples,
     success_count: metrics.successCount,
-    failure_count: metrics.failureCount,
-    blocked_count: metrics.blockedCount,
     problem_count: metrics.problemCount,
     retry_count: metrics.retryCount,
     average_attempts: metrics.averageAttempts,
@@ -468,12 +460,6 @@ export async function writeAssetOptimizationSamples(
   samples: unknown
 ): Promise<void> {
   await uploadObjectJson(record.sampleObjectKey, samples);
-}
-
-export async function readAssetOptimizationSamples<T = unknown>(
-  record: AssetOptimizationRunRecord
-): Promise<T[]> {
-  return (await readObjectJson<T[]>(record.sampleObjectKey)) ?? [];
 }
 
 export async function writeAssetOptimizationReplay(

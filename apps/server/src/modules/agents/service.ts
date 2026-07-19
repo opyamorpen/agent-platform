@@ -36,12 +36,10 @@ import { findAgentWorkspaceByUUID } from '../agent-workspaces/repository.js';
 import { listWorkspaceCredentialsByWorkspaceUUID } from '../agent-workspaces/credentials-repository.js';
 import { findSkillsByUUIDs } from '../skills/repository.js';
 import { findKnowledgeSourcesByUUIDs } from '../knowledge-sources/repository.js';
-import { findWorkspaceVerificationProfilesByUUIDs } from '../workspace-verification-profiles/repository.js';
 import { findAgentClientByUUID } from '../agent-clients/repository.js';
 import { getAIModelConfigStatus } from '../ai-model-config/service.js';
 import type { RefObject } from '@ones-ai-workflow/shared';
 import { buildAgentPrompt } from './prompt-render.js';
-import { finalizePendingAgentReleases } from '../asset-effects/service.js';
 
 export class AgentNotFoundError extends Error {
   constructor(uuid: string) {
@@ -89,13 +87,6 @@ export class AgentKnowledgeBindingNotFoundError extends Error {
   constructor(uuid: string) {
     super(`Knowledge source not found: ${uuid}`);
     this.name = 'AgentKnowledgeBindingNotFoundError';
-  }
-}
-
-export class AgentVerificationProfileBindingError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'AgentVerificationProfileBindingError';
   }
 }
 
@@ -307,11 +298,6 @@ export async function saveAgentDraft(
     payload.config.knowledgeSourceUUIDs,
     teamUUID
   );
-  await assertAgentVerificationProfilesExist(
-    payload.config.acceptancePolicy.verificationProfileUUIDs,
-    agent.workspaceUUID,
-    teamUUID
-  );
   const config = await resolveAgentExecutionTarget(
     payload.config,
     agent.workspaceUUID,
@@ -319,7 +305,11 @@ export async function saveAgentDraft(
     false
   );
 
-  const updatedAgent = await updateAgentDraftConfig(uuid, config, teamUUID);
+  const updatedAgent = await updateAgentDraftConfig(
+    uuid,
+    config,
+    teamUUID
+  );
 
   return {
     uuid: updatedAgent.uuid,
@@ -346,11 +336,6 @@ export async function publishAgentDraft(
 
   await assertAgentKnowledgeSourcesExist(
     draftConfig.knowledgeSourceUUIDs,
-    teamUUID
-  );
-  await assertAgentVerificationProfilesExist(
-    draftConfig.acceptancePolicy.verificationProfileUUIDs,
-    agent.workspaceUUID,
     teamUUID
   );
   const publishedConfig = await resolveAgentExecutionTarget(
@@ -380,12 +365,6 @@ export async function publishAgentDraft(
     publishedConfig.knowledgeSourceUUIDs,
     teamUUID
   );
-  await finalizePendingAgentReleases({
-    teamUUID,
-    agentUUID: uuid,
-    publishedVersion: nextVersion,
-    userUUID: payload.createdBy ?? 'system'
-  });
 
   return {
     uuid,
@@ -520,41 +499,6 @@ async function assertAgentKnowledgeSourcesExist(
   }
 }
 
-async function assertAgentVerificationProfilesExist(
-  verificationProfileUUIDs: string[],
-  workspaceUUID: string | null,
-  teamUUID: string
-): Promise<void> {
-  if (verificationProfileUUIDs.length === 0) {
-    return;
-  }
-  if (!workspaceUUID) {
-    throw new AgentVerificationProfileBindingError(
-      'Verification profiles require an Agent workspace'
-    );
-  }
-  const profiles = await findWorkspaceVerificationProfilesByUUIDs(
-    verificationProfileUUIDs,
-    teamUUID
-  );
-  const profileByUUID = new Map(
-    profiles.map((profile) => [profile.uuid, profile] as const)
-  );
-  for (const profileUUID of verificationProfileUUIDs) {
-    const profile = profileByUUID.get(profileUUID);
-    if (!profile) {
-      throw new AgentVerificationProfileBindingError(
-        `Verification profile not found: ${profileUUID}`
-      );
-    }
-    if (profile.workspaceUUID !== workspaceUUID) {
-      throw new AgentVerificationProfileBindingError(
-        `Verification profile does not belong to the Agent workspace: ${profile.name}`
-      );
-    }
-  }
-}
-
 async function resolveAgentExecutionTarget(
   config: AgentConfig,
   workspaceUUID: string | null,
@@ -565,11 +509,6 @@ async function resolveAgentExecutionTarget(
     if (workspaceUUID) {
       throw new AgentExecutionTargetBindingError(
         'Organization AI model execution cannot use an Agent workspace'
-      );
-    }
-    if (config.acceptancePolicy.verificationProfileUUIDs.length > 0) {
-      throw new AgentExecutionTargetBindingError(
-        'Organization AI model execution cannot use workspace verification profiles'
       );
     }
     if (requireConfiguredModel) {
@@ -597,7 +536,9 @@ async function resolveAgentExecutionTarget(
     };
   }
 
-  const client = await findAgentClientByUUID(config.executionTarget.clientUUID);
+  const client = await findAgentClientByUUID(
+    config.executionTarget.clientUUID
+  );
   if (!client || client.connectionStatus !== 'active') {
     throw new AgentExecutionTargetBindingError(
       `Agent Client is not active: ${config.executionTarget.clientUUID}`

@@ -198,7 +198,6 @@ export const enUS = {
       agentClients: 'Agent Clients',
       loopRuntimeConfig: 'Loop Engineering',
       assetOptimizations: 'Asset Optimization',
-      experiencePatterns: 'Organization Experience',
       workspaceVerificationProfiles: 'Workspace Verification',
       aiModelConfig: 'AI Model',
       members: 'Members'
@@ -216,8 +215,7 @@ export const enUS = {
       agentKnowledge: 'Agent Knowledge',
       loopRuntimeConfig: 'Loop Engineering',
       aiModelConfig: 'AI Model Configuration',
-      assetOptimizations: 'Asset Optimization',
-      experiencePatterns: 'Organization Experience'
+      assetOptimizations: 'Asset Optimization'
     },
     descriptions: {
       workflowExecution:
@@ -358,8 +356,7 @@ export const enUS = {
         refreshLogs: 'Refresh logs',
         downloadLogs: 'Download logs',
         viewVerification: 'Verification',
-        downloadPatch: 'Download Patch',
-        viewTrace: 'Loop details'
+        downloadPatch: 'Download Patch'
       },
       states: {
         logsRefreshing: 'Refreshing...',
@@ -388,23 +385,6 @@ export const enUS = {
         success: 'Success',
         failure: 'Failure',
         blocked: 'Blocked'
-      },
-      trace: {
-        title: 'Loop execution details',
-        loadFailed: 'Failed to load loop details',
-        iteration: 'Human revision iteration',
-        attempts: 'System attempts',
-        feedback: 'Structured feedback',
-        modelDuration: 'Model duration',
-        recoveredAt: 'Recovered at',
-        failureSignature: 'Failure signature',
-        verification: 'Code verification',
-        writeTargets: 'Applied writes',
-        evaluation: 'Validation, AI review, and budget',
-        cancel: 'Stop loop',
-        cancelReason: 'Administrator stopped the loop from execution details',
-        cancelFailed: 'Failed to stop the loop',
-        cancelSuccess: 'Loop stopped'
       },
       logsDialog: {
         titleWithAgent: '{{name}} logs',
@@ -625,8 +605,7 @@ export const enUS = {
         knowledgePlaceholder: 'Search or select up to 5 knowledge sources',
         knowledgeEmpty: 'No bindable knowledge sources',
         knowledgeHelp:
-          'Binding changes take effect after publication. Wiki content changes do not require republishing.',
-        experienceTitle: 'Organization experience for this Agent'
+          'Binding changes take effect after publication. Wiki content changes do not require republishing.'
       },
       fields: {
         pickerPlaceholder: 'Search or select a field',
@@ -1076,50 +1055,6 @@ export const enUS = {
         tokens: 'Token change',
         findings: 'Assessment findings'
       },
-      shadow: {
-        action: 'Real shadow replay',
-        running: 'Shadow running',
-        title: 'Real shadow replay',
-        failed: 'Shadow replay failed',
-        samples: 'Actual samples',
-        passed: 'Passed samples',
-        pass: 'Passed',
-        fail: 'Failed',
-        status: {
-          running: 'The organization model is executing without writes.',
-          completed: 'Shadow replay completed with actual model results.',
-          failed: 'Shadow replay failed.',
-          unsupported:
-            'This Agent or candidate is not supported by organization-model shadow replay.'
-        }
-      },
-      effect: {
-        action: 'View effect',
-        title: 'Post-release effect',
-        failed: 'Failed to load release effect',
-        noData: 'No comparable post-release data is available yet.',
-        awaitingPublication:
-          'The candidate is in the Agent draft. Observation starts after publication.',
-        samples: 'Post-release samples',
-        successRate: 'Success rate',
-        attempts: 'Average attempts',
-        blockedRate: 'Blocked rate',
-        revisionRate: 'Human revision rate',
-        knowledgeHitRate: 'Knowledge hit rate',
-        wikiWriteRate: 'Wiki write success',
-        acceptanceRate: 'Acceptance pass rate',
-        createRollback: 'Create rollback proposal',
-        rollbackCreated: 'Rollback proposal created without automatic rollback',
-        rollbackDraftReady:
-          'A rollback proposal is ready for administrator review. No automatic rollback was performed.',
-        rollbackFailed: 'Failed to create rollback proposal',
-        verdict: {
-          effective: 'Post-release performance improved.',
-          no_change: 'No material post-release change.',
-          negative: 'Negative impact detected. Review a rollback manually.',
-          insufficient_samples: 'Not enough samples for a conclusion.'
-        }
-      },
       applyDialog: {
         title: 'Process this candidate?',
         description:
@@ -1138,33 +1073,6 @@ export const enUS = {
       dismissDialog: {
         title: 'Dismiss this candidate?',
         description: 'The candidate remains in history but cannot be applied.'
-      }
-    },
-    experiencePatterns: {
-      title: 'Organization Experience',
-      description:
-        'Reusable failure patterns, review feedback, and repair strategies for recommendations and asset candidates.',
-      loadFailed: 'Failed to load organization experience',
-      agentPlaceholder: 'All Agents',
-      agentEmpty: 'No Agents available',
-      workflowPlaceholder: 'All workflows',
-      workflowEmpty: 'No workflows available',
-      empty: 'No reusable experience',
-      table: {
-        pattern: 'Problem pattern',
-        type: 'Type',
-        agent: 'Agent',
-        workflow: 'Workflow',
-        evidence: 'Evidence',
-        confidence: 'Confidence',
-        strategy: 'Repair strategy'
-      },
-      type: {
-        deterministic_error: 'Deterministic error',
-        acceptance_failure: 'Acceptance failure',
-        human_feedback: 'Human feedback',
-        knowledge_gap: 'Knowledge gap',
-        verification_failure: 'Verification failure'
       }
     },
     loopRuntimeConfig: {

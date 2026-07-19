@@ -160,7 +160,6 @@ export const zhCN = {
       agentClients: 'Agent Client',
       loopRuntimeConfig: '循环工程',
       assetOptimizations: '资产优化',
-      experiencePatterns: '组织经验库',
       workspaceVerificationProfiles: '工作区验证',
       aiModelConfig: 'AI 模型配置',
       members: '成员管理'
@@ -178,7 +177,6 @@ export const zhCN = {
       agentKnowledge: 'Agent 知识',
       loopRuntimeConfig: '循环工程',
       assetOptimizations: '资产优化',
-      experiencePatterns: '组织经验库',
       aiModelConfig: 'AI 模型配置'
     },
     descriptions: {
@@ -314,8 +312,7 @@ export const zhCN = {
         refreshLogs: '刷新日志',
         downloadLogs: '下载日志',
         viewVerification: '验证结果',
-        downloadPatch: '下载 Patch',
-        viewTrace: '循环详情'
+        downloadPatch: '下载 Patch'
       },
       states: {
         logsRefreshing: '刷新中...',
@@ -344,23 +341,6 @@ export const zhCN = {
         success: '成功',
         failure: '失败',
         blocked: '已阻断'
-      },
-      trace: {
-        title: '循环执行详情',
-        loadFailed: '循环详情加载失败',
-        iteration: '人工返工轮次',
-        attempts: '系统尝试数',
-        feedback: '结构化反馈',
-        modelDuration: '模型耗时',
-        recoveredAt: '恢复时间',
-        failureSignature: '失败签名',
-        verification: '代码验证',
-        writeTargets: '实际写入',
-        evaluation: '确定性校验、AI 评审与预算',
-        cancel: '停止循环',
-        cancelReason: '管理员从执行详情停止循环',
-        cancelFailed: '停止循环失败',
-        cancelSuccess: '循环已停止'
       },
       logsDialog: {
         titleWithAgent: '{{name}} 执行日志',
@@ -568,8 +548,7 @@ export const zhCN = {
         knowledgePlaceholder: '搜索或选择知识源，最多 5 个',
         knowledgeEmpty: '暂无可绑定知识源',
         knowledgeHelp:
-          '知识源绑定在重新发布后生效；Wiki 内容更新不需要重新发布。',
-        experienceTitle: '该 Agent 的组织经验'
+          '知识源绑定在重新发布后生效；Wiki 内容更新不需要重新发布。'
       },
       fields: {
         pickerPlaceholder: '搜索或者选择字段',
@@ -993,48 +972,6 @@ export const zhCN = {
         tokens: 'Token 变化',
         findings: '评估依据'
       },
-      shadow: {
-        action: '真实影子回放',
-        running: '影子执行中',
-        title: '真实影子回放',
-        failed: '影子回放失败',
-        samples: '实际样本',
-        passed: '通过样本',
-        pass: '通过',
-        fail: '未通过',
-        status: {
-          running: '组织默认模型正在无写入执行。',
-          completed: '影子回放已完成，以下为实际模型执行结果。',
-          failed: '影子回放执行失败。',
-          unsupported: '当前 Agent 或候选不支持组织模型影子回放。'
-        }
-      },
-      effect: {
-        action: '查看效果',
-        title: '候选发布后效果',
-        failed: '发布效果加载失败',
-        noData: '尚未形成可比较的发布后数据。',
-        awaitingPublication: '候选已进入 Agent 草稿，发布 Agent 后开始观察。',
-        samples: '发布后样本',
-        successRate: '成功率',
-        attempts: '平均尝试',
-        blockedRate: '阻断率',
-        revisionRate: '人工退回率',
-        knowledgeHitRate: '知识命中率',
-        wikiWriteRate: 'Wiki 写入成功率',
-        acceptanceRate: '验收标准通过率',
-        createRollback: '创建回滚建议',
-        rollbackCreated: '回滚建议草稿已创建，未执行自动回滚',
-        rollbackDraftReady:
-          '已生成回滚建议草稿，等待管理员人工确认，不会自动回滚。',
-        rollbackFailed: '创建回滚建议失败',
-        verdict: {
-          effective: '发布后效果提升。',
-          no_change: '发布后暂无明显变化。',
-          negative: '检测到负向影响，建议人工评估回滚。',
-          insufficient_samples: '样本不足，暂不做效果结论。'
-        }
-      },
       applyDialog: {
         title: '确认处理这个候选？',
         description: 'Prompt 将写入 Agent 草稿，不会自动发布 Agent。',
@@ -1048,33 +985,6 @@ export const zhCN = {
       dismissDialog: {
         title: '确认忽略这个候选？',
         description: '候选将保留在历史记录中，但不能再应用。'
-      }
-    },
-    experiencePatterns: {
-      title: '组织经验库',
-      description:
-        '沉淀执行失败、验收反馈和有效修复策略，仅用于提示词推荐和资产候选。',
-      loadFailed: '组织经验加载失败',
-      agentPlaceholder: '全部 Agent',
-      agentEmpty: '没有可选 Agent',
-      workflowPlaceholder: '全部工作流',
-      workflowEmpty: '没有可选工作流',
-      empty: '暂无可复用经验',
-      table: {
-        pattern: '问题模式',
-        type: '类型',
-        agent: 'Agent',
-        workflow: '工作流',
-        evidence: '证据数',
-        confidence: '置信度',
-        strategy: '修复策略'
-      },
-      type: {
-        deterministic_error: '确定性错误',
-        acceptance_failure: '验收失败',
-        human_feedback: '人工反馈',
-        knowledge_gap: '知识缺口',
-        verification_failure: '代码验证失败'
       }
     },
     loopRuntimeConfig: {

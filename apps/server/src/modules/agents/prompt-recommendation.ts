@@ -3,7 +3,6 @@ import type { AgentPromptRecommendationDTO } from './dto.js';
 import { streamAIChatCompletion } from '../ai-model/client.js';
 import { readCurrentSkillMarkdown } from '../skills/service.js';
 import { findKnowledgeSourcesByUUIDs } from '../knowledge-sources/repository.js';
-import { getExperiencePatterns } from '../experience-patterns/service.js';
 
 const MAX_SKILL_CONTEXT_BYTES = 256 * 1024;
 
@@ -26,16 +25,10 @@ export async function streamPromptRecommendation(input: {
       readCurrentSkillMarkdown(uuid, input.teamUUID)
     )
   );
-  const [knowledgeSources, experiencePatterns] = await Promise.all([
-    findKnowledgeSourcesByUUIDs(
-      input.payload.knowledgeSourceUUIDs,
-      input.teamUUID
-    ),
-    getExperiencePatterns({
-      teamUUID: input.teamUUID,
-      agentUUID: input.payload.agentUUID ?? null
-    })
-  ]);
+  const knowledgeSources = await findKnowledgeSourcesByUUIDs(
+    input.payload.knowledgeSourceUUIDs,
+    input.teamUUID
+  );
   const totalSkillBytes = skillDocuments.reduce(
     (total, skill) => total + Buffer.byteLength(skill.content, 'utf8'),
     0
@@ -65,17 +58,7 @@ export async function streamPromptRecommendation(input: {
       name: source.name,
       description: source.description,
       wikiSpaceName: source.spaceName
-    })),
-    organizationExperience: experiencePatterns
-      .filter((pattern) => pattern.allowedForPromptRecommendation)
-      .slice(0, 20)
-      .map((pattern) => ({
-        type: pattern.type,
-        problem: pattern.title,
-        repairStrategy: pattern.repairStrategy,
-        evidenceCount: pattern.evidenceCount,
-        confidence: pattern.confidence
-      }))
+    }))
   };
   const serializedContext = JSON.stringify(context, null, 2);
   const result = await streamAIChatCompletion({

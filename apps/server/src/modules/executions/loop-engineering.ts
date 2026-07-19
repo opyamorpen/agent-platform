@@ -69,36 +69,6 @@ export interface LoopFailureDetails {
   acceptanceFindings: string[];
 }
 
-export function buildLoopFailureSignature(
-  details: LoopFailureDetails
-): string | null {
-  const normalized = [
-    ...details.runtimeErrors.map(
-      (value) => `runtime:${normalizeCommentLine(value)}`
-    ),
-    ...details.deterministicErrors.map(
-      (value) => `deterministic:${normalizeCommentLine(value)}`
-    ),
-    ...details.acceptanceFindings.map(
-      (value) => `acceptance:${normalizeCommentLine(value)}`
-    )
-  ]
-    .filter((value) => !value.endsWith(':'))
-    .sort();
-  return normalized.length > 0
-    ? createHash('sha256').update(normalized.join('\n')).digest('hex')
-    : null;
-}
-
-export function hasRepeatedLoopFailure(input: {
-  currentSignature: string | null;
-  attempts: Array<{ failureSignature: string | null }>;
-}): boolean {
-  if (!input.currentSignature) return false;
-  const previous = input.attempts.at(-2)?.failureSignature ?? null;
-  return previous === input.currentSignature;
-}
-
 export function localizeLoopDeterministicError(value: string): string {
   const normalized = normalizeCommentLine(value);
   const missingRootBlock = normalized.match(/^Missing <([^>]+)> block$/u);

@@ -17,7 +17,6 @@ import { findIssueAgentExecutionHistoryTeamUUID } from './repository.js';
 const MAX_CONCURRENCY = 2;
 const MAX_SKILL_CONTEXT_BYTES = 256 * 1024;
 const REPORT_RETRY_COUNT = 3;
-const HEARTBEAT_INTERVAL_MS = 30_000;
 const logger = getLogger('organization-model-executor');
 const activeTaskUUIDs = new Set<string>();
 let isClaiming = false;
@@ -88,17 +87,13 @@ export async function buildOrganizationModelPrompt(
   ].join('\n');
 
   if (Buffer.byteLength(skillContext, 'utf8') > MAX_SKILL_CONTEXT_BYTES) {
-    throw new Error(
-      'Selected SKILL.md content exceeds the 256 KB runtime limit'
-    );
+    throw new Error('Selected SKILL.md content exceeds the 256 KB runtime limit');
   }
 
   return `${skillContext}\n\n${task.prompt}`;
 }
 
-async function executeOrganizationModelTask(
-  task: AgentClientTask
-): Promise<void> {
+async function executeOrganizationModelTask(task: AgentClientTask): Promise<void> {
   const teamUUID = await findIssueAgentExecutionHistoryTeamUUID(task.taskUUID);
   if (!teamUUID) {
     logger.error('[organization-model] task team not found', {
@@ -108,34 +103,11 @@ async function executeOrganizationModelTask(
   }
 
   const startedAt = new Date();
-  const runningLogs =
-    '[organization-model] organization AI model execution started';
+  const runningLogs = '[organization-model] organization AI model execution started';
   await reportWithRetry(
-    createReport(
-      task.taskUUID,
-      'running',
-      runningLogs,
-      '',
-      null,
-      startedAt,
-      null
-    ),
+    createReport(task.taskUUID, 'running', runningLogs, '', null, startedAt, null),
     false
   );
-  const heartbeat = setInterval(() => {
-    void reportWithRetry(
-      createReport(
-        task.taskUUID,
-        'running',
-        `${runningLogs}\n[organization-model] heartbeat`,
-        '',
-        null,
-        startedAt,
-        null
-      ),
-      false
-    );
-  }, HEARTBEAT_INTERVAL_MS);
 
   try {
     const prompt = await buildOrganizationModelPrompt(task, teamUUID);
@@ -156,8 +128,7 @@ async function executeOrganizationModelTask(
         result.content,
         result.usage,
         startedAt,
-        finishedAt,
-        result.durationMs
+        finishedAt
       ),
       true
     );
@@ -176,8 +147,6 @@ async function executeOrganizationModelTask(
       ),
       true
     );
-  } finally {
-    clearInterval(heartbeat);
   }
 }
 
@@ -188,15 +157,13 @@ function createReport(
   executeResult: string,
   usage: AgentTokenUsage | null,
   startedAt: Date,
-  finishedAt: Date | null,
-  modelDurationMs: number | null = null
+  finishedAt: Date | null
 ): AgentClientTaskReport {
   return {
     taskUUID,
     status,
     logs,
     executeResult,
-    ...(modelDurationMs === null ? {} : { modelDurationMs }),
     usage,
     startedAt: startedAt.toISOString(),
     finishedAt: finishedAt?.toISOString() ?? null

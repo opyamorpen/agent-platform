@@ -2,8 +2,7 @@ import type {
   AgentConfig,
   AgentInput,
   AgentOutputField,
-  AgentOutputSetValueField,
-  WorkspaceVerificationProfile
+  AgentOutputSetValueField
 } from '@ones-ai-workflow/shared';
 import { AGENT_PROMPT_TEMPLATE } from './prompt-template.generated.js';
 
@@ -536,22 +535,9 @@ function buildReadableEnvPolicyBlock(readableEnvKeys: string[]): string {
 }
 
 function buildAcceptancePolicyXml(
-  policy: AgentConfig['acceptancePolicy'] | undefined,
-  verificationProfiles: WorkspaceVerificationProfile[]
+  policy: AgentConfig['acceptancePolicy'] | undefined
 ): string {
   const criteria = policy?.criteria ?? [];
-  const verificationProfileByUUID = new Map(
-    verificationProfiles.map((profile) => [profile.uuid, profile] as const)
-  );
-  const renderedVerificationProfiles = (
-    policy?.verificationProfileUUIDs ?? []
-  ).map((uuid) =>
-    verificationProfileByUUID.get(uuid) ?? {
-      uuid,
-      name: uuid,
-      steps: []
-    }
-  );
 
   return [
     '<acceptance-policy>',
@@ -565,24 +551,6 @@ function buildAcceptancePolicyXml(
       '    </criterion>'
     ]),
     '  </criteria>',
-    '  <verification-profiles>',
-    ...renderedVerificationProfiles.flatMap((profile) => [
-      '    <verification-profile>',
-      `      <profile-uuid>${escapeXmlText(profile.uuid)}</profile-uuid>`,
-      `      <profile-name>${escapeXmlText(profile.name)}</profile-name>`,
-      '      <steps>',
-      ...profile.steps.flatMap((step) => [
-        '        <step>',
-        `          <step-name>${escapeXmlText(step.name)}</step-name>`,
-        `          <repository-uuid>${escapeXmlText(step.repositoryUUID)}</repository-uuid>`,
-        `          <working-directory>${escapeXmlText(step.workingDirectory || '.')}</working-directory>`,
-        `          <command>${wrapXmlCdata([step.executable, ...step.args].join(' '))}</command>`,
-        '        </step>'
-      ]),
-      '      </steps>',
-      '    </verification-profile>'
-    ]),
-    '  </verification-profiles>',
     '</acceptance-policy>'
   ].join('\n');
 }
@@ -599,7 +567,6 @@ export function buildAgentPrompt(
     revisionContextXml?: string;
     loopContextXml?: string;
     readableEnvKeys?: string[];
-    verificationProfiles?: WorkspaceVerificationProfile[];
   } = {}
 ): string {
   const revisionContextXml =
@@ -621,10 +588,7 @@ export function buildAgentPrompt(
         options.wikiInputsXml?.trim() || '<wiki-inputs />',
         options.knowledgeContextXml?.trim() || '<knowledge-context />',
         revisionContextXml,
-        buildAcceptancePolicyXml(
-          config.acceptancePolicy,
-          options.verificationProfiles ?? []
-        ),
+        buildAcceptancePolicyXml(config.acceptancePolicy),
         options.loopContextXml?.trim() ||
           '<loop-context><mode>initial</mode></loop-context>'
       ]

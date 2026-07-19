@@ -20,7 +20,6 @@ import {
   AgentNotFoundError,
   AgentSkillBindingNotFoundError,
   AgentWorkspaceBindingNotFoundError,
-  AgentVerificationProfileBindingError,
   createAgentRecord,
   duplicateAgentRecord,
   getAgentDraft,
@@ -273,13 +272,6 @@ export async function saveAgentDraftHandler(c: Context) {
       );
     }
 
-    if (error instanceof AgentVerificationProfileBindingError) {
-      return c.json(
-        failure(error.message, 'agents.verification_profile_binding_invalid'),
-        400
-      );
-    }
-
     if (error instanceof AgentExecutionTargetBindingError) {
       return c.json(
         failure(error.message, 'agents.execution_target_invalid'),
@@ -327,13 +319,6 @@ export async function publishAgentDraftHandler(c: Context) {
       return c.json(
         failure(error.message, 'agents.knowledge_binding_not_found'),
         404
-      );
-    }
-
-    if (error instanceof AgentVerificationProfileBindingError) {
-      return c.json(
-        failure(error.message, 'agents.verification_profile_binding_invalid'),
-        400
       );
     }
 

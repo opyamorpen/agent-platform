@@ -5,14 +5,12 @@ import {
   connectAgentClientHandler,
   downloadAgentClientSkillVersionHandler,
   getAgentClientTaskRuntimeEnvHandler,
-  downloadAgentClientPreviousWorkspacePatchHandler,
   getAgentClientSkillsManifestHandler,
   listAgentClientsHandler,
   listSelectableAgentClientsHandler,
   pollAgentClientConnectionHandler,
   reportAgentClientTasksHandler,
   uploadAgentClientTaskAttachmentsHandler,
-  uploadAgentClientTaskWorkspacePatchHandler,
   revokeAgentClientHandler
 } from './controller.js';
 
@@ -35,12 +33,4 @@ agentClientsRoutes.get('/tasks/:taskUUID/runtime-env', getAgentClientTaskRuntime
 agentClientsRoutes.post(
   '/tasks/:taskUUID/attachments',
   uploadAgentClientTaskAttachmentsHandler
-);
-agentClientsRoutes.post(
-  '/tasks/:taskUUID/workspace-patch',
-  uploadAgentClientTaskWorkspacePatchHandler
-);
-agentClientsRoutes.get(
-  '/tasks/:taskUUID/previous-patch',
-  downloadAgentClientPreviousWorkspacePatchHandler
 );

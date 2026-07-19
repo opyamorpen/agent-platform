@@ -15,11 +15,9 @@ import type {
   ApiError,
   ApiSuccess,
   OnesUserSummary,
-  ExperiencePattern,
   KnowledgeSource,
   SkillSummary,
-  WikiSpaceSummary,
-  WorkspaceVerificationProfile
+  WikiSpaceSummary
 } from '@ones-ai-workflow/shared';
 import { getApiErrorMessage, getErrorMessage } from '@/lib/api-error';
 import { Button } from '@/components/ui/button';
@@ -1527,12 +1525,6 @@ export function AgentDetailPage() {
   const [knowledgeSources, setKnowledgeSources] = useState<KnowledgeSource[]>(
     []
   );
-  const [experiencePatterns, setExperiencePatterns] = useState<
-    ExperiencePattern[]
-  >([]);
-  const [verificationProfiles, setVerificationProfiles] = useState<
-    WorkspaceVerificationProfile[]
-  >([]);
   const [isLoadingResources, setIsLoadingResources] = useState(true);
   const [resourceErrorMessage, setResourceErrorMessage] = useState<
     string | null
@@ -1668,7 +1660,6 @@ export function AgentDetailPage() {
 
   const buildPromptRecommendationPayload = useCallback(
     () => ({
-      agentUUID: uuid,
       name: agentName.trim(),
       description,
       skillUUIDs,
@@ -1684,8 +1675,7 @@ export function AgentDetailPage() {
       inputs,
       knowledgeSourceUUIDs,
       outputs,
-      skillUUIDs,
-      uuid
+      skillUUIDs
     ]
   );
 
@@ -1896,7 +1886,8 @@ export function AgentDetailPage() {
     ) {
       options.push({
         value: `agent_client:${executionTarget.clientUUID}`,
-        label: executionTarget.clientName ?? executionTarget.clientUUID,
+        label:
+          executionTarget.clientName ?? executionTarget.clientUUID,
         keywords: [executionTarget.clientUUID]
       });
     }
@@ -2010,15 +2001,14 @@ export function AgentDetailPage() {
           workspacesResponse,
           agentClientsResponse,
           skillsResponse,
-          knowledgeResponse,
-          verificationProfilesResponse
-        ] = await Promise.all([
-          fetch('/api/agent-workspaces'),
-          fetch('/api/agent-clients/options'),
-          fetch('/api/skills'),
-          fetch('/api/knowledge-sources'),
-          fetch('/api/workspace-verification-profiles')
-        ]);
+          knowledgeResponse
+        ] =
+          await Promise.all([
+            fetch('/api/agent-workspaces'),
+            fetch('/api/agent-clients/options'),
+            fetch('/api/skills'),
+            fetch('/api/knowledge-sources')
+          ]);
         const workspacesPayload =
           (await workspacesResponse.json()) as AgentResourcesResponse<
             AgentWorkspace[]
@@ -2035,11 +2025,6 @@ export function AgentDetailPage() {
           (await knowledgeResponse.json()) as AgentResourcesResponse<
             KnowledgeSource[]
           >;
-        const verificationProfilesPayload =
-          (await verificationProfilesResponse.json()) as AgentResourcesResponse<
-            WorkspaceVerificationProfile[]
-          >;
-
         if (!workspacesResponse.ok || !workspacesPayload.success) {
           throw new Error(
             workspacesPayload.success
@@ -2080,26 +2065,15 @@ export function AgentDetailPage() {
           );
         }
 
-        if (
-          !verificationProfilesResponse.ok ||
-          !verificationProfilesPayload.success
-        ) {
-          throw new Error(
-            t('pages.agentDetail.verificationProfilesLoadFailed')
-          );
-        }
-
         setWorkspaces(workspacesPayload.data);
         setAgentClients(agentClientsPayload.data);
         setSkills(skillsPayload.data);
         setKnowledgeSources(knowledgePayload.data);
-        setVerificationProfiles(verificationProfilesPayload.data);
       } catch (error) {
         setWorkspaces([]);
         setAgentClients([]);
         setSkills([]);
         setKnowledgeSources([]);
-        setVerificationProfiles([]);
         setResourceErrorMessage(
           getErrorMessage(error, t, 'pages.agentDetail.resourcesLoadFailed')
         );
@@ -2110,29 +2084,6 @@ export function AgentDetailPage() {
 
     void loadAgentResources();
   }, [t]);
-
-  useEffect(() => {
-    if (!uuid) {
-      setExperiencePatterns([]);
-      return;
-    }
-    let cancelled = false;
-    void fetch(`/api/experience-patterns?agentUUID=${encodeURIComponent(uuid)}`)
-      .then(async (response) => {
-        const payload = (await response.json()) as AgentResourcesResponse<
-          ExperiencePattern[]
-        >;
-        if (!cancelled && response.ok && payload.success) {
-          setExperiencePatterns(payload.data);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setExperiencePatterns([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [uuid]);
 
   useEffect(() => {
     async function loadDraft() {
@@ -2272,8 +2223,7 @@ export function AgentDetailPage() {
 
     if (
       executionTarget.mode === 'agent_client' &&
-      Boolean(executionTarget.clientUUID) !==
-        Boolean(executionTarget.clientName)
+      Boolean(executionTarget.clientUUID) !== Boolean(executionTarget.clientName)
     ) {
       return t('pages.agentDetail.validation.executionTargetRequired');
     }
@@ -3001,16 +2951,7 @@ export function AgentDetailPage() {
                           setWorkspaceUUID(nextWorkspaceUUID);
                           setAcceptancePolicy((current) => ({
                             ...current,
-                            verificationProfileUUIDs:
-                              current.verificationProfileUUIDs.filter(
-                                (profileUUID) =>
-                                  verificationProfiles.some(
-                                    (profile) =>
-                                      profile.uuid === profileUUID &&
-                                      profile.workspaceUUID ===
-                                        nextWorkspaceUUID
-                                  )
-                              )
+                            verificationProfileUUIDs: []
                           }));
                         }}
                         placeholder={
@@ -3102,29 +3043,6 @@ export function AgentDetailPage() {
                     </p>
                   </FieldContent>
                 </FormField>
-                {experiencePatterns.length > 0 ? (
-                  <section className="border-t pt-5 md:ml-30">
-                    <h3 className="text-sm font-medium">
-                      {t('pages.agentDetail.basic.experienceTitle')}
-                    </h3>
-                    <div className="mt-2 divide-y border-y">
-                      {experiencePatterns.slice(0, 5).map((pattern) => (
-                        <div key={pattern.uuid} className="py-3 text-sm">
-                          <div className="flex items-start justify-between gap-3">
-                            <span className="font-medium">{pattern.title}</span>
-                            <span className="shrink-0 text-xs text-muted-foreground">
-                              {pattern.evidenceCount} ·{' '}
-                              {Math.round(pattern.confidence * 100)}%
-                            </span>
-                          </div>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {pattern.repairStrategy}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                ) : null}
               </div>
 
               {resourceErrorMessage ? (
@@ -3247,49 +3165,6 @@ export function AgentDetailPage() {
                   }
                   disabled={isBusy || !isEditing}
                 />
-              </FieldContent>
-            </FormField>
-
-            <FormField
-              orientation="vertical"
-              className="gap-3 md:flex-row md:items-start md:gap-6"
-            >
-              <FieldLabel className="md:w-32 md:shrink-0 md:justify-end md:pt-2">
-                {t('pages.agentDetail.acceptance.verificationProfiles')}
-              </FieldLabel>
-              <FieldContent className="gap-2 md:w-[520px] md:flex-none">
-                <MultiSearchSelect
-                  options={verificationProfiles
-                    .filter(
-                      (profile) => profile.workspaceUUID === workspaceUUID
-                    )
-                    .map((profile) => ({
-                      value: profile.uuid,
-                      label: profile.name,
-                      keywords: [profile.workspaceName]
-                    }))}
-                  values={acceptancePolicy.verificationProfileUUIDs}
-                  onValuesChange={(values) =>
-                    setAcceptancePolicy((current) => ({
-                      ...current,
-                      verificationProfileUUIDs: values.slice(0, 20)
-                    }))
-                  }
-                  placeholder={t(
-                    'pages.agentDetail.acceptance.verificationProfilesPlaceholder'
-                  )}
-                  emptyText={t(
-                    'pages.agentDetail.acceptance.verificationProfilesEmpty'
-                  )}
-                  disabled={isBusy || !isEditing || !workspaceUUID}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {workspaceUUID
-                    ? t('pages.agentDetail.acceptance.verificationProfilesHelp')
-                    : t(
-                        'pages.agentDetail.acceptance.verificationProfilesWorkspaceRequired'
-                      )}
-                </p>
               </FieldContent>
             </FormField>
 

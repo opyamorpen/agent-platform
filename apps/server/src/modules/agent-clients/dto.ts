@@ -61,7 +61,6 @@ const taskReportSchema = z.object({
       deletions: z.number().int().min(0)
     })
     .optional(),
-  modelDurationMs: z.number().int().min(0).optional(),
   usage: z
     .object({
       inputTokens: z.number().finite().nullable(),
@@ -91,17 +90,13 @@ export const agentClientTaskReportSchema = z.object({
 export const agentClientTaskClaimSchema = z.object({
   availableSlots: z.number().int().min(0),
   capabilities: z
-    .array(z.enum(['workspace-verification-v1', 'workspace-patch-v1']))
+    .array(
+      z.enum(['workspace-verification-v1', 'workspace-patch-v1'])
+    )
     .default([])
 });
 
 export type AgentClientConnectDTO = z.infer<typeof agentClientConnectSchema>;
-export type AgentClientConnectPollDTO = z.infer<
-  typeof agentClientConnectPollSchema
->;
-export type AgentClientTaskReportDTO = z.infer<
-  typeof agentClientTaskReportSchema
->;
-export type AgentClientTaskClaimDTO = z.infer<
-  typeof agentClientTaskClaimSchema
->;
+export type AgentClientConnectPollDTO = z.infer<typeof agentClientConnectPollSchema>;
+export type AgentClientTaskReportDTO = z.infer<typeof agentClientTaskReportSchema>;
+export type AgentClientTaskClaimDTO = z.infer<typeof agentClientTaskClaimSchema>;

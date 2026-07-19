@@ -272,9 +272,7 @@ export class Scheduler {
       modelReasoningEffort: isCodexTask
         ? this.codexReasoningEffort
         : undefined,
-      executeOption: task.executeOption,
-      verificationProfiles: task.verificationProfiles,
-      previousWorkspacePatch: task.previousWorkspacePatch
+      executeOption: task.executeOption
     }, this.workspace, this.skill, {
       fetchTaskRuntimeEnv: async (taskUUID) =>
         this.taskServer.fetchTaskRuntimeEnv({
@@ -285,20 +283,6 @@ export class Scheduler {
           taskUUID,
           files
         }),
-      downloadPreviousWorkspacePatch: async (patch) => {
-        if (!this.taskServer.downloadPreviousWorkspacePatch) {
-          throw new Error('Agent Client does not support workspace patch download');
-        }
-        return this.taskServer.downloadPreviousWorkspacePatch({
-          downloadPath: patch.downloadPath
-        });
-      },
-      uploadTaskWorkspacePatch: async (taskUUID, bytes) => {
-        if (!this.taskServer.uploadTaskWorkspacePatch) {
-          throw new Error('Agent Client does not support workspace patch upload');
-        }
-        return this.taskServer.uploadTaskWorkspacePatch({ taskUUID, bytes });
-      }
     });
 
     this.taskStore.updateTaskStatus(task.taskUUID, 'running', startLog);
@@ -315,16 +299,14 @@ export class Scheduler {
         onProgress: ({ logs }) => {
           this.taskStore.updateTaskStatus(task.taskUUID, 'running', logs);
         },
-        onError: (error, usage, verificationResults, workspacePatch) => {
+        onError: (error, usage) => {
           this.taskStore.updateTaskStatus(
             task.taskUUID,
             'failure',
             error.message,
             undefined,
             undefined,
-            usage,
-            verificationResults,
-            workspacePatch
+            usage
           );
           logger.error('Task execution failed', {
             taskUUID: task.taskUUID,
@@ -334,9 +316,7 @@ export class Scheduler {
         onFinish: (
           result,
           attachmentUploads,
-          usage,
-          verificationResults,
-          workspacePatch
+          usage
         ) => {
           this.taskStore.updateTaskStatus(
             task.taskUUID,
@@ -344,9 +324,7 @@ export class Scheduler {
             undefined,
             result,
             attachmentUploads,
-            usage,
-            verificationResults,
-            workspacePatch
+            usage
           );
           logger.info('Task execution succeeded', {
             taskUUID: task.taskUUID,

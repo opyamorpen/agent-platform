@@ -10,6 +10,7 @@ import {
   selectReplaySamples,
   shouldCreateAutomaticAssetOptimization
 } from '../src/modules/asset-optimizations/service.js';
+import { resolveAssetOptimizationRunCompatibilityFields } from '../src/modules/asset-optimizations/repository.js';
 
 test('asset optimization automatic thresholds trigger at 20 successes or 5 problems', () => {
   assert.equal(shouldCreateAutomaticAssetOptimization(19, 4), false);
@@ -59,5 +60,22 @@ test('candidate mutation DTOs parse optimistic revision timestamps', () => {
   assert.equal(
     dismiss.expectedUpdatedAt.toISOString(),
     '2026-07-18T00:00:00.000Z'
+  );
+});
+
+test('asset optimization run writes required historical manifest fields', () => {
+  assert.deepEqual(resolveAssetOptimizationRunCompatibilityFields(), {
+    failure_count: 0,
+    blocked_count: 0
+  });
+  assert.deepEqual(
+    resolveAssetOptimizationRunCompatibilityFields({
+      failure_count: 3,
+      blocked_count: 2
+    }),
+    {
+      failure_count: 3,
+      blocked_count: 2
+    }
   );
 });

@@ -85,6 +85,9 @@ interface StoredRunEntity {
   replay_object_key: string;
   sample_count: number;
   success_count: number;
+  /** Historical manifest fields retained for Hosted Storage compatibility. */
+  failure_count: number;
+  blocked_count: number;
   problem_count: number;
   retry_count: number;
   average_attempts: number;
@@ -116,6 +119,18 @@ interface StoredCandidateEntity {
   applied_by: string;
   created_at: number;
   updated_at: number;
+}
+
+export function resolveAssetOptimizationRunCompatibilityFields(current?: {
+  failure_count?: unknown;
+  blocked_count?: unknown;
+}): Pick<StoredRunEntity, 'failure_count' | 'blocked_count'> {
+  return {
+    failure_count:
+      typeof current?.failure_count === 'number' ? current.failure_count : 0,
+    blocked_count:
+      typeof current?.blocked_count === 'number' ? current.blocked_count : 0
+  };
 }
 
 function normalizeKeySegment(value: string): string {
@@ -283,6 +298,7 @@ export async function createAssetOptimizationRun(input: {
     replay_object_key: getRunReplayObjectKey(input.teamUUID, input.uuid),
     sample_count: 0,
     success_count: 0,
+    ...resolveAssetOptimizationRunCompatibilityFields(),
     problem_count: 0,
     retry_count: 0,
     average_attempts: 0,
@@ -316,6 +332,7 @@ export async function updateAssetOptimizationRun(
   const next: StoredRunEntity = {
     ...current,
     status: patch.status ?? current.status,
+    ...resolveAssetOptimizationRunCompatibilityFields(current),
     sample_count: metrics.totalSamples,
     success_count: metrics.successCount,
     problem_count: metrics.problemCount,

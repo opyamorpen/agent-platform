@@ -956,6 +956,8 @@ export const jaJP = {
       description:
         '実行履歴からレビュー可能なドラフトを生成し、書き込みなしでリプレイ評価します。',
       loadFailed: 'アセット最適化レコードの読み込みに失敗しました',
+      emptyResponse: 'アセット最適化サービスから空の応答が返されました。もう一度お試しください。',
+      invalidResponse: 'アセット最適化サービスから無効な応答が返されました。もう一度お試しください。',
       agentsLoadFailed: 'Agent の読み込みに失敗しました',
       generateFailed: 'アセット最適化の作成に失敗しました',
       generateStarted: 'アセット最適化を開始しました',

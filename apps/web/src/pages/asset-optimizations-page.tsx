@@ -59,6 +59,22 @@ type CreateRunResponse = ApiSuccess<AssetOptimizationRunSummary> | ApiError;
 type RunResponse = ApiSuccess<AssetOptimizationRun> | ApiError;
 type CandidateResponse = ApiSuccess<AssetCandidate> | ApiError;
 
+async function parseAssetOptimizationResponse<T>(
+  response: Response,
+  t: (key: string) => string
+): Promise<T> {
+  const body = await response.text();
+  if (!body.trim()) {
+    throw new Error(t('pages.assetOptimizations.emptyResponse'));
+  }
+
+  try {
+    return JSON.parse(body) as T;
+  } catch {
+    throw new Error(t('pages.assetOptimizations.invalidResponse'));
+  }
+}
+
 function getRunStatusVariant(status: AssetOptimizationRunSummary['status']) {
   if (status === 'failed') return 'destructive' as const;
   if (status === 'ready') return 'default' as const;
@@ -120,7 +136,10 @@ export function AssetOptimizationsPage() {
         return;
       }
       const response = await fetch(`/api/asset-optimizations/runs/${uuid}`);
-      const payload = (await response.json()) as RunResponse;
+      const payload = await parseAssetOptimizationResponse<RunResponse>(
+        response,
+        t
+      );
       if (!response.ok || !payload.success) {
         throw new Error(
           payload.success
@@ -140,7 +159,10 @@ export function AssetOptimizationsPage() {
   const loadRuns = useCallback(
     async (preferredRunUUID?: string) => {
       const response = await fetch('/api/asset-optimizations/runs');
-      const payload = (await response.json()) as RunsResponse;
+      const payload = await parseAssetOptimizationResponse<RunsResponse>(
+        response,
+        t
+      );
       if (!response.ok || !payload.success) {
         throw new Error(
           payload.success
@@ -165,7 +187,11 @@ export function AssetOptimizationsPage() {
     setErrorMessage(null);
     try {
       const agentsResponse = await fetch('/api/agents');
-      const agentsPayload = (await agentsResponse.json()) as AgentsResponse;
+      const agentsPayload =
+        await parseAssetOptimizationResponse<AgentsResponse>(
+          agentsResponse,
+          t
+        );
       if (!agentsResponse.ok || !agentsPayload.success) {
         throw new Error(
           agentsPayload.success
@@ -217,7 +243,10 @@ export function AssetOptimizationsPage() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ agentUUID: selectedAgentUUID })
       });
-      const payload = (await response.json()) as CreateRunResponse;
+      const payload = await parseAssetOptimizationResponse<CreateRunResponse>(
+        response,
+        t
+      );
       if (!response.ok || !payload.success) {
         throw new Error(
           payload.success
@@ -263,7 +292,10 @@ export function AssetOptimizationsPage() {
           })
         }
       );
-      const payload = (await response.json()) as CandidateResponse;
+      const payload = await parseAssetOptimizationResponse<CandidateResponse>(
+        response,
+        t
+      );
       if (!response.ok || !payload.success) {
         throw new Error(
           payload.success

@@ -950,6 +950,8 @@ export const enUS = {
       description:
         'Generate reviewable drafts from execution samples and assess them with no-write replay.',
       loadFailed: 'Failed to load asset optimization runs',
+      emptyResponse: 'The asset optimization service returned an empty response. Please try again.',
+      invalidResponse: 'The asset optimization service returned an invalid response. Please try again.',
       agentsLoadFailed: 'Failed to load Agents',
       generateFailed: 'Failed to create asset optimization run',
       generateStarted: 'Asset optimization started',

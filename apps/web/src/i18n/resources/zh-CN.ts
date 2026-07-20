@@ -873,6 +873,8 @@ export const zhCN = {
       title: 'Agent 资产优化',
       description: '基于历史执行样本生成候选草稿，并进行无写入回放评估。',
       loadFailed: '资产优化记录加载失败',
+      emptyResponse: '资产优化接口返回空响应，请重试',
+      invalidResponse: '资产优化接口返回了无效数据，请重试',
       agentsLoadFailed: 'Agent 列表加载失败',
       generateFailed: '创建资产优化任务失败',
       generateStarted: '资产优化任务已开始',

@@ -2,7 +2,7 @@
   "app": {
     "id": "app_onesaiworkflow01",
     "name": "ones-ai-workflow",
-    "version": "v0.4.10",
+    "version": "v0.4.11",
     "desc": "ONES hosted AI workflow management app with external agent workers.",
     "auth": {
       "type": "jwt"

@@ -145,7 +145,8 @@ function shouldUseNativeAppTransport(input: RequestInfo | URL): boolean {
   return Boolean(
     isStreamingApiRequest(input) ||
     pathname?.startsWith('/api/ai-model-config') ||
-    pathname?.startsWith('/api/skill-generation-sessions')
+    pathname?.startsWith('/api/skill-generation-sessions') ||
+    pathname?.startsWith('/api/asset-optimizations')
   );
 }
 

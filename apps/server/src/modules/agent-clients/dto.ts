@@ -9,7 +9,8 @@ const connectClientSchema = z.object({
 
 const taskReportSchema = z.object({
   taskUUID: z.string().trim().min(1),
-  status: z.enum(['queued', 'running', 'success', 'failure']),
+  claimToken: z.string().trim().min(1).optional(),
+  status: z.enum(['queued', 'running', 'success', 'failure', 'blocked']),
   logs: z.string(),
   executeResult: z.string(),
   attachmentUploads: z
@@ -91,7 +92,12 @@ export const agentClientTaskClaimSchema = z.object({
   availableSlots: z.number().int().min(0),
   capabilities: z
     .array(
-      z.enum(['workspace-verification-v1', 'workspace-patch-v1'])
+      z.enum([
+        'workspace-verification-v1',
+        'workspace-patch-v1',
+        'task-lease-v1',
+        'skill-version-pinning-v1'
+      ])
     )
     .default([])
 });

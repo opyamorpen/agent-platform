@@ -1,4 +1,5 @@
 import type {
+  AgentClientCapability,
   AgentClientTask,
   AgentClientTaskAttachmentUploadResponse,
   AgentClientTaskRuntimeEnvResponse,
@@ -26,6 +27,7 @@ export interface TaskServerServiceDependencies {
     accessToken: string,
     request: {
       availableSlots: number;
+      capabilities?: AgentClientCapability[];
     }
   ) => Promise<{ tasks: AgentClientTask[] }>;
   reportTaskStatusToServer: (
@@ -118,7 +120,10 @@ export class TaskServerService implements TaskServer {
       this.dependencies.claimTasksFromServer(
         this.options.serverBaseUrl,
         accessToken,
-        { availableSlots: options.availableSlots }
+        {
+          availableSlots: options.availableSlots,
+          capabilities: ['task-lease-v1', 'skill-version-pinning-v1']
+        }
       )
     );
 
@@ -240,7 +245,14 @@ function logTaskReportFailure(
   error: unknown,
   tasks: AgentClientTaskReport[]
 ): void {
-  const requestBody = JSON.stringify({ reports: tasks });
+  const reports = tasks.map((task) => ({
+    taskUUID: task.taskUUID,
+    status: task.status,
+    hasClaimToken: Boolean(task.claimToken),
+    executeResultLength: task.executeResult.length,
+    logLength: task.logs.length,
+    attachmentGroupCount: task.attachmentUploads?.length ?? 0
+  }));
 
   if (error instanceof AgentClientApiError) {
     logger.warn('Agent client task report request failed', {
@@ -248,14 +260,13 @@ function logTaskReportFailure(
       url: error.url,
       statusCode: error.statusCode,
       error: error.message,
-      requestBody,
-      responseBody: error.responseBody ?? ''
+      reports
     });
     return;
   }
 
   logger.warn('Agent client task report request failed', {
     error: error instanceof Error ? error.message : String(error),
-    requestBody
+    reports
   });
 }

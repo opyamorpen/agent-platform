@@ -43,7 +43,18 @@ export type WorkflowNodeRecord = {
   postActions: WorkflowNodePostAction[];
   revisionContext: WorkflowNodeRevisionContext;
   loopPolicy: WorkflowNodeLoopPolicy;
+  configurationError: {
+    code: 'invalid_node_binding';
+    message: string;
+  } | null;
 };
+
+export class WorkflowNodeConfigurationTooLargeError extends Error {
+  constructor() {
+    super('Workflow node configuration exceeds the 1024-byte storage limit');
+    this.name = 'WorkflowNodeConfigurationTooLargeError';
+  }
+}
 
 interface StoredWorkflowEntity {
   team_uuid: string;
@@ -128,7 +139,8 @@ function serializeWorkflowNodeBinding(
     return serializeAgentUUID(agentUUID);
   }
 
-  return JSON.stringify({
+  const serialized = JSON.stringify({
+    v: 1,
     a: compactUUID(agentUUID),
     ...(transitionAction?.type === 'transition_issue_status'
       ? {
@@ -149,6 +161,32 @@ function serializeWorkflowNodeBinding(
         }
       : {})
   });
+  if (Buffer.byteLength(serialized, 'utf8') > 1024) {
+    throw new WorkflowNodeConfigurationTooLargeError();
+  }
+  return serialized;
+}
+
+export function getWorkflowNodeConfigurationError(value: string): WorkflowNodeRecord['configurationError'] {
+  if (!value || !value.trim().startsWith('{')) return null;
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    if (parsed.v !== undefined && parsed.v !== 1) {
+      return { code: 'invalid_node_binding', message: 'Unsupported workflow node configuration version' };
+    }
+    if (typeof parsed.a !== 'string' || !parsed.a.trim()) {
+      return { code: 'invalid_node_binding', message: 'Workflow node configuration is missing the Agent binding' };
+    }
+    if ((parsed.t === undefined) !== (parsed.n === undefined)) {
+      return { code: 'invalid_node_binding', message: 'Workflow node success transition is incomplete' };
+    }
+    if (parsed.l !== undefined && (typeof parsed.l !== 'object' || parsed.l === null || Array.isArray(parsed.l))) {
+      return { code: 'invalid_node_binding', message: 'Workflow node loop policy is invalid' };
+    }
+    return null;
+  } catch {
+    return { code: 'invalid_node_binding', message: 'Workflow node configuration is not valid JSON' };
+  }
 }
 
 function parseAgentUUIDText(value: string): string {
@@ -306,7 +344,8 @@ function toWorkflowNodeRecord(
     agentUUID: parseAgentUUIDText(entry.agent_uuids_text),
     postActions: parsePostActions(entry.agent_uuids_text),
     revisionContext: parseRevisionContext(entry.agent_uuids_text),
-    loopPolicy: parseLoopPolicy(entry.agent_uuids_text)
+    loopPolicy: parseLoopPolicy(entry.agent_uuids_text),
+    configurationError: getWorkflowNodeConfigurationError(entry.agent_uuids_text)
   };
 }
 

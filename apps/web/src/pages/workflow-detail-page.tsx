@@ -738,7 +738,16 @@ export function WorkflowDetailPage() {
                     <TableCell>{node.project.name}</TableCell>
                     <TableCell>{node.issueType.name}</TableCell>
                     <TableCell>{node.status.name}</TableCell>
-                    <TableCell className="pr-4">{node.agent.name}</TableCell>
+                    <TableCell className="pr-4">
+                      <div className="flex flex-col items-start gap-1">
+                        <span>{node.agent.name}</span>
+                        {node.configurationError ? (
+                          <Badge variant="destructive">
+                            {t('pages.workflowDetail.table.configurationError')}
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       {node.postActions[0]?.type ===
                       'transition_issue_status' ? (

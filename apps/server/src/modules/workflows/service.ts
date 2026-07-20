@@ -60,6 +60,13 @@ export class WorkflowNodeExecutorInvalidError extends Error {
   }
 }
 
+export class WorkflowConfigurationInvalidError extends Error {
+  constructor(uuid: string) {
+    super(`Workflow contains invalid node configuration: ${uuid}`);
+    this.name = 'WorkflowConfigurationInvalidError';
+  }
+}
+
 export function validateWorkflowNodeExecutorBindings(
   agents: Array<{
     uuid: string;
@@ -129,6 +136,13 @@ export async function updateWorkflow(
   workflow: UpdateWorkflowDTO,
   teamUUID: string
 ): Promise<WorkflowSummary> {
+  if (workflow.isActive === true) {
+    const nodes = await listWorkflowNodes(uuid, teamUUID);
+    if (nodes.some((node) => node.configurationError)) {
+      throw new WorkflowConfigurationInvalidError(uuid);
+    }
+  }
+
   const updatedWorkflow = await updateWorkflowRecord(uuid, workflow, teamUUID);
 
   if (!updatedWorkflow) {
@@ -268,7 +282,7 @@ function toWorkflowNode(
   const agentUUID = node.agentUUID;
   const agent = agentUUID ? agentMap.get(agentUUID) : null;
 
-  if (!agent) {
+  if (!agent && !node.configurationError) {
     throw new WorkflowNodeExecutorInvalidError(
       `Workflow node ${node.uuid} references missing agent: ${agentUUID}`
     );
@@ -288,10 +302,15 @@ function toWorkflowNode(
       uuid: node.statusUUID,
       name: node.statusName
     },
-    agent,
+    agent: agent ?? {
+      uuid: agentUUID,
+      name: agentUUID || 'Invalid Agent binding',
+      currentVersion: null
+    },
     postActions: node.postActions,
     revisionContext: node.revisionContext,
-    loopPolicy: node.loopPolicy
+    loopPolicy: node.loopPolicy,
+    configurationError: node.configurationError
   };
 }
 

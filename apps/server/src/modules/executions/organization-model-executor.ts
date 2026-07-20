@@ -60,7 +60,10 @@ export async function runOrganizationModelExecutionCycle(): Promise<void> {
     }
   } catch (error) {
     logger.error('[organization-model] task claim failed', {
-      error: error instanceof Error ? error.message : String(error)
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : error
     });
   } finally {
     isClaiming = false;
@@ -105,7 +108,7 @@ async function executeOrganizationModelTask(task: AgentClientTask): Promise<void
   const startedAt = new Date();
   const runningLogs = '[organization-model] organization AI model execution started';
   await reportWithRetry(
-    createReport(task.taskUUID, 'running', runningLogs, '', null, startedAt, null),
+    createReport(task.taskUUID, task.claimToken, 'running', runningLogs, '', null, startedAt, null),
     false
   );
 
@@ -123,6 +126,7 @@ async function executeOrganizationModelTask(task: AgentClientTask): Promise<void
     await reportWithRetry(
       createReport(
         task.taskUUID,
+        task.claimToken,
         'success',
         `${runningLogs}\n[organization-model] organization AI model execution completed`,
         result.content,
@@ -138,6 +142,7 @@ async function executeOrganizationModelTask(task: AgentClientTask): Promise<void
     await reportWithRetry(
       createReport(
         task.taskUUID,
+        task.claimToken,
         'blocked',
         `${runningLogs}\n[organization-model] execution blocked: ${message}`,
         '',
@@ -152,6 +157,7 @@ async function executeOrganizationModelTask(task: AgentClientTask): Promise<void
 
 function createReport(
   taskUUID: string,
+  claimToken: string | undefined,
   status: AgentClientTaskReport['status'],
   logs: string,
   executeResult: string,
@@ -161,6 +167,7 @@ function createReport(
 ): AgentClientTaskReport {
   return {
     taskUUID,
+    claimToken,
     status,
     logs,
     executeResult,

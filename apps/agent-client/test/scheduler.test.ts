@@ -338,7 +338,7 @@ test('Scheduler skips codex home selection when Codex API key is configured', as
   ]);
 });
 
-test('Scheduler discards only the rejected task when report returns non-retryable 4xx', async () => {
+test('Scheduler retains and blocks automatic retry after non-retryable terminal report rejection', async () => {
   const events: string[] = [];
   const scheduler = new Scheduler(
     createAuthStub(),
@@ -368,6 +368,9 @@ test('Scheduler discards only the rejected task when report returns non-retryabl
       },
       markTaskReported(taskUUID) {
         events.push(`reported:${taskUUID}`);
+      },
+      markTaskReportBlocked(taskUUID, error) {
+        events.push(`blocked:${taskUUID}:${error}`);
       }
     }),
     createTaskServerStub({
@@ -389,7 +392,7 @@ test('Scheduler discards only the rejected task when report returns non-retryabl
 
   assert.deepEqual(events, [
     'report:task-bad',
-    'remove:task-bad',
+    'blocked:task-bad:invalid task report',
     'report:task-good',
     'reported:task-good'
   ]);
@@ -488,6 +491,7 @@ function createTaskStoreStub(overrides?: Partial<TaskStore>): TaskStore {
       return [];
     },
     markTaskReported(_taskUUID: string) {},
+    markTaskReportBlocked(_taskUUID: string, _error: string) {},
     removeTasks(_taskUUIDs: string[]) {},
     deferTask() {
       return {

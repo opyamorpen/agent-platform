@@ -159,12 +159,12 @@ export class Scheduler {
             );
             continue;
           }
-          logger.warn('Discarding task after non-retryable report rejection', {
+          logger.error('Terminal task report requires manual intervention', {
             taskUUID: report.taskUUID,
             status: report.status,
             error: error.message
           });
-          this.taskStore.removeTasks([report.taskUUID]);
+          this.taskStore.markTaskReportBlocked(report.taskUUID, error.message);
           continue;
         }
 

@@ -401,12 +401,27 @@ export async function removeAgentWorkspaceCredentialRecord(
 
 export async function getAgentWorkspaceRuntimeEnv(
   agentWorkspaceUUID: string,
-  teamUUID: string
+  teamUUID: string,
+  allowedEnvNames?: readonly string[]
 ): Promise<Record<string, string>> {
-  const credentials = await listWorkspaceCredentialsByWorkspaceUUID(
+  const workspaceCredentials = await listWorkspaceCredentialsByWorkspaceUUID(
     agentWorkspaceUUID,
     teamUUID
   );
+  const credentials = allowedEnvNames
+    ? allowedEnvNames.map((envName) => {
+        const credential = workspaceCredentials.find(
+          (item) => item.envName === envName
+        );
+        if (!credential) {
+          throw new WorkspaceCredentialNotFoundError(
+            agentWorkspaceUUID,
+            envName
+          );
+        }
+        return credential;
+      })
+    : workspaceCredentials;
   const envEntries = await Promise.all(
     credentials.map(async (credential) => {
       const payload = await readObjectJson<EncryptedSecretPayload>(

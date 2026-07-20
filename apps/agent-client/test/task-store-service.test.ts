@@ -113,6 +113,9 @@ test('TaskStoreService derives reports from current task states', async () => {
     taskStore.getLatestReports().map((report) => report.taskUUID),
     ['task-1']
   );
+
+  taskStore.markTaskReportBlocked('task-1', 'conflicting terminal report');
+  assert.deepEqual(taskStore.getLatestReports(), []);
 });
 
 test('TaskStoreService reloads files and reschedules running tasks as queued', async () => {

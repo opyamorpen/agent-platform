@@ -92,6 +92,10 @@ export const jaJP = {
         '要求されたワークフロー ノードが見つかりませんでした。',
       'workflows.node_executor_invalid':
         'ワークフロー ノード上のエージェント バインドが無効です。',
+      'workflows.configuration_invalid':
+        'ワークフローに無効なノードがあります。有効化する前に編集して保存してください。',
+      'workflows.node_config_too_large':
+        'ワークフローノード設定が保存上限を超えています。名前を短くして再試行してください。',
       'workflows.deletion_blocked':
         'このワークフローにはまだ実行ノードが含まれています。ワークフローを削除する前に、これらのノードを削除してください。',
       'agents.invalid_payload': 'エージェント要求ペイロードが無効です。',
@@ -209,7 +213,6 @@ export const jaJP = {
       agentClients: 'エージェントクライアント',
       loopRuntimeConfig: 'ループエンジニアリング',
       assetOptimizations: 'アセット最適化',
-      workspaceVerificationProfiles: 'ワークスペース検証',
       aiModelConfig: 'AI モデル',
       members: 'メンバー'
     }
@@ -366,9 +369,7 @@ export const jaJP = {
         viewOutput: '出力を表示する',
         retry: 'リトライ',
         refreshLogs: 'ログを更新する',
-        downloadLogs: 'ログをダウンロードする',
-        viewVerification: '検証結果',
-        downloadPatch: 'Patch をダウンロード'
+        downloadLogs: 'ログをダウンロードする'
       },
       states: {
         logsRefreshing: '更新中...',
@@ -401,13 +402,6 @@ export const jaJP = {
       logsDialog: {
         titleWithAgent: '{{name}} ログ',
         titleFallback: '実行ログ'
-      },
-      verificationDialog: {
-        title: 'コード検証結果',
-        step: 'ステップ',
-        status: '結果',
-        duration: '所要時間',
-        output: '出力'
       },
       rawDialog: {
         titleInputWithAgent: '{{name}}入力',
@@ -519,7 +513,6 @@ export const jaJP = {
       agentClientsLoadFailed: 'Agent Client の読み込みに失敗しました',
       skillsLoadFailed: 'スキルのロードに失敗しました',
       knowledgeSourcesLoadFailed: 'ナレッジソースの読み込みに失敗しました',
-      verificationProfilesLoadFailed: 'コード検証設定の読み込みに失敗しました',
       wikiSpacesLoadFailed: 'Wiki ページグループの読み込みに失敗しました',
       executorSearchFailed: '実行者の検索に失敗しました',
       basicConfigSaveFailed: 'エージェントの基本設定を保存できませんでした',
@@ -671,15 +664,7 @@ export const jaJP = {
         knowledgeRequirement: 'ナレッジ根拠要件',
         knowledgeOptional: 'ナレッジ根拠は任意',
         knowledgeRequired: 'ナレッジ根拠が必須',
-        verificationProfiles: 'コード検証設定',
-        verificationProfilesPlaceholder: 'このワークスペースの検証設定を選択',
-        verificationProfilesEmpty: 'このワークスペースに検証設定はありません',
-        verificationProfilesHelp:
-          'Agent 実行後に選択した検証ステップを順番に実行し、すべて合格してから業務受入へ進みます。',
-        verificationProfilesWorkspaceRequired:
-          '先に基本情報でワークスペースを選択してください。',
-        empty:
-          '業務受入基準は未設定です。コード検証設定のみでも自動修正を有効にできます。',
+        empty: '業務受入基準は未設定です。',
         namePlaceholder: '受入基準 {{index}}',
         descriptionPlaceholder: '検証可能な合格条件と品質要件を説明してください'
       },
@@ -701,37 +686,6 @@ export const jaJP = {
         publishing: '公開中...',
         confirm: '公開の確認'
       }
-    },
-    verificationProfiles: {
-      title: 'ワークスペース検証',
-      description:
-        'コードワークスペースのテスト、型チェック、ビルドを設定します。実行ファイルと引数は Shell を使用せず実行されます。',
-      loadFailed: '検証設定の読み込みに失敗しました',
-      workspacesLoadFailed: 'ワークスペースの読み込みに失敗しました',
-      saveFailed: '検証設定の保存に失敗しました',
-      saveSuccess: '検証設定を保存しました',
-      deleteFailed: '検証設定の削除に失敗しました',
-      deleteSuccess: '検証設定を削除しました',
-      deleteConfirm: '検証設定「{{name}}」を削除しますか？',
-      validationRequired:
-        '名前、ワークスペース、少なくとも 1 つの検証ステップを入力してください。',
-      validationStepRequired:
-        '各ステップに名前、リポジトリ、実行ファイルが必要です。',
-      create: '検証設定を作成',
-      createTitle: 'ワークスペース検証設定を作成',
-      editTitle: 'ワークスペース検証設定を編集',
-      empty: 'ワークスペース検証設定はありません。',
-      name: '名前',
-      workspace: 'ワークスペース',
-      steps: '検証ステップ',
-      actions: '操作',
-      addStep: 'ステップを追加',
-      stepName: 'ステップ名',
-      repository: 'リポジトリ',
-      workingDirectory: 'リポジトリ内作業ディレクトリ',
-      executable: '実行ファイル',
-      args: '引数（1 行に 1 つ）',
-      timeout: 'タイムアウト（秒）'
     },
     members: {
       loadFailed: 'メンバーのロードに失敗しました',
@@ -1162,6 +1116,7 @@ export const jaJP = {
         postAction: '成功後のアクション',
         transitionTo: '「{{status}}」へ遷移',
         missingPostAction: '未設定（編集時に設定が必要）',
+        configurationError: 'ノード設定が無効です。編集して再保存してください',
         revisionContext: '再作業コンテキスト',
         revisionEnabled: '有効',
         revisionDisabled: '無効',

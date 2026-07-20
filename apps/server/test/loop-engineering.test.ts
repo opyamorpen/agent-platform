@@ -103,7 +103,7 @@ test('loop runtime requires all three gates', () => {
         }
       }
     }),
-    true
+    false
   );
 });
 

@@ -36,6 +36,12 @@ export interface WorkflowNode {
   postActions: WorkflowNodePostAction[];
   revisionContext: WorkflowNodeRevisionContext;
   loopPolicy: WorkflowNodeLoopPolicy;
+  configurationError?: WorkflowNodeConfigurationError | null;
+}
+
+export interface WorkflowNodeConfigurationError {
+  code: 'invalid_node_binding';
+  message: string;
 }
 
 export interface WorkflowNodeRevisionContext {
@@ -242,6 +248,7 @@ export interface AgentAcceptanceCriterion {
 export interface AgentAcceptancePolicy {
   criteria: AgentAcceptanceCriterion[];
   knowledgeRequirement: 'optional' | 'required';
+  /** @deprecated Retained only for stored configuration compatibility. */
   verificationProfileUUIDs: string[];
 }
 
@@ -583,11 +590,14 @@ export type AgentClientTaskStatus =
 
 export interface AgentClientTaskReport {
   taskUUID: string;
+  claimToken?: string;
   status: AgentClientTaskStatus;
   logs: string;
   executeResult: string;
   attachmentUploads?: AgentClientTaskAttachmentOutput[];
+  /** @deprecated Accepted only for old Agent Client compatibility. */
   verificationResults?: AgentClientVerificationProfileResult[];
+  /** @deprecated Accepted only for old Agent Client compatibility. */
   workspacePatch?: AgentClientWorkspacePatchUpload;
   usage: AgentTokenUsage | null;
   startedAt: string | null;
@@ -614,7 +624,9 @@ export interface AgentClientConnectRequestClient {
 
 export type AgentClientCapability =
   | 'workspace-verification-v1'
-  | 'workspace-patch-v1';
+  | 'workspace-patch-v1'
+  | 'task-lease-v1'
+  | 'skill-version-pinning-v1';
 
 export interface AgentClientConnectRequest {
   client: AgentClientConnectRequestClient;
@@ -745,12 +757,20 @@ export interface AgentClientTaskSourceWorkspace {
 
 export interface AgentClientTask {
   taskUUID: string;
+  claimToken?: string;
   agent: RefObject;
   sourceWorkspace: AgentClientTaskSourceWorkspace | null;
   skillUUIDs: string[];
+  skillRefs?: Array<{
+    uuid: string;
+    version: number;
+    downloadPath: string;
+  }>;
   executeOption: Record<string, unknown>;
   prompt: string;
+  /** @deprecated Retained only for old Agent Client compatibility. */
   verificationProfiles?: WorkspaceVerificationProfile[];
+  /** @deprecated Retained only for old Agent Client compatibility. */
   previousWorkspacePatch?: AgentClientPreviousWorkspacePatch | null;
 }
 

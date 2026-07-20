@@ -86,6 +86,10 @@ export const enUS = {
       'workflows.node_not_found': 'The requested workflow node was not found.',
       'workflows.node_executor_invalid':
         'The agent binding on the workflow node is invalid.',
+      'workflows.configuration_invalid':
+        'The workflow contains an invalid node. Edit and save it before enabling the workflow.',
+      'workflows.node_config_too_large':
+        'The workflow node configuration exceeds the storage limit. Shorten the names and try again.',
       'workflows.deletion_blocked':
         'This workflow still contains execution nodes. Delete those nodes before deleting the workflow.',
       'agents.invalid_payload': 'The agent request payload is invalid.',
@@ -198,7 +202,6 @@ export const enUS = {
       agentClients: 'Agent Clients',
       loopRuntimeConfig: 'Loop Engineering',
       assetOptimizations: 'Asset Optimization',
-      workspaceVerificationProfiles: 'Workspace Verification',
       aiModelConfig: 'AI Model',
       members: 'Members'
     }
@@ -354,9 +357,7 @@ export const enUS = {
         viewOutput: 'View output',
         retry: 'Retry',
         refreshLogs: 'Refresh logs',
-        downloadLogs: 'Download logs',
-        viewVerification: 'Verification',
-        downloadPatch: 'Download Patch'
+        downloadLogs: 'Download logs'
       },
       states: {
         logsRefreshing: 'Refreshing...',
@@ -389,13 +390,6 @@ export const enUS = {
       logsDialog: {
         titleWithAgent: '{{name}} logs',
         titleFallback: 'Execution logs'
-      },
-      verificationDialog: {
-        title: 'Code verification results',
-        step: 'Step',
-        status: 'Result',
-        duration: 'Duration',
-        output: 'Output'
       },
       rawDialog: {
         titleInputWithAgent: '{{name}} input',
@@ -507,8 +501,6 @@ export const enUS = {
       agentClientsLoadFailed: 'Failed to load Agent Clients',
       skillsLoadFailed: 'Failed to load skills',
       knowledgeSourcesLoadFailed: 'Failed to load knowledge sources',
-      verificationProfilesLoadFailed:
-        'Failed to load code verification profiles',
       wikiSpacesLoadFailed: 'Failed to load Wiki spaces',
       executorSearchFailed: 'Failed to search executors',
       basicConfigSaveFailed: 'Failed to save agent basic settings',
@@ -660,17 +652,7 @@ export const enUS = {
         knowledgeRequirement: 'Knowledge grounding requirement',
         knowledgeOptional: 'Knowledge grounding optional',
         knowledgeRequired: 'Knowledge grounding required',
-        verificationProfiles: 'Code verification profiles',
-        verificationProfilesPlaceholder:
-          'Select verification profiles for this workspace',
-        verificationProfilesEmpty:
-          'No verification profiles for this workspace',
-        verificationProfilesHelp:
-          'The selected steps run in order after Agent execution and must pass before business review.',
-        verificationProfilesWorkspaceRequired:
-          'Select a workspace in Basic Information first.',
-        empty:
-          'No business acceptance criteria configured. Code verification profiles can still enable automatic correction.',
+        empty: 'No business acceptance criteria configured.',
         namePlaceholder: 'Acceptance criterion {{index}}',
         descriptionPlaceholder:
           'Describe the verifiable pass condition and quality requirement'
@@ -693,37 +675,6 @@ export const enUS = {
         publishing: 'Publishing...',
         confirm: 'Confirm publish'
       }
-    },
-    verificationProfiles: {
-      title: 'Workspace Verification',
-      description:
-        'Configure deterministic tests, type checks, and builds for code workspaces. Executables and arguments run without a shell.',
-      loadFailed: 'Failed to load verification profiles',
-      workspacesLoadFailed: 'Failed to load workspaces',
-      saveFailed: 'Failed to save verification profile',
-      saveSuccess: 'Verification profile saved',
-      deleteFailed: 'Failed to delete verification profile',
-      deleteSuccess: 'Verification profile deleted',
-      deleteConfirm: 'Delete verification profile "{{name}}"?',
-      validationRequired:
-        'Enter a name, workspace, and at least one verification step.',
-      validationStepRequired:
-        'Every step requires a name, repository, and executable.',
-      create: 'New profile',
-      createTitle: 'New workspace verification profile',
-      editTitle: 'Edit workspace verification profile',
-      empty: 'No workspace verification profiles configured.',
-      name: 'Name',
-      workspace: 'Workspace',
-      steps: 'Verification steps',
-      actions: 'Actions',
-      addStep: 'Add step',
-      stepName: 'Step name',
-      repository: 'Repository',
-      workingDirectory: 'Working directory in repository',
-      executable: 'Executable',
-      args: 'Arguments (one per line)',
-      timeout: 'Timeout (seconds)'
     },
     members: {
       loadFailed: 'Failed to load members',
@@ -1161,6 +1112,7 @@ export const enUS = {
         postAction: 'Success post-action',
         transitionTo: 'Transition to "{{status}}"',
         missingPostAction: 'Not configured; required when editing',
+        configurationError: 'Invalid node configuration; edit and save again',
         revisionContext: 'Revision context',
         revisionEnabled: 'Enabled',
         revisionDisabled: 'Disabled',

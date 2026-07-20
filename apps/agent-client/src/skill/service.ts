@@ -60,7 +60,17 @@ export class SkillService implements Skill {
     const requiredSkills = getRequiredSkillManifestItems(
       requiredSkillUUIDs,
       manifest
-    );
+    ).map((skill) => {
+      const pinned = task.skillRefs?.find((item) => item.uuid === skill.uuid);
+      return pinned
+        ? { ...skill, version: pinned.version, downloadPath: pinned.downloadPath }
+        : skill;
+    });
+    const pinnedByUUID = new Map(requiredSkills.map((skill) => [skill.uuid, skill]));
+    const taskManifest = {
+      ...manifest,
+      skills: manifest.skills.map((skill) => pinnedByUUID.get(skill.uuid) ?? skill)
+    };
 
     await ensureRequiredSkillVersionsCached({
       serverBaseUrl: this.options.serverBaseUrl,
@@ -75,7 +85,7 @@ export class SkillService implements Skill {
     });
     await writeLocalSkillManifest(
       getSkillsManifestPath(this.options.skillsRoot),
-      manifest
+      taskManifest
     );
   }
 

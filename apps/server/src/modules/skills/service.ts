@@ -113,6 +113,7 @@ export async function getSkillManifest(teamUUID?: string): Promise<SkillManifest
 
 export async function createSkillRecord(payload: {
   files: UploadedSkillFile[];
+  uuid?: string;
 }, teamUUID: string): Promise<SkillSummary> {
   const files = sanitizeUploadedFiles(payload.files);
   const metadata = await extractSkillMetadata(files);
@@ -124,7 +125,7 @@ export async function createSkillRecord(payload: {
     throw new SkillConflictError(name);
   }
 
-  const skillUUID = randomUUID();
+  const skillUUID = payload.uuid ?? randomUUID();
   const version = 1;
   const storagePath = getVersionStoragePath(skillUUID, version);
   const archive = await createSkillArchive(files, buildArchiveBaseName(name, version));

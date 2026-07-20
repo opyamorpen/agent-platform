@@ -1191,8 +1191,23 @@ export async function updateIssueAgentExecutionHistory(
 
   await Promise.all(writes);
 
+  // Rebuild the entity from the fields owned by the current runtime. Historical
+  // manifest attributes may be returned as undefined; spreading them back makes
+  // Hosted Storage reject an otherwise valid partial update.
   const nextRecord: StoredIssueAgentExecutionHistoryEntity = {
-    ...record,
+    team_uuid: record.team_uuid,
+    uuid: record.uuid,
+    issue_execution_uuid: record.issue_execution_uuid,
+    agent_uuid: record.agent_uuid,
+    agent_name: record.agent_name,
+    agent_version: record.agent_version,
+    executor_uuid: record.executor_uuid,
+    executor_name: record.executor_name,
+    prompt_object_key: record.prompt_object_key,
+    execute_payload_object_key: record.execute_payload_object_key,
+    execute_option_object_key: record.execute_option_object_key,
+    execute_result_object_key: record.execute_result_object_key,
+    logs_object_key: record.logs_object_key,
     status: input.status,
     usage_input_tokens:
       input.usageInputTokens !== undefined
@@ -1220,6 +1235,7 @@ export async function updateIssueAgentExecutionHistory(
       input.finishedAt !== undefined
         ? toTimestamp(input.finishedAt)
         : record.finished_at,
+    created_at: record.created_at,
     updated_at: Date.now()
   };
 

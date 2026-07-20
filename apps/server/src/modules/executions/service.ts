@@ -23,6 +23,12 @@ import {
   type DispatchAgentRecord
 } from '../agents/repository.js';
 import {
+  findAgentWorkspaceByUUID,
+  listRepositoriesByAgentWorkspaceUUID
+} from '../agent-workspaces/repository.js';
+import { listWorkspaceCredentialsByWorkspaceUUID } from '../agent-workspaces/credentials-repository.js';
+import { findSkillsByUUIDs } from '../skills/repository.js';
+import {
   deleteDispatchedIssueByUUID,
   deleteIssueAgentExecutionHistoryByUUID,
   deleteIssueExecutionHistoryByUUID,
@@ -134,6 +140,15 @@ async function loadExecutableWorkflowNodes(
         );
       }
 
+      return [];
+    }
+
+    if (node.configurationError) {
+      logger.error('[workflow-execution] skip node because configuration is invalid', {
+        workflowUUID: node.workflowUUID,
+        workflowNodeUUID: node.uuid,
+        configurationError: node.configurationError
+      });
       return [];
     }
 
@@ -679,6 +694,11 @@ export async function retryIssueAgentExecutionHistory(
   }
 
   const retryUUID = randomUUID();
+  const previousOption =
+    agentExecution.executeOption && typeof agentExecution.executeOption === 'object' &&
+    !Array.isArray(agentExecution.executeOption)
+      ? (agentExecution.executeOption as Record<string, unknown>)
+      : {};
   await createIssueAgentExecutionHistories(
     [
       {
@@ -692,6 +712,9 @@ export async function retryIssueAgentExecutionHistory(
         prompt: '',
         executePayload: {},
         executeOption: toJsonObject({
+          ...(previousOption.runtimeSnapshot
+            ? { runtimeSnapshot: previousOption.runtimeSnapshot }
+            : {}),
           loopContext: {
             source: 'manual',
             attemptNumber: issueExecution.agentExecutions.length + 1,
@@ -862,6 +885,32 @@ async function initializeIssueExecution(
         ...successfulNodeExecutions.map((execution) => execution.iteration)
       ) + 1
     : 1;
+  const agentMetadata = await findAgentByUUID(agent.uuid, teamUUID);
+  const workspaceUUID = agentMetadata?.workspaceUUID ?? null;
+  const [repositories, credentials, skills] = await Promise.all([
+    workspaceUUID
+      ? listRepositoriesByAgentWorkspaceUUID(workspaceUUID, teamUUID)
+      : Promise.resolve([]),
+    workspaceUUID
+      ? listWorkspaceCredentialsByWorkspaceUUID(workspaceUUID, teamUUID)
+      : Promise.resolve([]),
+    findSkillsByUUIDs(agentMetadata?.skillUUIDs ?? [], teamUUID)
+  ]);
+  const runtimeSnapshot = {
+    version: 1,
+    agentVersion: agent.currentVersion,
+    workspaceUUID,
+    repositories: repositories.map((repository) => ({
+      uuid: repository.uuid,
+      url: repository.url
+    })),
+    skills: skills.map((skill) => ({
+      uuid: skill.uuid,
+      version: skill.currentVersion
+    })),
+    executor: agent.executor,
+    envNames: credentials.map((credential) => credential.envName)
+  };
 
   await createIssueExecutionHistory(
     {
@@ -896,7 +945,7 @@ async function initializeIssueExecution(
         executorName: (agent.executor as RefObject).name,
         prompt: agentVersion.config?.prompt ?? '',
         executePayload: toJsonObject({}),
-        executeOption: toJsonObject({}),
+        executeOption: toJsonObject({ runtimeSnapshot }),
         executeResult: toJsonObject({}),
         rawExecuteResult: '',
         status: 'created',

@@ -30,6 +30,8 @@ interface StoredTaskRecord {
   nextAttemptAt: string | null;
   homeRetryCount: number;
   reportedAt: string | null;
+  reportBlockedAt: string | null;
+  reportError: string | null;
 }
 
 export interface TaskStoreServiceOptions {
@@ -136,7 +138,9 @@ export class TaskStoreFileService implements TaskStoreContract {
         updatedAt: this.dependencies.now(),
         nextAttemptAt: null,
         homeRetryCount: 0,
-        reportedAt: null
+        reportedAt: null,
+        reportBlockedAt: null,
+        reportError: null
       };
 
       this.tasksById.set(task.taskUUID, record);
@@ -188,12 +192,14 @@ export class TaskStoreFileService implements TaskStoreContract {
 
       if (
         record.reportedAt === null &&
+        record.reportBlockedAt === null &&
         (record.status === 'running' ||
           record.status === 'success' ||
           record.status === 'failure')
       ) {
         reports.push({
           taskUUID: record.task.taskUUID,
+          claimToken: record.task.claimToken,
           status: record.status,
           logs: record.logs,
           executeResult: record.executeResult,
@@ -219,6 +225,25 @@ export class TaskStoreFileService implements TaskStoreContract {
     const nextRecord: StoredTaskRecord = {
       ...record,
       reportedAt: now,
+      updatedAt: now
+    };
+
+    this.tasksById.set(taskUUID, nextRecord);
+    void this.persistTaskRecord(nextRecord);
+  }
+
+  markTaskReportBlocked(taskUUID: string, error: string): void {
+    const record = this.tasksById.get(taskUUID);
+
+    if (!record) {
+      return;
+    }
+
+    const now = this.dependencies.now();
+    const nextRecord: StoredTaskRecord = {
+      ...record,
+      reportBlockedAt: now,
+      reportError: error,
       updatedAt: now
     };
 
@@ -260,7 +285,9 @@ export class TaskStoreFileService implements TaskStoreContract {
       nextAttemptAt,
       homeRetryCount: nextRetryCount,
       updatedAt: this.dependencies.now(),
-      reportedAt: null
+      reportedAt: null,
+      reportBlockedAt: null,
+      reportError: null
     };
 
     this.tasksById.set(taskUUID, nextRecord);
@@ -310,7 +337,9 @@ export class TaskStoreFileService implements TaskStoreContract {
       updatedAt: this.dependencies.now(),
       nextAttemptAt: status === 'running' ? null : record.nextAttemptAt,
       homeRetryCount: status === 'running' ? 0 : record.homeRetryCount,
-      reportedAt: null
+      reportedAt: null,
+      reportBlockedAt: null,
+      reportError: null
     };
 
     this.tasksById.set(taskUUID, nextRecord);
@@ -396,7 +425,10 @@ function toStoredTaskRecord(value: Partial<StoredTaskRecord>): StoredTaskRecord 
       typeof value.homeRetryCount === 'number' && value.homeRetryCount > 0
         ? value.homeRetryCount
         : 0,
-    reportedAt: typeof value.reportedAt === 'string' ? value.reportedAt : null
+    reportedAt: typeof value.reportedAt === 'string' ? value.reportedAt : null,
+    reportBlockedAt:
+      typeof value.reportBlockedAt === 'string' ? value.reportBlockedAt : null,
+    reportError: typeof value.reportError === 'string' ? value.reportError : null
   };
 }
 
@@ -438,6 +470,8 @@ function normalizeRecoveredTaskRecord(
     nextAttemptAt: null,
     homeRetryCount: 0,
     reportedAt: null,
+    reportBlockedAt: null,
+    reportError: null,
     updatedAt: now
   };
 }

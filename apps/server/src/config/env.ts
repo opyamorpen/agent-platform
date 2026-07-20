@@ -14,6 +14,11 @@ const envSchema = z.object({
   ONES_HOSTED_ENV_PATH: z.string().min(1).optional(),
   ONES_HOSTED_MODULES_ROOT: z.string().min(1).optional(),
   WORKFLOW_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(5000),
+  AGENT_TASK_STALE_AFTER_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(15 * 60 * 1000),
   LOG_LEVEL: z
     .enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'off'])
     .default('info')

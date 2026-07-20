@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type {
   SkillGenerationFile,
   SkillGenerationMessage,
@@ -17,7 +17,11 @@ import {
   streamAIChatCompletion,
   type AIChatMessage
 } from '../ai-model/client.js';
-import { createSkillRecord, getSkillSummaries } from '../skills/service.js';
+import {
+  createSkillRecord,
+  getSkillSummaries,
+  SkillConflictError
+} from '../skills/service.js';
 import type { SkillGenerationFileDTO } from './dto.js';
 import {
   createSkillGenerationSessionRecord,
@@ -32,6 +36,11 @@ import { validateGeneratedSkillFiles } from './validation.js';
 const MAX_MESSAGES = 50;
 const MAX_MODEL_OUTPUT_BYTES = 4 * 1024 * 1024;
 const activeSessions = new Set<string>();
+
+function deterministicUUID(seed: string): string {
+  const hex = createHash('sha256').update(seed).digest('hex').slice(0, 32);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20)}`;
+}
 
 interface SkillGenerationDraftObject {
   schemaVersion: 1;
@@ -288,6 +297,9 @@ export async function generateSkillDraft(input: {
       }
 
       const validated = validateGeneratedSkillFiles(generated.files);
+      const latestRecord = await getOwnedRecord(input);
+      assertRevision(latestRecord, record.revision);
+      record = latestRecord;
       draft.files = validated.files;
       if (draft.messages.length < MAX_MESSAGES) {
         draft.messages.push({
@@ -306,6 +318,9 @@ export async function generateSkillDraft(input: {
       });
       return toSession(record, draft);
     } catch (error) {
+      if (error instanceof SkillGenerationRevisionConflictError) {
+        throw error;
+      }
       await updateSkillGenerationSessionRecord(record, {
         status: 'failed'
       }).catch(() => undefined);
@@ -338,17 +353,31 @@ export async function publishGeneratedSkill(input: {
       throw new SkillGenerationScriptReviewRequiredError();
     }
 
-    const created = await createSkillRecord(
-      {
-        files: validated.files.map((file) => ({
-          relativePath: file.path,
-          file: new File([file.content], file.path, {
-            type: 'text/plain;charset=utf-8'
-          })
-        }))
-      },
-      input.teamUUID
+    const skillUUID = deterministicUUID(
+      `skill-generation:${input.teamUUID}:${input.uuid}`
     );
+    let created: SkillSummary;
+    try {
+      created = await createSkillRecord(
+        {
+          uuid: skillUUID,
+          files: validated.files.map((file) => ({
+            relativePath: file.path,
+            file: new File([file.content], file.path, {
+              type: 'text/plain;charset=utf-8'
+            })
+          }))
+        },
+        input.teamUUID
+      );
+    } catch (error) {
+      if (!(error instanceof SkillConflictError)) throw error;
+      const existing = (await getSkillSummaries(input.teamUUID)).find(
+        (skill) => skill.uuid === skillUUID
+      );
+      if (!existing) throw error;
+      created = existing;
+    }
     record = await updateSkillGenerationSessionRecord(record, {
       status: 'published',
       publishedSkillUUID: created.uuid

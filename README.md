@@ -1,10 +1,12 @@
 # ones-ai-workflow
 
-基于 `pnpm workspace` 的前后端脚手架，包含：
+ONES Hosted App，用于将可配置 Agent 嵌入工作项状态流转，并通过组织默认模型或外部 Agent Client 执行任务。
+
+项目采用 `pnpm workspace`，包含：
 
 - `apps/web`：React + Vite + TypeScript
-- `apps/server`：Node.js + Hono + Prisma
-- `apps/agent-client`：基于 `codex exec` 的轮询执行端
+- `apps/server`：Node.js + Hono Hosted App Server
+- `apps/agent-client`：Codex、Claude 和 Hermes 轮询执行端
 - `packages/shared`：前后端共享类型
 
 ## 快速开始
@@ -12,29 +14,33 @@
 ```bash
 pnpm install
 cp .env.example .env
-docker compose up -d
-pnpm db:generate
 pnpm dev
 ```
 
-## 当前状态
+## 当前能力
 
-- 已搭好前后端基础目录、路由、页面骨架和接口契约
-- 未接入真实 ONES API
-- 已有一个最小 `agent-client` 骨架：轮询 `exchange`、按并发执行 `codex exec`、回报任务状态
-- 前端预留了 `ones-design` 接入边界，待确认实际包名后可直接替换
+- Workflow 按项目、工作项类型和触发状态轮询工作项，并在成功后确定性流转状态
+- Agent 支持输入输出字段、Wiki 读写、知识源、Skill、验收标准和返工上下文
+- 支持 Server 组织默认模型，以及指定 Codex、Claude 或 Hermes Agent Client
+- Agent Client 支持多仓 Workspace、凭据注入、Skill 挂载、附件和执行日志
+- 支持自动修正循环、预算控制、AI 评审、返工摘要和人工接管
+- 支持 AI 创建 Skill、Prompt 推荐和基于历史样本的资产优化候选
+
+Workspace Verification 和代码 Patch 已从运行时移除；Manifest 中相关 Entity 仅为历史升级兼容，不代表功能可用。
 
 ## Agent Client
 
-`apps/agent-client` 是当前的最小执行端实现。它不再维护本地 worker / handler 抽象，而是直接消费 server 下发的最终 prompt，并用 `codex exec` 执行。
+`apps/agent-client` 消费 Server 下发的最终 Prompt，并按配置调用 Codex、Claude 或 Hermes。
 
 核心行为：
 
 - 周期性调用 `POST /api/agent-clients/exchange`
 - 按 `availableSlots` 从 server 拉取任务
-- 以可配置并发执行多个 `codex exec`
+- 以可配置并发执行多个 Agent 任务
 - 将 `running / success / failure` 报告回 server
-- 使用 `CODEX_HOME_PROFILES` 为并发任务分配独立登录态，并用锁文件避免复用
+- 保留未确认的终态报告并自动补报，避免网络故障造成任务结果丢失
+- 使用任务领取令牌拒绝过期 Client 报告
+- 固定任务创建时的 Workspace、仓库和 Skill 绑定
 
 常用环境变量：
 
@@ -68,7 +74,7 @@ pnpm dev:server
 pnpm dev:agent-client
 ```
 
-容器化部署可参考 [apps/agent-client/README.deploy.md](/Users/liwei/code/ones-ai-workflow/apps/agent-client/README.deploy.md:1) 里的 Docker 方案。仓库已提供：
+容器化部署参见 `apps/agent-client/README.deploy.md`。运行故障排查参见 `docs/runtime-troubleshooting.md`。
 
 - `Dockerfile.agent-client`
 - `docker-compose.agent-client.yml`

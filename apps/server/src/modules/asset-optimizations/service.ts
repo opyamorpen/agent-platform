@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type {
   AgentConfig,
   AssetCandidate,
@@ -66,6 +66,11 @@ const logger = getLogger('asset-optimizations');
 const activeRunUUIDs = new Set<string>();
 let automaticScanRunning = false;
 let automaticScanTimer: NodeJS.Timeout | null = null;
+
+function deterministicUUID(seed: string): string {
+  const hex = createHash('sha256').update(seed).digest('hex').slice(0, 32);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20)}`;
+}
 
 export class AssetOptimizationNotFoundError extends Error {
   constructor(message = 'Asset optimization record was not found') {
@@ -388,7 +393,7 @@ export async function runAutomaticAssetOptimizationScan(): Promise<void> {
         }
         const run = await createAssetOptimizationRun({
           teamUUID,
-          uuid: randomUUID(),
+          uuid: deterministicUUID(`asset-run:${teamUUID}:${signature}`),
           agentUUID: agent.uuid,
           agentName: agent.name,
           agentVersion: agent.currentVersion,
@@ -492,7 +497,7 @@ async function processRun(run: AssetOptimizationRunRecord): Promise<void> {
       );
       const record = await createAssetCandidate({
         teamUUID: run.teamUUID,
-        uuid: randomUUID(),
+        uuid: deterministicUUID(`asset-candidate:${run.uuid}:${generatedCandidate.type}`),
         runUUID: run.uuid,
         type: generatedCandidate.type,
         title: generatedCandidate.title,

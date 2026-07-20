@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { env } from '../../config/env.js';
 import {
   parseAgentOutputString,
   parseAgentRevisionSummary
@@ -14,6 +15,7 @@ import type {
   AgentClientConnectPollResponse,
   AgentClientConnectRequest,
   AgentClientConnectResponse,
+  AgentClientCapability,
   AgentClientTask,
   AgentClientTaskReport,
   IssueExecutionStatus,
@@ -64,6 +66,13 @@ import {
   type LoopFailureDetails,
   type LoopReviewResult
 } from '../executions/loop-engineering.js';
+import {
+  beginWriteback,
+  completeWriteback,
+  hashTaskReport,
+  readWritebackJournal,
+  TaskReportConflictError
+} from './writeback-journal.js';
 import {
   listAllWorkflowNodes,
   listWorkflowTeamUUIDs,
@@ -307,6 +316,7 @@ type AgentClientTaskReportResponse = {
 };
 type AgentClientTaskClaimRequest = {
   availableSlots: number;
+  capabilities: AgentClientCapability[];
 };
 type AgentClientTaskClaimResponse = {
   tasks: AgentClientTask[];
@@ -443,6 +453,13 @@ export class InvalidAgentClientTaskReportError extends Error {
   constructor(taskUUID: string) {
     super(`Invalid agent client task report: ${taskUUID}`);
     this.name = 'InvalidAgentClientTaskReportError';
+  }
+}
+
+export class StaleAgentClientTaskClaimError extends Error {
+  constructor(taskUUID: string) {
+    super(`Task claim is stale: ${taskUUID}`);
+    this.name = 'StaleAgentClientTaskClaimError';
   }
 }
 
@@ -3156,6 +3173,16 @@ async function prepareTaskReport(
     throw new InvalidAgentClientTaskReportError(report.taskUUID);
   }
 
+  const taskClaimToken =
+    task.executeOption && typeof task.executeOption === 'object' &&
+    !Array.isArray(task.executeOption) &&
+    typeof (task.executeOption as Record<string, unknown>).claimToken === 'string'
+      ? String((task.executeOption as Record<string, unknown>).claimToken)
+      : null;
+  if (taskClaimToken && report.claimToken !== taskClaimToken) {
+    throw new StaleAgentClientTaskClaimError(report.taskUUID);
+  }
+
   let status = report.status;
   let logs = report.logs;
   let executeResult: ParsedTaskExecuteResult = {
@@ -3333,16 +3360,33 @@ async function writeTaskOutputsToIssue(
 
 async function writeTaskCommentsToIssue(
   issueComments: ScopedIssueComment[],
+  queuedAt: Date | null,
   onesContext: OnesOpenApiContext
 ): Promise<void> {
   if (issueComments.length === 0) {
     return;
   }
 
+  const commentsByIssueUUID = new Map<string, OnesOpenApiIssueComment[]>();
+  const sentCommentKeys = new Set<string>();
   for (const issueComment of issueComments) {
     const text = issueComment.text.trim();
+    const commentKey = `${issueComment.issueUUID}:${text}`;
 
-    if (!text) {
+    if (!text || sentCommentKeys.has(commentKey)) {
+      continue;
+    }
+
+    let existingComments = commentsByIssueUUID.get(issueComment.issueUUID);
+    if (!existingComments) {
+      existingComments = await listIssueComments(
+        issueComment.issueUUID,
+        onesContext,
+        TASK_STARTED_COMMENT_FETCH_LIMIT
+      );
+      commentsByIssueUUID.set(issueComment.issueUUID, existingComments);
+    }
+    if (hasTaskCommentSinceQueuedAt(existingComments, text, queuedAt)) {
       continue;
     }
 
@@ -3353,6 +3397,7 @@ async function writeTaskCommentsToIssue(
       },
       onesContext
     );
+    sentCommentKeys.add(commentKey);
   }
 }
 
@@ -4237,14 +4282,6 @@ async function evaluateLoopGate(input: {
     }
   } else if (input.report.status !== 'success') {
     deterministicValidation.passed = false;
-    if (
-      /previous workspace patch|workspace verification or patch failed/iu.test(
-        input.report.logs
-      )
-    ) {
-      forceEscalation = true;
-      deterministicValidation.requiresEscalation = true;
-    }
     runtimeErrors.push(
       input.report.status === 'blocked'
         ? 'Agent Client 报告任务已阻断，未进入验收标准评审'
@@ -4463,6 +4500,15 @@ async function persistLoopGateResult(input: {
             prompt: '',
             executePayload: {},
             executeOption: toJsonObject({
+              ...(input.task.executeOption &&
+              typeof input.task.executeOption === 'object' &&
+              !Array.isArray(input.task.executeOption) &&
+              (input.task.executeOption as Record<string, unknown>).runtimeSnapshot
+                ? {
+                    runtimeSnapshot: (input.task.executeOption as Record<string, unknown>)
+                      .runtimeSnapshot
+                  }
+                : {}),
               loopContext: {
                 source: 'automatic',
                 attemptNumber: input.evaluation.budget.attemptNumber + 1,
@@ -4682,6 +4728,8 @@ async function applyTaskReport(
   }
 
   if (finalStatus === 'success') {
+    const writeback = await beginWriteback(teamUUID, report, exchangeAt);
+    if (writeback === 'duplicate') return;
     let outputWriteStage: OutputWriteStage = 'creates';
 
     try {
@@ -4725,6 +4773,7 @@ async function applyTaskReport(
       outputWriteStage = 'comments';
       await writeTaskCommentsToIssue(
         preparedReport.outputWritePlan.issueComments,
+        task.queuedAt,
         onesContext
       );
       finalLogs = appendLogMessage(
@@ -5008,6 +5057,11 @@ async function applyTaskReport(
 
   const mergedLogs = mergeLogHistory(task.logs, finalLogs);
 
+  if (report.status === 'failure') {
+    const writeback = await beginWriteback(teamUUID, report, exchangeAt);
+    if (writeback === 'duplicate') return;
+  }
+
   await updateIssueAgentExecutionHistory(
     {
       uuid: task.uuid,
@@ -5029,6 +5083,13 @@ async function applyTaskReport(
     },
     teamUUID
   );
+
+  if (
+    (report.status === 'success' && finalStatus === 'success') ||
+    report.status === 'failure'
+  ) {
+    await completeWriteback(teamUUID, report, exchangeAt);
+  }
 
   if (
     shouldSendTaskStartedComment(task.status, finalStatus) &&
@@ -5065,10 +5126,20 @@ export function selectNextDispatchableTask(
 
 async function resolveAgentTaskBindings(
   agentUUID: string,
+  executeOption: unknown,
   teamUUID: string,
   cache: AgentTaskBindingsCache
 ): Promise<AgentTaskBindings> {
-  const cached = cache.get(agentUUID);
+  const snapshot =
+    executeOption && typeof executeOption === 'object' && !Array.isArray(executeOption)
+      ? (executeOption as Record<string, unknown>).runtimeSnapshot
+      : null;
+  const snapshotRecord =
+    snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)
+      ? (snapshot as Record<string, unknown>)
+      : null;
+  const cacheKey = `${agentUUID}:${JSON.stringify(snapshotRecord ?? {})}`;
+  const cached = cache.get(cacheKey);
 
   if (cached) {
     return cached;
@@ -5082,33 +5153,68 @@ async function resolveAgentTaskBindings(
       skillUUIDs: [],
       readableEnvKeys: []
     };
-    cache.set(agentUUID, emptyBindings);
+    cache.set(cacheKey, emptyBindings);
     return emptyBindings;
   }
 
   let sourceWorkspace: AgentClientTask['sourceWorkspace'] = null;
   let readableEnvKeys: string[] = [];
 
-  if (agent.workspaceUUID) {
+  const snapshotWorkspaceUUID =
+    typeof snapshotRecord?.workspaceUUID === 'string'
+      ? snapshotRecord.workspaceUUID
+      : null;
+  const workspaceUUID = snapshotRecord ? snapshotWorkspaceUUID : agent.workspaceUUID;
+  if (workspaceUUID) {
     const workspace = await findAgentWorkspaceByUUID(
-      agent.workspaceUUID,
+      workspaceUUID,
       teamUUID
     );
-    const credentials = await listWorkspaceCredentialsByWorkspaceUUID(
-      agent.workspaceUUID,
+    if (snapshotRecord && !workspace) {
+      throw new Error(`Runtime snapshot workspace not found: ${workspaceUUID}`);
+    }
+    const workspaceCredentials = await listWorkspaceCredentialsByWorkspaceUUID(
+      workspaceUUID,
       teamUUID
     );
-    readableEnvKeys = credentials.map((credential) => credential.envName);
+    readableEnvKeys = Array.isArray(snapshotRecord?.envNames)
+      ? snapshotRecord.envNames.filter(
+          (envName): envName is string => typeof envName === 'string'
+        )
+      : workspaceCredentials.map((credential) => credential.envName);
+    if (snapshotRecord) {
+      const availableEnvNames = new Set(
+        workspaceCredentials.map((credential) => credential.envName)
+      );
+      const missingEnvName = readableEnvKeys.find(
+        (envName) => !availableEnvNames.has(envName)
+      );
+      if (missingEnvName) {
+        throw new Error(
+          `Runtime snapshot credential not found: ${workspaceUUID} ${missingEnvName}`
+        );
+      }
+    }
 
     if (workspace) {
-      const repositories = await listRepositoriesByAgentWorkspaceUUID(
-        agent.workspaceUUID,
-        teamUUID
-      );
+      const snapshotRepositories = Array.isArray(snapshotRecord?.repositories)
+        ? snapshotRecord.repositories.flatMap((item) =>
+            item && typeof item === 'object' && !Array.isArray(item) &&
+            typeof (item as Record<string, unknown>).uuid === 'string' &&
+            typeof (item as Record<string, unknown>).url === 'string'
+              ? [{
+                  uuid: String((item as Record<string, unknown>).uuid),
+                  url: String((item as Record<string, unknown>).url)
+                }]
+              : []
+          )
+        : null;
+      const repositories = snapshotRepositories ??
+        (await listRepositoriesByAgentWorkspaceUUID(workspaceUUID, teamUUID));
       sourceWorkspace = {
-        uuid: agent.workspaceUUID,
+        uuid: workspaceUUID,
         name: workspace.name,
-        auth: await getAgentWorkspaceCloneAuth(agent.workspaceUUID, teamUUID),
+        auth: await getAgentWorkspaceCloneAuth(workspaceUUID, teamUUID),
         repositories: repositories.map((repository) => ({
           uuid: repository.uuid,
           url: repository.url
@@ -5119,10 +5225,17 @@ async function resolveAgentTaskBindings(
 
   const bindings: AgentTaskBindings = {
     sourceWorkspace,
-    skillUUIDs: [...agent.skillUUIDs],
+    skillUUIDs: Array.isArray(snapshotRecord?.skills)
+      ? snapshotRecord.skills.flatMap((item) =>
+          item && typeof item === 'object' && !Array.isArray(item) &&
+          typeof (item as Record<string, unknown>).uuid === 'string'
+            ? [String((item as Record<string, unknown>).uuid)]
+            : []
+        )
+      : [...agent.skillUUIDs],
     readableEnvKeys
   };
-  cache.set(agentUUID, bindings);
+  cache.set(cacheKey, bindings);
   return bindings;
 }
 
@@ -5130,16 +5243,47 @@ async function toAgentClientTask(
   task:
     | IssueAgentExecutionHistoryRecord
     | IssueAgentExecutionHistoryWithExecutionRecord,
-  bindings: AgentTaskBindings
+  bindings: AgentTaskBindings,
+  capabilities: ReadonlySet<AgentClientCapability>
 ): Promise<AgentClientTask> {
+  const option =
+    task.executeOption && typeof task.executeOption === 'object' &&
+    !Array.isArray(task.executeOption)
+      ? (task.executeOption as Record<string, unknown>)
+      : {};
+  const snapshot =
+    option.runtimeSnapshot && typeof option.runtimeSnapshot === 'object' &&
+    !Array.isArray(option.runtimeSnapshot)
+      ? (option.runtimeSnapshot as Record<string, unknown>)
+      : null;
+  const skillRefs = capabilities.has('skill-version-pinning-v1') &&
+    Array.isArray(snapshot?.skills)
+    ? snapshot.skills.flatMap((item) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+        const record = item as Record<string, unknown>;
+        if (typeof record.uuid !== 'string' || typeof record.version !== 'number') return [];
+        return [{
+          uuid: record.uuid,
+          version: record.version,
+          downloadPath: `/api/agent-clients/skills/${record.uuid}/versions/${record.version}/download`
+        }];
+      })
+    : undefined;
   return {
     taskUUID: task.uuid,
+    claimToken: capabilities.has('task-lease-v1') &&
+      task.executeOption && typeof task.executeOption === 'object' &&
+      !Array.isArray(task.executeOption) &&
+      typeof (task.executeOption as Record<string, unknown>).claimToken === 'string'
+        ? String((task.executeOption as Record<string, unknown>).claimToken)
+        : undefined,
     agent: {
       uuid: task.agentUUID,
       name: task.agentName
     },
     sourceWorkspace: bindings.sourceWorkspace,
     skillUUIDs: bindings.skillUUIDs,
+    skillRefs,
     executeOption:
       typeof task.executeOption === 'object' &&
       task.executeOption !== null &&
@@ -5158,7 +5302,8 @@ async function dispatchTasks(
   agentConfigCache: AgentConfigCache,
   agentTaskBindingsCache: AgentTaskBindingsCache,
   exchangeAt: Date,
-  teamUUID: string
+  teamUUID: string,
+  capabilities: ReadonlySet<AgentClientCapability>
 ): Promise<AgentClientTask[]> {
   if (availableSlots <= 0) {
     return [];
@@ -5223,13 +5368,59 @@ async function dispatchTasks(
       !Array.isArray(nextTask.executeOption)
         ? (nextTask.executeOption as Record<string, unknown>)
         : {}),
-      ...getTaskExecuteOptionMetadata(agentConfig)
+      ...getTaskExecuteOptionMetadata(agentConfig),
+      ...(capabilities.has('task-lease-v1')
+        ? { claimToken: randomUUID() }
+        : {})
     };
-    const bindings = await resolveAgentTaskBindings(
-      nextTask.agentUUID,
-      teamUUID,
-      agentTaskBindingsCache
-    );
+    let bindings: AgentTaskBindings;
+    try {
+      bindings = await resolveAgentTaskBindings(
+        nextTask.agentUUID,
+        nextTask.executeOption,
+        teamUUID,
+        agentTaskBindingsCache
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error(
+        '[agent-client-exchange] blocked task because runtime snapshot bindings are unavailable',
+        {
+          issueExecutionUUID: issueExecution.uuid,
+          taskUUID: nextTask.uuid,
+          agentUUID: nextTask.agentUUID,
+          error: message
+        }
+      );
+      await updateIssueAgentExecutionHistory(
+        {
+          uuid: nextTask.uuid,
+          status: 'blocked',
+          logs: appendLogMessage(
+            nextTask.logs,
+            `[system] blocked because runtime snapshot bindings are unavailable: ${message}`
+          ),
+          executeResult: toJsonObject(
+            nextTask.executeResult && typeof nextTask.executeResult === 'object' &&
+            !Array.isArray(nextTask.executeResult)
+              ? (nextTask.executeResult as Record<string, unknown>)
+              : {}
+          ),
+          executeClientUUID: null,
+          executeClientName: null,
+          lastReportedAt: exchangeAt,
+          finishedAt: exchangeAt
+        },
+        teamUUID
+      );
+      await refreshIssueExecutionAggregate(
+        issueExecution.uuid,
+        workflowNodeMap,
+        'runtime_snapshot_unavailable',
+        teamUUID
+      );
+      continue;
+    }
     let executePayload: Record<string, unknown>;
     let inputContextXml: string;
     let wikiInputsXml = '<wiki-inputs />';
@@ -5389,7 +5580,7 @@ async function dispatchTasks(
       teamUUID
     );
     tasks.push(
-      await toAgentClientTask(queuedTask, bindings)
+      await toAgentClientTask(queuedTask, bindings, capabilities)
     );
   }
 
@@ -5413,6 +5604,60 @@ async function getWorkflowNodeMap(
 
   cache.set(teamUUID, workflowNodeMap);
   return workflowNodeMap;
+}
+
+async function recoverStaleTasks(
+  teamUUID: string,
+  now: Date,
+  workflowNodeMap: WorkflowNodeMap
+): Promise<void> {
+  const executions = await listRunnableIssueExecutionHistories(teamUUID);
+  for (const execution of executions) {
+    for (const task of execution.agentExecutions) {
+      if (task.status !== 'queued' && task.status !== 'running') continue;
+      const heartbeat = task.lastReportedAt ?? task.queuedAt ?? task.createdAt;
+      if (now.getTime() - heartbeat.getTime() < env.AGENT_TASK_STALE_AFTER_MS) continue;
+      const journal = await readWritebackJournal(teamUUID, task.uuid);
+      const option =
+        task.executeOption && typeof task.executeOption === 'object' &&
+        !Array.isArray(task.executeOption)
+          ? (task.executeOption as Record<string, unknown>)
+          : {};
+      const nextOption = { ...option };
+      delete nextOption.claimToken;
+      const blocked = journal?.state === 'in_progress';
+      await updateIssueAgentExecutionHistory(
+        {
+          uuid: task.uuid,
+          status: blocked ? 'blocked' : 'created',
+          logs: appendLogMessage(
+            task.logs,
+            blocked
+              ? '[system] blocked stale task because write-back outcome is unknown'
+              : '[system] recovered stale task for a new claim'
+          ),
+          executeOption: toJsonObject(nextOption),
+          executeResult: toJsonObject(
+            task.executeResult && typeof task.executeResult === 'object' &&
+            !Array.isArray(task.executeResult)
+              ? (task.executeResult as Record<string, unknown>)
+              : {}
+          ),
+          executeClientUUID: null,
+          executeClientName: null,
+          lastReportedAt: now,
+          finishedAt: blocked ? now : null
+        },
+        teamUUID
+      );
+      await refreshIssueExecutionAggregate(
+        execution.uuid,
+        workflowNodeMap,
+        blocked ? 'writeback_state_unknown' : null,
+        teamUUID
+      );
+    }
+  }
 }
 
 export async function reportAgentClientTasks(
@@ -5440,12 +5685,28 @@ export async function reportAgentClientTasks(
   const agentConfigCache: AgentConfigCache = new Map();
 
   for (const report of request.reports) {
+    if ((report.verificationResults?.length ?? 0) > 0 || report.workspacePatch) {
+      logger.warn('[agent-client-exchange] ignored retired verification payload', {
+        taskUUID: report.taskUUID,
+        clientUUID: client.uuid,
+        verificationResultCount: report.verificationResults?.length ?? 0,
+        hasWorkspacePatch: Boolean(report.workspacePatch)
+      });
+    }
     const teamUUID = await findIssueAgentExecutionHistoryTeamUUID(
       report.taskUUID
     );
 
     if (!teamUUID) {
       throw new InvalidAgentClientTaskReportError(report.taskUUID);
+    }
+
+    if (report.status === 'success' || report.status === 'failure') {
+      const journal = await readWritebackJournal(teamUUID, report.taskUUID);
+      if (journal?.state === 'completed') {
+        if (journal.reportHash === hashTaskReport(report)) continue;
+        throw new TaskReportConflictError(report.taskUUID);
+      }
     }
 
     const workflowNodeMap = await getWorkflowNodeMap(
@@ -5493,6 +5754,19 @@ export async function claimAgentClientTasks(
   const agentConfigCache: AgentConfigCache = new Map();
   const agentTaskBindingsCache: AgentTaskBindingsCache = new Map();
   const tasks: AgentClientTask[] = [];
+  const capabilities = new Set(request.capabilities);
+  if (!capabilities.has('task-lease-v1')) {
+    logger.warn('[agent-client-exchange] client uses legacy task claim semantics', {
+      clientUUID: client.uuid,
+      clientVersion: client.version
+    });
+  }
+  if (!capabilities.has('skill-version-pinning-v1')) {
+    logger.warn('[agent-client-exchange] client does not support pinned Skill versions', {
+      clientUUID: client.uuid,
+      clientVersion: client.version
+    });
+  }
   const teamUUIDs = await listWorkflowTeamUUIDs();
 
   for (const teamUUID of teamUUIDs) {
@@ -5504,6 +5778,7 @@ export async function claimAgentClientTasks(
       teamUUID,
       workflowNodeMapCache
     );
+    await recoverStaleTasks(teamUUID, exchangeAt, workflowNodeMap);
     const remainingSlots = request.availableSlots - tasks.length;
     const teamTasks = await dispatchTasks(
       remainingSlots,
@@ -5513,7 +5788,8 @@ export async function claimAgentClientTasks(
       agentConfigCache,
       agentTaskBindingsCache,
       exchangeAt,
-      teamUUID
+      teamUUID,
+      capabilities
     );
 
     tasks.push(...teamTasks);
@@ -5532,6 +5808,10 @@ export async function claimOrganizationModelTasks(input: {
   const agentConfigCache: AgentConfigCache = new Map();
   const agentTaskBindingsCache: AgentTaskBindingsCache = new Map();
   const tasks: AgentClientTask[] = [];
+  const capabilities = new Set<AgentClientCapability>([
+    'task-lease-v1',
+    'skill-version-pinning-v1'
+  ]);
   const teamUUIDs = await listWorkflowTeamUUIDs();
 
   for (const teamUUID of teamUUIDs) {
@@ -5543,6 +5823,7 @@ export async function claimOrganizationModelTasks(input: {
       teamUUID,
       workflowNodeMapCache
     );
+    await recoverStaleTasks(teamUUID, exchangeAt, workflowNodeMap);
     const teamTasks = await dispatchTasks(
       input.availableSlots - tasks.length,
       ORGANIZATION_MODEL_EXECUTOR,
@@ -5551,7 +5832,8 @@ export async function claimOrganizationModelTasks(input: {
       agentConfigCache,
       agentTaskBindingsCache,
       exchangeAt,
-      teamUUID
+      teamUUID,
+      capabilities
     );
     tasks.push(...teamTasks);
   }
@@ -5583,16 +5865,38 @@ export async function getAgentClientTaskRuntimeEnv(
     );
   }
 
+  const option =
+    task.executeOption && typeof task.executeOption === 'object' &&
+    !Array.isArray(task.executeOption)
+      ? (task.executeOption as Record<string, unknown>)
+      : {};
+  const snapshot =
+    option.runtimeSnapshot && typeof option.runtimeSnapshot === 'object' &&
+    !Array.isArray(option.runtimeSnapshot)
+      ? (option.runtimeSnapshot as Record<string, unknown>)
+      : null;
   const agent = await findAgentByUUID(task.agentUUID, teamUUID);
+  const workspaceUUID =
+    typeof snapshot?.workspaceUUID === 'string'
+      ? snapshot.workspaceUUID
+      : agent?.workspaceUUID;
 
-  if (!agent?.workspaceUUID) {
+  if (!workspaceUUID) {
     return {
       env: {}
     };
   }
 
   return {
-    env: await getAgentWorkspaceRuntimeEnv(agent.workspaceUUID, teamUUID)
+    env: await getAgentWorkspaceRuntimeEnv(
+      workspaceUUID,
+      teamUUID,
+      Array.isArray(snapshot?.envNames)
+        ? snapshot.envNames.filter(
+            (envName): envName is string => typeof envName === 'string'
+          )
+        : undefined
+    )
   };
 }
 

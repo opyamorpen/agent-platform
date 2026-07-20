@@ -76,6 +76,10 @@ export const zhCN = {
       'workflows.node_not_found': '未找到对应的执行节点。',
       'workflows.node_executor_invalid':
         '工作流节点绑定的执行 Agent 配置无效。',
+      'workflows.configuration_invalid':
+        '工作流包含配置异常的节点，请重新编辑并保存后再启用。',
+      'workflows.node_config_too_large':
+        '工作流节点配置超过存储上限，请缩短名称后重试。',
       'workflows.deletion_blocked':
         '工作流下仍有执行节点，请先删除执行节点后再删除工作流。',
       'agents.invalid_payload': 'Agent 请求参数无效。',
@@ -160,7 +164,6 @@ export const zhCN = {
       agentClients: 'Agent Client',
       loopRuntimeConfig: '循环工程',
       assetOptimizations: '资产优化',
-      workspaceVerificationProfiles: '工作区验证',
       aiModelConfig: 'AI 模型配置',
       members: '成员管理'
     }
@@ -310,9 +313,7 @@ export const zhCN = {
         viewOutput: '查看输出',
         retry: '重置',
         refreshLogs: '刷新日志',
-        downloadLogs: '下载日志',
-        viewVerification: '验证结果',
-        downloadPatch: '下载 Patch'
+        downloadLogs: '下载日志'
       },
       states: {
         logsRefreshing: '刷新中...',
@@ -345,13 +346,6 @@ export const zhCN = {
       logsDialog: {
         titleWithAgent: '{{name}} 执行日志',
         titleFallback: '执行日志'
-      },
-      verificationDialog: {
-        title: '代码验证结果',
-        step: '步骤',
-        status: '结果',
-        duration: '耗时',
-        output: '输出'
       },
       rawDialog: {
         titleInputWithAgent: '{{name}} 原始输入',
@@ -460,7 +454,6 @@ export const zhCN = {
       agentClientsLoadFailed: 'Agent Client 列表加载失败',
       skillsLoadFailed: '技能列表加载失败',
       knowledgeSourcesLoadFailed: '知识源列表加载失败',
-      verificationProfilesLoadFailed: '代码验证配置加载失败',
       wikiSpacesLoadFailed: 'Wiki 页面组列表加载失败',
       executorSearchFailed: '执行身份搜索失败',
       basicConfigSaveFailed: '保存 Agent 基础配置失败',
@@ -597,13 +590,7 @@ export const zhCN = {
         knowledgeRequirement: '知识依据要求',
         knowledgeOptional: '知识可选',
         knowledgeRequired: '知识必需',
-        verificationProfiles: '代码验证配置',
-        verificationProfilesPlaceholder: '选择当前工作区的验证配置',
-        verificationProfilesEmpty: '当前工作区没有可用验证配置',
-        verificationProfilesHelp:
-          'Agent 执行后将按顺序运行所选验证步骤，全部通过后才进入业务验收。',
-        verificationProfilesWorkspaceRequired: '请先在基础信息中选择工作区。',
-        empty: '尚未配置业务验收标准。仍可仅使用代码验证配置启用自动修正循环。',
+        empty: '尚未配置业务验收标准。',
         namePlaceholder: '验收标准 {{index}}',
         descriptionPlaceholder: '描述可验证的通过条件和质量要求'
       },
@@ -622,36 +609,6 @@ export const zhCN = {
         publishing: '发布中...',
         confirm: '确认发布'
       }
-    },
-    verificationProfiles: {
-      title: '工作区验证',
-      description:
-        '为代码工作区配置确定性的测试、类型检查和构建步骤。命令使用可执行文件和参数运行，不经过 Shell。',
-      loadFailed: '验证配置加载失败',
-      workspacesLoadFailed: '工作区加载失败',
-      saveFailed: '验证配置保存失败',
-      saveSuccess: '验证配置已保存',
-      deleteFailed: '验证配置删除失败',
-      deleteSuccess: '验证配置已删除',
-      deleteConfirm: '确认删除验证配置“{{name}}”吗？',
-      validationRequired: '请填写名称、工作区并至少配置一个验证步骤。',
-      validationStepRequired:
-        '每个验证步骤都必须填写名称、代码仓和可执行文件。',
-      create: '新建验证配置',
-      createTitle: '新建工作区验证配置',
-      editTitle: '编辑工作区验证配置',
-      empty: '尚未配置工作区验证。',
-      name: '名称',
-      workspace: '工作区',
-      steps: '验证步骤',
-      actions: '操作',
-      addStep: '添加步骤',
-      stepName: '步骤名称',
-      repository: '代码仓',
-      workingDirectory: '仓内工作目录',
-      executable: '可执行文件',
-      args: '参数（每行一个）',
-      timeout: '超时（秒）'
     },
     members: {
       loadFailed: '成员列表加载失败',
@@ -1065,6 +1022,7 @@ export const zhCN = {
         postAction: '成功后置动作',
         transitionTo: '流转到「{{status}}」',
         missingPostAction: '未配置，编辑时需补齐',
+        configurationError: '节点配置异常，请重新编辑并保存',
         revisionContext: '返工上下文',
         revisionEnabled: '已启用',
         revisionDisabled: '未启用',

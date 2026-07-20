@@ -30,11 +30,16 @@ import {
   getSelectableAgentClients,
   InvalidAgentClientConnectionRequestError,
   InvalidAgentClientTaskReportError,
+  StaleAgentClientTaskClaimError,
   pollAgentClientConnection,
   reportAgentClientTasks,
   stageAgentClientTaskAttachments,
   revokeAgentClientConnection
 } from './service.js';
+import {
+  TaskReportConflictError,
+  WritebackStateUnknownError
+} from './writeback-journal.js';
 
 const logger = getLogger('agent-clients-controller');
 
@@ -220,6 +225,27 @@ export async function reportAgentClientTasksHandler(c: Context) {
         error: error.message
       });
       return c.json(failure(error.message), 400);
+    }
+
+    if (error instanceof TaskReportConflictError) {
+      return c.json(
+        failure(error.message, 'agent_clients.report_conflict'),
+        409
+      );
+    }
+
+    if (error instanceof StaleAgentClientTaskClaimError) {
+      return c.json(
+        failure(error.message, 'agent_clients.stale_task_claim'),
+        409
+      );
+    }
+
+    if (error instanceof WritebackStateUnknownError) {
+      return c.json(
+        failure(error.message, 'agent_clients.writeback_state_unknown'),
+        409
+      );
     }
 
     throw error;

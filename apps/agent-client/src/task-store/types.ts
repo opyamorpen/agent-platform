@@ -14,6 +14,7 @@ export interface TaskStoreService {
   listRunnableTasks(): AgentClientTask[];
   getLatestReports(): AgentClientTaskReport[];
   markTaskReported(taskUUID: string): void;
+  markTaskReportBlocked(taskUUID: string, error: string): void;
   removeTasks(taskUUIDs: string[]): void;
   deferTask(
     taskUUID: string,

@@ -32,7 +32,8 @@ test('TaskServerService claims tasks after ensuring authentication', async () =>
         assert.equal(serverBaseUrl, 'http://server.test');
         assert.equal(accessToken, 'access-token');
         assert.deepEqual(request, {
-          availableSlots: 3
+          availableSlots: 3,
+          capabilities: ['task-lease-v1', 'skill-version-pinning-v1']
         });
 
         return {

@@ -157,7 +157,24 @@ function assertHostedStorageEnabled(): void {
 }
 
 function isHostedObjectError(value: unknown): value is HostedObjectError {
-  return value instanceof storage.object.ObjectError;
+  return (
+    value instanceof storage.object.ObjectError ||
+    Boolean(
+      value &&
+        typeof value === 'object' &&
+        typeof (value as { code?: unknown }).code === 'string'
+    )
+  );
+}
+
+function isHostedObjectNotFound(value: HostedObjectError): boolean {
+  const code = value.code ?? '';
+  return (
+    code === storage.object.ObjectErrorCode.ObjectNotFound ||
+    code === 'ObjectKeyNotfound' ||
+    code === 'ObjectKeyNotFound' ||
+    code === 'OBJECT_NOT_FOUND'
+  );
 }
 
 export function createEntityStore<T extends object>(
@@ -187,7 +204,6 @@ export function createEntityStore<T extends object>(
         logger.error('[hosted-storage] entity set failed', {
           entityName,
           key,
-          value,
           error
         });
         throw error;
@@ -327,7 +343,6 @@ export async function uploadObjectBuffer(
       key,
       resolvedKey,
       contentType,
-      uploadUrl,
       error
     });
     throw error;
@@ -338,7 +353,6 @@ export async function uploadObjectBuffer(
       key,
       resolvedKey,
       contentType,
-      uploadUrl,
       status: response.status,
       statusText: response.statusText
     });
@@ -382,7 +396,7 @@ export async function getObjectDownloadUrl(key: string): Promise<string | null> 
   const downloadResult = await storage.object.download(resolvedKey);
 
   if (isHostedObjectError(downloadResult)) {
-    if (downloadResult.code === storage.object.ObjectErrorCode.ObjectNotFound) {
+    if (isHostedObjectNotFound(downloadResult)) {
       return null;
     }
 
@@ -402,7 +416,7 @@ export async function openObjectStream(key: string): Promise<{
   const metadata = await storage.object.metadata(resolvedKey);
 
   if (isHostedObjectError(metadata)) {
-    if (metadata.code === storage.object.ObjectErrorCode.ObjectNotFound) {
+    if (isHostedObjectNotFound(metadata)) {
       return null;
     }
 
@@ -412,7 +426,7 @@ export async function openObjectStream(key: string): Promise<{
   const downloadResult = await storage.object.download(resolvedKey);
 
   if (isHostedObjectError(downloadResult)) {
-    if (downloadResult.code === storage.object.ObjectErrorCode.ObjectNotFound) {
+    if (isHostedObjectNotFound(downloadResult)) {
       return null;
     }
 

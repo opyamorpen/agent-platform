@@ -18,11 +18,13 @@ import {
   removeWorkflowNode,
   updateWorkflow,
   updateWorkflowNode,
+  WorkflowConfigurationInvalidError,
   WorkflowDeletionBlockedError,
   WorkflowNodeExecutorInvalidError,
   WorkflowNodeNotFoundError,
   WorkflowNotFoundError
 } from './service.js';
+import { WorkflowNodeConfigurationTooLargeError } from './repository.js';
 
 const logger = getLogger('workflows.controller');
 
@@ -121,6 +123,13 @@ export async function updateWorkflowHandler(c: Context) {
       return c.json(failure(error.message, 'workflows.not_found'), 404);
     }
 
+    if (error instanceof WorkflowConfigurationInvalidError) {
+      return c.json(
+        failure(error.message, 'workflows.configuration_invalid'),
+        409
+      );
+    }
+
     throw error;
   }
 }
@@ -217,6 +226,13 @@ export async function createWorkflowNodeHandler(c: Context) {
       );
     }
 
+    if (error instanceof WorkflowNodeConfigurationTooLargeError) {
+      return c.json(
+        failure(error.message, 'workflows.node_config_too_large'),
+        400
+      );
+    }
+
     throw error;
   }
 }
@@ -253,6 +269,13 @@ export async function updateWorkflowNodeHandler(c: Context) {
     if (error instanceof WorkflowNodeExecutorInvalidError) {
       return c.json(
         failure(error.message, 'workflows.node_executor_invalid'),
+        400
+      );
+    }
+
+    if (error instanceof WorkflowNodeConfigurationTooLargeError) {
+      return c.json(
+        failure(error.message, 'workflows.node_config_too_large'),
         400
       );
     }
